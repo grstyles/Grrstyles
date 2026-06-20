@@ -1,0 +1,131 @@
+.section {
+  padding: 6rem 0;
+  background-color: #faf9f6;
+}
+
+.container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 4rem;
+}
+
+.title {
+  font-family: 'Playfair Display', serif;
+  font-size: 3rem;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 1rem;
+}
+
+.subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  color: #666;
+}
+
+.filterBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 100px;
+  margin-bottom: 3rem;
+  position: sticky;
+  top: 80px;
+  z-index: 30;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+}
+
+.categories {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+}
+
+.categories::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+.filterBtn {
+  background: transparent;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #555;
+  padding: 0.5rem 1.25rem;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.filterBtn:hover {
+  color: #111;
+}
+
+.activeFilter {
+  background-color: #111;
+  color: #fff;
+}
+
+.activeFilter:hover {
+  color: #fff;
+}
+
+.sortSelect {
+  background: transparent;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #111;
+  cursor: pointer;
+  outline: none;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2rem;
+}
+
+@media (max-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .filterBar {
+    flex-direction: column;
+    gap: 1rem;
+    border-radius: 1rem;
+    padding: 1rem;
+  }
+  
+  .categories {
+    width: 100%;
+    padding-bottom: 0.5rem;
+  }
+  
+  .sortOptions {
+    width: 100%;
+    border-top: 1px solid #eaeaea;
+    padding-top: 0.5rem;
+  }
+  
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

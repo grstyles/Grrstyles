@@ -1,0 +1,135 @@
+.section {
+  padding: 6rem 0;
+  background-color: #fff;
+  overflow: hidden;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 4rem;
+  padding: 0 2rem;
+}
+
+.title {
+  font-family: 'Playfair Display', serif;
+  font-size: 3rem;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 1rem;
+}
+
+.subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  color: #666;
+}
+
+.carouselWrapper {
+  width: 100%;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.carouselWrapper:active {
+  cursor: grabbing;
+}
+
+.carouselTrack {
+  display: flex;
+  gap: 3rem;
+  padding: 1rem 4rem;
+  width: max-content;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  text-decoration: none;
+}
+
+/* LARGER ICON SIZE - Change these values */
+.imageContainer {
+  width: 280px;  /* ← Increase this number for larger icons */
+  height: 280px; /* ← Increase this number for larger icons */
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
+  background-color: #f4f1ea;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* or 'contain' if you don't want cropping */
+  transition: transform 0.6s ease;
+}
+
+.card:hover .imageContainer {
+  transform: translateY(-8px) scale(1.05);
+  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
+}
+
+.card:hover .image {
+  transform: scale(1.1);
+}
+
+.cardTitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: color 0.3s ease;
+}
+
+.card:hover .cardTitle {
+  color: #d4af37;
+}
+
+/* Adjust gap and padding for larger icons */
+@media (max-width: 1024px) {
+  .imageContainer {
+    width: 220px;
+    height: 220px;
+  }
+  
+  .carouselTrack {
+    gap: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .title {
+    font-size: 2.2rem;
+  }
+  
+  /* Larger mobile size */
+  .imageContainer {
+    width: 180px;  /* Increased from default */
+    height: 180px;
+  }
+  
+  .carouselTrack {
+    gap: 1.5rem;
+    padding: 1rem 2rem;
+  }
+  
+  .cardTitle {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .imageContainer {
+    width: 150px;
+    height: 150px;
+  }
+  
+  .carouselTrack {
+    gap: 1rem;
+  }
+}

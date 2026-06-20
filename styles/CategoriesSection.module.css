@@ -1,0 +1,8 @@
+/* CategoriesSection.module.css */
+.imageContainer {
+  width: 360px !important;  /* Add !important to force the change */
+  height: 360px !important;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: #f4f1ea;
+}

@@ -1,0 +1,128 @@
+import { createSlice, PayloadAction, current } from '@reduxjs/toolkit';
+
+export interface CartItem {
+  id: string;
+  slug: string;
+  title: string;
+  brand: string;
+  price: number;
+  discountedPrice: number;
+  image: string;
+  quantity: number;
+  size?: string;
+  color?: string;
+}
+
+interface CartState {
+  items: CartItem[];
+  total: number;
+  discountPercent: number;
+  appliedPromo: string;
+}
+
+const initialState: CartState = {
+  items: [],
+  total: 0,
+  discountPercent: 0,
+  appliedPromo: '',
+};
+
+const cartSlice = createSlice({
+  name: 'cart',
+  initialState,
+  reducers: {
+    addToCart: (state, action: PayloadAction<CartItem>) => {
+      console.log('Redux Action: cart/addToCart');
+      console.log('Product data received:', action.payload);
+      console.log('Cart state before update:', current(state));
+
+      const existingItem = state.items.find(
+        (item) =>
+          item.id === action.payload.id &&
+          item.size === action.payload.size &&
+          item.color === action.payload.color
+      );
+
+      if (existingItem) {
+        existingItem.quantity += action.payload.quantity;
+      } else {
+        state.items.push(action.payload);
+      }
+
+      state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+      console.log('Cart state after update:', current(state));
+    },
+    removeFromCart: (state, action: PayloadAction<{ id: string; size?: string; color?: string }>) => {
+      console.log('Redux Action: cart/removeFromCart');
+      console.log('Remove details received:', action.payload);
+      console.log('Cart state before update:', current(state));
+
+      state.items = state.items.filter(
+        (item) =>
+          !(
+            item.id === action.payload.id &&
+            item.size === action.payload.size &&
+            item.color === action.payload.color
+          )
+      );
+
+      state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+      console.log('Cart state after update:', current(state));
+    },
+    updateQuantity: (
+      state,
+      action: PayloadAction<{ id: string; size?: string; color?: string; quantity: number }>
+    ) => {
+      console.log('Redux Action: cart/updateQuantity');
+      console.log('Update details received:', action.payload);
+      console.log('Cart state before update:', current(state));
+
+      const item = state.items.find(
+        (item) =>
+          item.id === action.payload.id &&
+          item.size === action.payload.size &&
+          item.color === action.payload.color
+      );
+
+      if (item) {
+        item.quantity = action.payload.quantity;
+        state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+      }
+
+      console.log('Cart state after update:', current(state));
+    },
+    clearCart: (state) => {
+      console.log('Redux Action: cart/clearCart');
+      console.log('Cart state before update:', current(state));
+
+      state.items = [];
+      state.total = 0;
+      state.discountPercent = 0;
+      state.appliedPromo = '';
+
+      console.log('Cart state after update:', current(state));
+    },
+    hydrateCart: (state, action: PayloadAction<CartItem[]>) => {
+      console.log('Redux Action: cart/hydrateCart');
+      console.log('Hydration data received:', action.payload);
+      console.log('Cart state before update:', current(state));
+
+      state.items = action.payload;
+      state.total = action.payload.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+
+      console.log('Cart state after update:', current(state));
+    },
+    applyPromo: (state, action: PayloadAction<{ code: string; percent: number }>) => {
+      state.discountPercent = action.payload.percent;
+      state.appliedPromo = action.payload.code;
+    },
+    removePromo: (state) => {
+      state.discountPercent = 0;
+      state.appliedPromo = '';
+    },
+  },
+});
+
+export const { addToCart, removeFromCart, updateQuantity, clearCart, hydrateCart, applyPromo, removePromo } = cartSlice.actions;
+export default cartSlice.reducer;
+
