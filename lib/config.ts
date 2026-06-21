@@ -5,15 +5,13 @@
  * UI and feature code must import from here — never process.env.
  */
 
-const env = process.env;
-
-export const SUPABASE_URL = (env.NEXT_PUBLIC_SUPABASE_URL || '').trim().replace(/\/rest\/v1\/?$/, '');
-export const SUPABASE_ANON_KEY = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-export const RAZORPAY_KEY_ID = env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_demo_placeholder';
+export const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim().replace(/\/rest\/v1\/?$/, '');
+export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+export const RAZORPAY_KEY_ID = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_demo_placeholder';
 export const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 export const ADMIN_ID = 'demo-admin-001';
-export const IS_PRODUCTION = env.NODE_ENV === 'production';
+export const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 export const IS_SUPABASE_CONFIGURED = Boolean(
   SUPABASE_URL &&
@@ -23,9 +21,9 @@ export const IS_SUPABASE_CONFIGURED = Boolean(
 );
 
 export const IS_RAZORPAY_CONFIGURED = Boolean(
-  env.NEXT_PUBLIC_RAZORPAY_KEY_ID &&
-  !env.NEXT_PUBLIC_RAZORPAY_KEY_ID.toLowerCase().includes('demo') &&
-  !env.NEXT_PUBLIC_RAZORPAY_KEY_ID.toLowerCase().includes('placeholder')
+  process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID &&
+  !process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID.toLowerCase().includes('demo') &&
+  !process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID.toLowerCase().includes('placeholder')
 );
 
 export const IS_DEMO_MODE = !IS_SUPABASE_CONFIGURED;
