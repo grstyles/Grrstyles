@@ -94,22 +94,21 @@ export class SupabaseProductRepository implements IProductRepository {
     console.log('Using Provider: Supabase');
     try {
       const mapped = {
+        sku: product.sku || `GR-${product.category.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`,
         name: product.name,
         slug: product.slug ? normalizeSlug(product.slug) : normalizeSlug(product.name || product.title),
         category: normalizeCategory(product.category),
         collection: product.collection ? normalizeCollection(product.collection) : '',
-        color: product.color,
         images: product.images,
         sizes: product.sizes,
-        mrp_price: product.mrpPrice,
+        stock: product.sizes?.reduce((sum: number, s: any) => sum + (s.stock || 0), 0) || 0,
+        mrp: product.mrpPrice,
         selling_price: product.sellingPrice,
-        discount_percent: product.discountPercent || 0,
-        label: product.label || '',
         description: product.description,
         brand: product.brand || 'GR STYLES',
         new_arrival: product.isNew || false,
         trending: product.bestSeller || false,
-        deal_of_the_day: product.metadata?.dealOfDay || false,
+        deal_of_day: product.metadata?.dealOfDay || false,
         featured: product.metadata?.featured || false,
       };
       const { data, error } = await supabase!
@@ -134,14 +133,17 @@ export class SupabaseProductRepository implements IProductRepository {
       if (updates.category) mapped.category = normalizeCategory(updates.category);
       if (updates.collection !== undefined) mapped.collection = updates.collection ? normalizeCollection(updates.collection) : '';
       if (updates.sellingPrice) mapped.selling_price = updates.sellingPrice;
-      if (updates.mrpPrice) mapped.mrp_price = updates.mrpPrice;
-      if (updates.sizes) mapped.sizes = updates.sizes;
-      if (updates.label !== undefined) mapped.label = updates.label;
+      if (updates.mrpPrice) mapped.mrp = updates.mrpPrice;
+      if (updates.sizes) {
+        mapped.sizes = updates.sizes;
+        mapped.stock = updates.sizes.reduce((sum: number, s: any) => sum + (s.stock || 0), 0);
+      }
       if (updates.description) mapped.description = updates.description;
       if (updates.isNew !== undefined) mapped.new_arrival = updates.isNew;
       if (updates.bestSeller !== undefined) mapped.trending = updates.bestSeller;
-      if (updates.metadata?.dealOfDay !== undefined) mapped.deal_of_the_day = updates.metadata.dealOfDay;
+      if (updates.metadata?.dealOfDay !== undefined) mapped.deal_of_day = updates.metadata.dealOfDay;
       if (updates.metadata?.featured !== undefined) mapped.featured = updates.metadata.featured;
+      if (updates.brand) mapped.brand = updates.brand;
 
       const { data, error } = await supabase!
         .from('products')
@@ -253,20 +255,20 @@ export class SupabaseOrderRepository implements IOrderRepository {
   async getAll(): Promise<MockOrder[]> {
     const { data, error } = await supabase!
       .from('orders')
-      .select('*, order_items(quantity)')
+      .select('*')
       .order('created_at', { ascending: false });
     if (error || !data) throw error;
     return data.map((d: any) => ({
       id: d.id,
       orderNumber: d.order_number,
       customerName: d.customer_name,
-      email: d.email,
-      phone: d.phone,
-      itemsCount: (d.order_items || []).reduce((s: number, i: any) => s + i.quantity, 0),
+      email: d.customer_email || '',
+      phone: d.customer_phone || '',
+      itemsCount: (d.items || []).reduce((s: number, i: any) => s + i.quantity, 0),
       totalAmount: Number(d.total_amount),
       status: d.status as MockOrder['status'],
       paymentStatus: d.payment_status as MockOrder['paymentStatus'],
-      paymentMethod: d.payment_method || 'Unknown',
+      paymentMethod: 'Prepaid',
       date: new Date(d.created_at).toISOString().split('T')[0],
     }));
   }
@@ -282,12 +284,12 @@ export class SupabaseOrderRepository implements IOrderRepository {
       id: data.id,
       orderNumber: data.order_number,
       customerName: data.customer_name,
-      email: data.email,
-      itemsCount: 0,
+      email: data.customer_email || '',
+      itemsCount: (data.items || []).reduce((s: number, i: any) => s + i.quantity, 0),
       totalAmount: Number(data.total_amount),
       status: data.status,
       paymentStatus: data.payment_status,
-      paymentMethod: data.payment_method,
+      paymentMethod: 'Prepaid',
       date: new Date(data.created_at).toISOString().split('T')[0],
     };
   }
@@ -299,31 +301,23 @@ export class SupabaseOrderRepository implements IOrderRepository {
       .insert({
         order_number: orderNumber,
         customer_name: input.customerName,
-        email: input.email,
-        phone: input.phone,
+        customer_email: input.email,
+        customer_phone: input.phone,
         shipping_address: input.shippingAddress,
-        payment_method: input.paymentMethod,
         total_amount: input.totalAmount,
-        discount_amount: input.discountAmount || 0,
-        coupon_code: input.couponCode || null,
         status: 'Pending',
         payment_status: input.paymentStatus || 'Pending',
+        items: input.items.map(item => ({
+          productId: item.productId,
+          productName: item.productName,
+          size: item.size,
+          quantity: item.quantity,
+          price: item.price
+        }))
       })
       .select('*')
       .single();
     if (error || !data) return null;
-
-    // Insert order items
-    for (const item of input.items) {
-      await supabase!.from('order_items').insert({
-        order_id: data.id,
-        product_id: item.productId,
-        product_name: item.productName,
-        size: item.size,
-        quantity: item.quantity,
-        price: item.price,
-      });
-    }
 
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('gr_last_order_number', orderNumber);
@@ -351,7 +345,7 @@ export class SupabaseCouponRepository implements ICouponRepository {
       discountPercent: Number(c.discount_percent),
       description: c.description,
       isActive: c.is_active,
-      usageCount: c.usage_count || 0,
+      usageCount: 0,
     }));
   }
 
@@ -363,7 +357,6 @@ export class SupabaseCouponRepository implements ICouponRepository {
       .eq('is_active', true)
       .maybeSingle();
     if (!data) return { valid: false, discount: 0, message: 'Invalid coupon code.' };
-    await supabase!.from('coupons').update({ usage_count: (data.usage_count || 0) + 1 }).eq('code', code);
     return {
       valid: true,
       discount: Number(data.discount_percent),
@@ -379,7 +372,6 @@ export class SupabaseCouponRepository implements ICouponRepository {
         discount_percent: coupon.discountPercent,
         description: coupon.description,
         is_active: coupon.isActive,
-        usage_count: 0,
       })
       .select('*')
       .single();

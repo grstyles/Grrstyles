@@ -5,6 +5,10 @@ import { normalizeSlug, matchCategory } from '@/lib/utils/categoryImageMap';
 
 // Helper to map DB columns to frontend Product schema
 export function mapDbProduct(db: any): Product {
+  const mrp = Number(db.mrp || db.mrp_price || 0);
+  const selling = Number(db.selling_price || 0);
+  const discount = mrp > 0 ? Math.round(((mrp - selling) / mrp) * 100) : 0;
+
   return {
     id: db.product_id || db.id,
     productId: db.product_id || db.id,
@@ -15,13 +19,13 @@ export function mapDbProduct(db: any): Product {
     category: db.category,
     collection: db.collection || '',
     images: db.images || [],
-    color: db.color,
-    colors: [db.color],
-    mrpPrice: Number(db.mrp_price),
-    price: Number(db.mrp_price),
-    sellingPrice: Number(db.selling_price),
-    discountedPrice: Number(db.selling_price),
-    discountPercent: Number(db.discount_percent || 0),
+    color: db.color || '',
+    colors: db.color ? [db.color] : [],
+    mrpPrice: mrp,
+    price: mrp,
+    sellingPrice: selling,
+    discountedPrice: selling,
+    discountPercent: discount,
     label: db.label || '',
     description: db.description,
     sizes: db.sizes || [],
@@ -31,9 +35,9 @@ export function mapDbProduct(db: any): Product {
     isNew: !!db.new_arrival,
     bestSeller: !!db.trending,
     inStock: (db.sizes || []).some((s: any) => s.stock > 0),
-    stockCount: (db.sizes || []).reduce((sum: number, s: any) => sum + (s.stock || 0), 0),
+    stockCount: db.stock !== undefined ? Number(db.stock) : (db.sizes || []).reduce((sum: number, s: any) => sum + (s.stock || 0), 0),
     metadata: {
-      dealOfDay: !!db.deal_of_the_day,
+      dealOfDay: !!(db.deal_of_day || db.deal_of_the_day),
       featured: !!db.featured,
       tags: db.tags || [],
     },
@@ -259,23 +263,21 @@ export const productService = {
     }
     try {
       const mapped: any = {
-        product_id: p.id,
-        sku: `GR-${p.category.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+        sku: p.sku || `GR-${p.category.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`,
         name: p.name,
         slug: p.slug,
         category: p.category,
-        collection: '',
-        color: p.color,
+        collection: p.collection || '',
         images: p.images,
         sizes: p.sizes,
-        mrp_price: p.mrpPrice,
+        stock: p.sizes?.reduce((sum: number, s: any) => sum + (s.stock || 0), 0) || 0,
+        mrp: p.mrpPrice,
         selling_price: p.sellingPrice,
-        discount_percent: p.discountPercent || 0,
-        label: p.label || '',
         description: p.description,
-        featured: false,
+        featured: p.metadata?.featured || false,
         trending: p.bestSeller || false,
         new_arrival: p.isNew || false,
+        deal_of_day: p.metadata?.dealOfDay || false,
         brand: p.brand || 'GR STYLES',
       };
       const { data, error } = await supabase!
@@ -337,24 +339,27 @@ export const productService = {
         .from('orders')
         .insert({
           order_number: orderNumber,
-          user_id: userId,
           customer_name: order.customerName,
-          email: order.email,
-          phone: order.phone,
+          customer_email: order.email,
+          customer_phone: order.phone,
           shipping_address: order.shippingAddress,
-          payment_method: order.paymentMethod,
           total_amount: order.totalAmount,
-          discount_amount: order.discountAmount,
-          coupon_code: order.couponCode || null,
           status: 'Pending',
           payment_status: order.paymentStatus || 'Pending',
+          items: items.map(item => ({
+            productId: item.productId || item.id,
+            productName: item.productName || item.title,
+            size: item.size || 'One Size',
+            quantity: item.quantity,
+            price: item.discountedPrice || item.price
+          }))
         })
         .select('*')
         .single();
 
       if (orderError || !orderRow) throw orderError || new Error('Order creation failed');
 
-      // 2. Insert items and decrement stock
+      // 2. Decrement stock
       for (const item of items) {
         // Find UUID product
         const { data: prod } = await supabase!
@@ -364,18 +369,6 @@ export const productService = {
           .maybeSingle();
 
         if (prod) {
-          // Insert order item
-          await supabase!
-            .from('order_items')
-            .insert({
-              order_id: orderRow.id,
-              product_id: prod.id,
-              product_name: item.title,
-              size: item.size || 'One Size',
-              quantity: item.quantity,
-              price: item.discountedPrice,
-            });
-
           // Decrement stock
           const currentSizes = prod.sizes || [];
           const updatedSizes = currentSizes.map((s: any) => {
