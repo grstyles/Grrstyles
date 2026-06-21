@@ -39,29 +39,86 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Helper to normalize slugs in JavaScript
+function normalizeSlug(value) {
+  if (!value) return '';
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// Helper to normalize categories in JavaScript
+function normalizeCategory(category) {
+  if (!category) return '';
+  const val = category.toLowerCase().trim().replace(/-/g, ' ');
+
+  if (val === 'shirt' || val === 'shirts') return 'shirts';
+  if (val === 'printed shirt' || val === 'printed shirts' || val === 'printed-shirt' || val === 'printed-shirts') return 'printed-shirts';
+  if (val === 't shirt' || val === 'tshirts' || val === 't-shirt' || val === 't-shirts' || val === 't shirts' || val === 'tshirt' || val === 'polo shirt' || val === 'polo shirts') return 't-shirts';
+  if (val === 'jacket' || val === 'jackets' || val === 'hoodie' || val === 'hoodies' || val === 'sweatshirt' || val === 'sweatshirts' || val === 'blazer' || val === 'blazers') return 'jackets';
+  if (val === 'night track' || val === 'night tracks' || val === 'nighttrack' || val === 'night-tracks' || val === 'nighttracks') return 'night-tracks';
+  if (val === 'formal pant' || val === 'formal pants' || val === 'formal-pant' || val === 'formal-pants' || val === 'pant' || val === 'pants') return 'formal-pant';
+  if (val === 'formal shirt' || val === 'formal shirts' || val === 'formal-shirt' || val === 'formal-shirts') return 'formal-shirts';
+  if (val === 'trouser' || val === 'trousers' || val === 'chinos' || val === 'chino' || val === 'cargo' || val === 'cargos') return 'trousers';
+  if (val === 'jeans' || val === 'denim' || val === 'denim jeans' || val === 'denim-jeans') return 'denim-jeans';
+  if (val === 'sneakers' || val === 'shoes' || val === 'sneaker' || val === 'shoe' || val === 'footwear') return 'shoes';
+  if (val === 'accessories' || val === 'accessory' || val === 'watch' || val === 'watches' || val === 'belt' || val === 'belts' || val === 'wallet' || val === 'wallets' || val === 'cap' || val === 'caps' || val === 'sunglasses' || val === 'sunglass' || val === 'perfume' || val === 'perfumes') return 'accessories';
+
+  return normalizeSlug(category);
+}
+
+// Helper to normalize collections in JavaScript
+function normalizeCollection(collection) {
+  if (!collection) return '';
+  const val = collection.toLowerCase().trim().replace(/-/g, ' ');
+
+  if (val === 'korean collection' || val === 'korean collections') return 'korean-collections';
+  if (val === 'trending collection' || val === 'trending collections') return 'trending-collections';
+  if (val === 'baggy pant' || val === 'baggy pants') return 'baggy-pants';
+  if (val === 'korean trouser' || val === 'korean trousers') return 'korean-trousers';
+  if (val === 'traditional collection' || val === 'traditional collections') return 'traditional-collections';
+  if (val === 'festival collection' || val === 'festival collections' || val === 'festival wear') return 'festival-collections';
+  if (val === 'combo offer' || val === 'combo offers' || val === 'combos') return 'combo-offers';
+  if (val === 'festival offer' || val === 'festival offers') return 'festival-offers';
+  if (val === 'weekend offer' || val === 'weekend offers') return 'weekend-offers';
+  if (val === 'formal combo' || val === 'formal combos') return 'formal-combos';
+  if (val === 'deal of the day' || val === 'deal of day' || val === 'deals') return 'deal-of-the-day';
+  if (val === 'shoes' || val === 'shoe') return 'shoes';
+
+  return normalizeSlug(collection);
+}
+
 // Categories Data
 const categories = [
   { name: 'Shirts', slug: 'shirts', description: 'Refined shirts crafted from premium linen and cotton blends.', image: '/images/categories/printed_shirts.png' },
-  { name: 'T-Shirts', slug: 't-shirts', description: 'Premium heavyweight and relaxed fit cotton tees.', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=600' },
-  { name: 'Trousers', slug: 'trousers', description: 'Tailored slim and relaxed fit trousers in luxury fabrics.', image: 'https://images.unsplash.com/photo-1473617231723-2a5ebf1379b7?q=80&w=600' },
-  { name: 'Jackets', slug: 'jackets', description: 'Classic denim, bomber, and utility jackets designed for layering.', image: '/images/categories/jackets.png' },
-  { name: 'Hoodies', slug: 'hoodies', description: 'Cozy loopback cotton and fleece-lined streetwear hoodies.', image: 'https://images.unsplash.com/photo-1556821552-5ff63b1b5786?q=80&w=600' },
-  { name: 'Jeans', slug: 'jeans', description: 'High-quality stone-washed wide leg and slim fit denim.', image: '/images/categories/denim_jeans.png' },
-  { name: 'Sweatshirts', slug: 'sweatshirts', description: 'Minimalist crew neck pullovers in heavyweight cotton.', image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=600' },
-  { name: 'Shoes', slug: 'shoes', description: 'Minimalist sneakers, loafers, and leather boots for modern style.', image: '/images/categories/shoes.png' },
-  { name: 'Accessories', slug: 'accessories', description: 'Essential premium leather wallets, belts, watches, and beanies.', image: '/images/categories/accessories.png' }
+  { name: 'Printed Shirts', slug: 'printed-shirts', description: 'Trendy printed shirts in modern designs.', image: '/images/categories/printed_shirts.png' },
+  { name: 'T-Shirts', slug: 't-shirts', description: 'Premium heavyweight and relaxed fit cotton tees.', image: '/images/categories/t_shirts.png' },
+  { name: 'Jackets', slug: 'jackets', description: 'Bomber, utility, and denim jackets designed for layering.', image: '/images/categories/jackets.png' },
+  { name: 'Night Tracks', slug: 'night-tracks', description: 'Comfortable loungewear and night track pants.', image: '/images/categories/category-placeholder.png' },
+  { name: 'Accessories', slug: 'accessories', description: 'Essential premium leather wallets, belts, and timepieces.', image: '/images/categories/accessories.png' },
+  { name: 'Formal Pant', slug: 'formal-pant', description: 'Sharp, tailored trousers for formal occasions.', image: '/images/categories/trousers.png' },
+  { name: 'Formal Shirts', slug: 'formal-shirts', description: 'Crisp, structured button-downs for office wear.', image: '/images/categories/printed_shirts.png' },
+  { name: 'Trousers', slug: 'trousers', description: 'Classic pleated and casual chinos.', image: '/images/categories/trousers.png' },
+  { name: 'Denim Jeans', slug: 'denim-jeans', description: 'High-quality washed and distressed denim jeans.', image: '/images/categories/denim_jeans.png' },
+  { name: 'Shoes', slug: 'shoes', description: 'Premium leather shoes and casual footwear.', image: '/images/categories/shoes.png' }
 ];
 
 // Collections Data
 const collections = [
-  { name: 'Korean Collection', slug: 'korean-collection', description: 'Minimalist, oversized silhouettes inspired by modern Seoul street fashion.' },
-  { name: 'Festival Collection', slug: 'festival-collection', description: 'Bright colors and premium fabrics tailored for festive celebrations.' },
-  { name: 'Formal Collection', slug: 'formal-collection', description: 'Sharp office shirts and structured trousers for professional style.' },
-  { name: 'Weekend Collection', slug: 'weekend-collection', description: 'Relaxed linen shirts, t-shirts, and denim for casual wear.' },
-  { name: 'Denim Collection', slug: 'denim-collection', description: 'Premium washed and distressed denim jeans and jackets.' },
-  { name: 'Streetwear Collection', slug: 'streetwear-collection', description: 'Graphic tees, baggy pants, oversized hoodies, and accessories.' },
-  { name: 'Premium Essentials', slug: 'premium-essentials', description: 'Minimalist, core closet pieces built with long-lasting quality.' },
-  { name: 'Office Wear Collection', slug: 'office-wear-collection', description: 'Polished formal coordinates, formal pants, and dress belts.' }
+  { name: 'Korean Collections', slug: 'korean-collections', description: 'Minimalist, oversized silhouettes inspired by modern Seoul street fashion.' },
+  { name: 'Trending Collections', slug: 'trending-collections', description: 'Our most popular, high-demand menswear styles.' },
+  { name: 'Baggy Pants', slug: 'baggy-pants', description: 'Comfortable, ultra-loose fit streetwear trousers.' },
+  { name: 'Korean Trousers', slug: 'korean-trousers', description: 'Sleek, ankle-length pleated trousers inspired by K-fashion.' },
+  { name: 'Shoes', slug: 'shoes', description: 'Minimalist sneakers, loafers, and boots.' },
+  { name: 'Traditional Collections', slug: 'traditional-collections', description: 'Traditional and heritage wear for special occasions.' },
+  { name: 'Festival Collections', slug: 'festival-collections', description: 'Bright colors and premium fabrics tailored for festive celebrations.' },
+  { name: 'Combo Offers', slug: 'combo-offers', description: 'Exclusive value packs and bundled products.' },
+  { name: 'Festival Offers', slug: 'festival-offers', description: 'Special seasonal discounts on premium festival wear.' },
+  { name: 'Weekend Offers', slug: 'weekend-offers', description: 'Special casual clothing deals for the weekend.' },
+  { name: 'Formal Combos', slug: 'formal-combos', description: 'Sharp office shirts and structured trousers paired at a bundle discount.' },
+  { name: 'Deal Of The Day', slug: 'deal-of-the-day', description: 'Exclusive handpicked offers and time-limited deals.' }
 ];
 
 // Load Products from typescript file by parsing it or listing static values.
@@ -134,13 +191,19 @@ async function seed() {
   }
   
   for (const p of items) {
+    let catVal = p.category;
+    // Map watch products specifically to watches
+    if (catVal === 'Accessories' && (p.name.toLowerCase().includes('watch') || p.title.toLowerCase().includes('watch'))) {
+      catVal = 'watches';
+    }
+
     const mapped = {
       product_id: p.id,
-      sku: p.sku || `GR-SKU-${p.id}-${p.slug.slice(0, 3).toUpperCase()}`,
+      sku: p.sku || `GR-SKU-${p.id}-${normalizeSlug(p.slug).slice(0, 3).toUpperCase()}`,
       name: p.name || p.title,
-      slug: p.slug,
-      category: p.category,
-      collection: p.collection || '',
+      slug: normalizeSlug(p.slug),
+      category: normalizeCategory(catVal),
+      collection: p.collection ? normalizeCollection(p.collection) : '',
       color: p.color,
       images: p.images,
       sizes: p.sizes, // JSONB structure

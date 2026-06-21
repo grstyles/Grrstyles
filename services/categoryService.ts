@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { getCategoryImage, normalizeSlug } from '../lib/utils/categoryImageMap';
 
 export interface Category {
   id: string;
@@ -13,22 +14,22 @@ const mockCategories: Category[] = [
     id: '1',
     name: 'Shirts',
     slug: 'shirts',
-    description: 'Refined shirts crafted from premium linen and cotton blends.',
+    description: 'Refined casual shirts crafted from premium linen and cotton blends.',
     image: '/images/categories/printed_shirts.png',
   },
   {
     id: '2',
-    name: 'T-Shirts',
-    slug: 't-shirts',
-    description: 'Premium heavyweight and relaxed fit cotton tees.',
-    image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=600',
+    name: 'Printed Shirts',
+    slug: 'printed-shirts',
+    description: 'Oversized summer printed resort shirts designed for style and comfort.',
+    image: '/images/categories/printed_shirts.png',
   },
   {
     id: '3',
-    name: 'Trousers',
-    slug: 'trousers',
-    description: 'Tailored slim and relaxed fit trousers in luxury fabrics.',
-    image: 'https://images.unsplash.com/photo-1473617231723-2a5ebf1379b7?q=80&w=600',
+    name: 'T-Shirts',
+    slug: 't-shirts',
+    description: 'Premium heavyweight and relaxed fit organic cotton tees.',
+    image: '/images/categories/t_shirts.png',
   },
   {
     id: '4',
@@ -39,38 +40,52 @@ const mockCategories: Category[] = [
   },
   {
     id: '5',
-    name: 'Hoodies',
-    slug: 'hoodies',
-    description: 'Cozy loopback cotton and fleece-lined streetwear hoodies.',
-    image: 'https://images.unsplash.com/photo-1556821552-5ff63b1b5786?q=80&w=600',
+    name: 'Night Tracks',
+    slug: 'night-tracks',
+    description: 'Premium lounge coordinates and cozy night wear track pants.',
+    image: '/images/categories/category-placeholder.png',
   },
   {
     id: '6',
-    name: 'Jeans',
-    slug: 'jeans',
+    name: 'Accessories',
+    slug: 'accessories',
+    description: 'Essential premium leather wallets, belts, caps, and beanies.',
+    image: '/images/categories/accessories.png',
+  },
+  {
+    id: '7',
+    name: 'Formal Pant',
+    slug: 'formal-pant',
+    description: 'Tailored flat-front office trousers in luxury fabrics.',
+    image: '/images/categories/trousers.png',
+  },
+  {
+    id: '8',
+    name: 'Formal Shirts',
+    slug: 'formal-shirts',
+    description: 'Crisp executive shirts designed for formal office hours.',
+    image: '/images/categories/printed_shirts.png',
+  },
+  {
+    id: '9',
+    name: 'Trousers',
+    slug: 'trousers',
+    description: 'Tailored slim and relaxed fit trousers in luxury fabrics.',
+    image: '/images/categories/trousers.png',
+  },
+  {
+    id: '10',
+    name: 'Denim Jeans',
+    slug: 'denim-jeans',
     description: 'High-quality stone-washed wide leg and slim fit denim.',
     image: '/images/categories/denim_jeans.png',
   },
   {
-    id: '7',
-    name: 'Sweatshirts',
-    slug: 'sweatshirts',
-    description: 'Minimalist crew neck pullovers in heavyweight cotton.',
-    image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=600',
-  },
-  {
-    id: '8',
+    id: '11',
     name: 'Shoes',
     slug: 'shoes',
     description: 'Minimalist sneakers, loafers, and leather boots for modern style.',
     image: '/images/categories/shoes.png',
-  },
-  {
-    id: '9',
-    name: 'Accessories',
-    slug: 'accessories',
-    description: 'Essential premium leather wallets, belts, watches, and beanies.',
-    image: '/images/categories/accessories.png',
   }
 ];
 
@@ -78,7 +93,10 @@ export const categoryService = {
   async getCategories(): Promise<Category[]> {
     if (!isSupabaseConfigured()) {
       await new Promise((resolve) => setTimeout(resolve, 100));
-      return mockCategories;
+      return mockCategories.map(c => ({
+        ...c,
+        image: getCategoryImage(c.name || c.slug)
+      }));
     }
 
     try {
@@ -87,16 +105,24 @@ export const categoryService = {
         .select('*')
         .order('name', { ascending: true });
 
-      if (error || !data || data.length === 0) return mockCategories;
+      if (error || !data || data.length === 0) {
+        return mockCategories.map(c => ({
+          ...c,
+          image: getCategoryImage(c.name || c.slug)
+        }));
+      }
       return data.map((d: any) => ({
         id: d.id,
         name: d.name,
-        slug: d.slug,
+        slug: d.slug || normalizeSlug(d.name),
         description: d.description || '',
-        image: d.image || '',
+        image: d.image || getCategoryImage(d.name || d.slug),
       }));
     } catch (e) {
-      return mockCategories;
+      return mockCategories.map(c => ({
+        ...c,
+        image: getCategoryImage(c.name || c.slug)
+      }));
     }
   },
 
@@ -107,21 +133,11 @@ export const categoryService = {
     }
 
     try {
-      const normalizedSlug = slug.toLowerCase().trim();
-      const slugMap: Record<string, string> = {
-        'sneakers': 'shoes',
-        'footwear': 'shoes',
-        'polo-shirts': 't-shirts',
-        'blazers': 'jackets',
-        'watches': 'accessories',
-        'formal': 'trousers'
-      };
-
-      const targetSlug = slugMap[normalizedSlug] || normalizedSlug;
+      const normalizedSlug = normalizeSlug(slug);
       const { data, error } = await supabase!
         .from('categories')
         .select('*')
-        .eq('slug', targetSlug)
+        .eq('slug', normalizedSlug)
         .maybeSingle();
 
       if (error || !data) {
@@ -131,9 +147,9 @@ export const categoryService = {
       return {
         id: data.id,
         name: data.name,
-        slug: data.slug,
+        slug: data.slug || normalizeSlug(data.name),
         description: data.description || '',
-        image: data.image || '',
+        image: data.image || getCategoryImage(data.name || data.slug),
       };
     } catch (e) {
       return this.getLocalBySlug(slug);
@@ -141,17 +157,13 @@ export const categoryService = {
   },
 
   getLocalBySlug(slug: string): Category | null {
-    const normalizedSlug = slug.toLowerCase().trim();
-    const slugMap: Record<string, string> = {
-      'sneakers': 'shoes',
-      'footwear': 'shoes',
-      'polo-shirts': 't-shirts',
-      'blazers': 'jackets',
-      'watches': 'accessories',
-      'formal': 'trousers'
+    const normalizedSlug = normalizeSlug(slug);
+    const cat = mockCategories.find((c) => normalizeSlug(c.slug) === normalizedSlug || normalizeSlug(c.name) === normalizedSlug);
+    if (!cat) return null;
+    return {
+      ...cat,
+      image: getCategoryImage(cat.name || cat.slug)
     };
-    const targetSlug = slugMap[normalizedSlug] || normalizedSlug;
-    return mockCategories.find((c) => c.slug === targetSlug) || null;
   }
 };
 

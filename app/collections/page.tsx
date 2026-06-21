@@ -7,6 +7,7 @@ import CollectionHeader from '@/components/collections/CollectionHeader';
 import CategoryTabs from '@/components/collections/CategoryTabs';
 import FilterSidebar, { FilterState } from '@/components/collections/FilterSidebar';
 import CollectionGrid from '@/components/collections/CollectionGrid';
+import { matchCategory as globalMatchCategory } from '@/lib/utils/categoryImageMap';
 
 export default function CollectionsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -45,34 +46,9 @@ export default function CollectionsPage() {
     load();
   }, []);
 
-  const matchCategory = (catId: string, prodCat: string) => {
-    const cat = catId.toLowerCase();
-    const prod = prodCat.toLowerCase();
-    if (cat === 'all') return true;
-
-    if (prod.includes(cat) || cat.includes(prod)) return true;
-
-    const cleanCat = cat.replace(/s$/, '');
-    const cleanProd = prod.replace(/s$/, '');
-    if (cleanProd.includes(cleanCat) || cleanCat.includes(cleanProd)) return true;
-
-    const sidebarCats: Record<string, string[]> = {
-      shirts: ['shirt'],
-      tshirts: ['t-shirt', 'tshirt'],
-      jeans: ['jean', 'denim'],
-      trousers: ['trouser', 'pant', 'chino', 'cargo'],
-      jackets: ['jacket', 'blazer', 'coat'],
-      hoodies: ['hoodie', 'sweat', 'sweater'],
-      shoes: ['shoe', 'sneaker', 'loafer', 'boot', 'footwear'],
-      accessories: ['accessory', 'belt', 'wallet', 'watch', 'sunglass', 'bag', 'beanie'],
-    };
-
-    const keywords = sidebarCats[catId];
-    if (keywords) {
-      return keywords.some(kw => prod.includes(kw));
-    }
-
-    return false;
+  const matchCategory = (catId: string, p: Product) => {
+    if (catId === 'all') return true;
+    return globalMatchCategory(p, catId);
   };
 
   // Filter products based on category and sidebar filters
@@ -87,7 +63,7 @@ export default function CollectionsPage() {
 
     if (filters.categories.length > 0) {
       items = items.filter((p) =>
-        filters.categories.some((catId) => matchCategory(catId, p.category || ''))
+        filters.categories.some((catId) => matchCategory(catId, p))
       );
     }
 

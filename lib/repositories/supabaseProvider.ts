@@ -13,6 +13,7 @@
 import { Product } from '@/lib/data/products';
 import { supabase } from '@/lib/supabase';
 import { mapDbProduct } from '@/services/productService';
+import { normalizeCategory, normalizeSlug, normalizeCollection } from '../utils/categoryImageMap';
 import {
   IProductRepository,
   IOrderRepository,
@@ -71,8 +72,9 @@ export class SupabaseProductRepository implements IProductRepository {
   async create(product: Product): Promise<Product | null> {
     const mapped = {
       name: product.name,
-      slug: product.slug,
-      category: product.category,
+      slug: product.slug ? normalizeSlug(product.slug) : normalizeSlug(product.name || product.title),
+      category: normalizeCategory(product.category),
+      collection: product.collection ? normalizeCollection(product.collection) : '',
       color: product.color,
       images: product.images,
       sizes: product.sizes,
@@ -97,6 +99,10 @@ export class SupabaseProductRepository implements IProductRepository {
   async update(id: string, updates: Partial<Product>): Promise<Product | null> {
     const mapped: any = {};
     if (updates.name) mapped.name = updates.name;
+    if (updates.slug) mapped.slug = normalizeSlug(updates.slug);
+    else if (updates.name) mapped.slug = normalizeSlug(updates.name);
+    if (updates.category) mapped.category = normalizeCategory(updates.category);
+    if (updates.collection !== undefined) mapped.collection = updates.collection ? normalizeCollection(updates.collection) : '';
     if (updates.sellingPrice) mapped.selling_price = updates.sellingPrice;
     if (updates.mrpPrice) mapped.mrp_price = updates.mrpPrice;
     if (updates.sizes) mapped.sizes = updates.sizes;

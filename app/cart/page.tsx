@@ -344,7 +344,7 @@ export default function CartPage() {
 
             {/* Support/Faq */}
             <div className="text-center text-xs text-gray-400">
-              Need assistance? Email care@grstyles.com or call 1800-123-4567
+              Need assistance? Email grstyles955@gmail.com or call +91 95534 22743
             </div>
 
           </div>

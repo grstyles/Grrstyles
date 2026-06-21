@@ -1,6 +1,7 @@
 import { Product } from '@/lib/data/products';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { mockStore } from '@/lib/providers/mockStore';
+import { normalizeSlug, matchCategory } from '@/lib/utils/categoryImageMap';
 
 // Helper to map DB columns to frontend Product schema
 export function mapDbProduct(db: any): Product {
@@ -91,39 +92,14 @@ export const productService = {
     }
 
     try {
-      const normalizedSlug = categorySlug.toLowerCase().trim();
-      const slugMap: Record<string, string> = {
-        'shirts': 'Shirts',
-        't-shirts': 'T-Shirts',
-        'tshirts': 'T-Shirts',
-        'polo-shirts': 'T-Shirts',
-        'trousers': 'Trousers',
-        'jackets': 'Jackets',
-        'blazers': 'Jackets',
-        'hoodies': 'Hoodies',
-        'jeans': 'Jeans',
-        'sweatshirts': 'Sweatshirts',
-        'shoes': 'Shoes',
-        'sneakers': 'Shoes',
-        'footwear': 'Shoes',
-        'accessories': 'Accessories',
-        'watches': 'Accessories',
-        'formal': 'Shirts'
-      };
+      const normalizedSlug = normalizeSlug(categorySlug);
+      // Query all products and then filter dynamically via matchCategory
+      const { data, error } = await supabase!
+        .from('products')
+        .select('*');
 
-      const dbCategory = slugMap[normalizedSlug];
-      let query = supabase!.from('products').select('*');
-
-      if (dbCategory) {
-        query = query.eq('category', dbCategory);
-      } else {
-        const cleanSlug = normalizedSlug.replace(/-/g, ' ');
-        query = query.or(`category.ilike.%${cleanSlug}%,category.ilike.%${cleanSlug.replace(/s$/, '')}%`);
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
       if (error || !data) throw error || new Error('No data');
-      return data.map(mapDbProduct);
+      return data.map(mapDbProduct).filter((p) => matchCategory(p, normalizedSlug));
     } catch (err) {
       console.error('Failed to getProductsByCategory from Supabase, falling back:', err);
       return this.getLocalByCategory(categorySlug);
@@ -132,34 +108,8 @@ export const productService = {
 
   getLocalByCategory(categorySlug: string): Product[] {
     const products = mockStore.getProducts();
-    const normalizedSlug = categorySlug.toLowerCase().trim();
-    const slugMap: Record<string, string> = {
-      'shirts': 'Shirts',
-      't-shirts': 'T-Shirts',
-      'tshirts': 'T-Shirts',
-      'polo-shirts': 'T-Shirts',
-      'trousers': 'Trousers',
-      'jackets': 'Jackets',
-      'blazers': 'Jackets',
-      'hoodies': 'Hoodies',
-      'jeans': 'Jeans',
-      'sweatshirts': 'Sweatshirts',
-      'shoes': 'Shoes',
-      'sneakers': 'Shoes',
-      'footwear': 'Shoes',
-      'accessories': 'Accessories',
-      'watches': 'Accessories',
-      'formal': 'Shirts'
-    };
-    const dbCategory = slugMap[normalizedSlug];
-    if (dbCategory) {
-      return products.filter((p) => p.category === dbCategory);
-    }
-    const cleanSlug = normalizedSlug.replace(/-/g, ' ');
-    return products.filter((p) => {
-      const cat = p.category.toLowerCase();
-      return cat === cleanSlug || cat.replace(/s$/, '') === cleanSlug || cleanSlug.includes(cat) || cat.includes(cleanSlug);
-    });
+    const normalizedSlug = normalizeSlug(categorySlug);
+    return products.filter((p) => matchCategory(p, normalizedSlug));
   },
 
   async getProductsByCollection(collectionSlug: string): Promise<Product[]> {
@@ -177,7 +127,9 @@ export const productService = {
       const colMap: Record<string, string> = {
         'korean-collection': 'Korean Collection',
         'festival-collection': 'Festival Collection',
+        'festival-wear': 'Festival Collection',
         'formal-collection': 'Formal Collection',
+        'formal-wear': 'Formal Collection',
         'weekend-collection': 'Weekend Collection',
         'weekend-offers': 'Weekend Collection',
         'denim-collection': 'Denim Collection',
@@ -198,8 +150,8 @@ export const productService = {
         if (allProds) {
           const filtered = allProds.map(mapDbProduct).filter(p => {
             if (slug === 'korean-collection') return p.name.toLowerCase().includes('korean') || p.description.toLowerCase().includes('korean');
-            if (slug === 'festival-collection') return p.label === 'HOT' || p.discountPercent > 20 || p.label === 'NEW';
-            if (slug === 'formal-collection') return p.name.toLowerCase().includes('formal') || p.description.toLowerCase().includes('formal') || p.name.toLowerCase().includes('office');
+            if (slug === 'festival-collection' || slug === 'festival-wear') return p.label === 'HOT' || p.discountPercent > 20 || p.label === 'NEW';
+            if (slug === 'formal-collection' || slug === 'formal-wear') return p.name.toLowerCase().includes('formal') || p.description.toLowerCase().includes('formal') || p.name.toLowerCase().includes('office');
             if (slug === 'weekend-collection') return p.name.toLowerCase().includes('weekend') || p.name.toLowerCase().includes('casual');
             if (slug === 'denim-collection') return p.category === 'Jeans' || p.name.toLowerCase().includes('denim');
             if (slug === 'streetwear-collection') return p.name.toLowerCase().includes('streetwear') || p.name.toLowerCase().includes('oversized') || p.category === 'Hoodies';
@@ -225,10 +177,10 @@ export const productService = {
     if (slug === 'korean-collection') {
       return products.filter((p) => p.title.toLowerCase().includes('korean') || p.description.toLowerCase().includes('korean'));
     }
-    if (slug === 'festival-collection') {
+    if (slug === 'festival-collection' || slug === 'festival-wear') {
       return products.filter((p) => p.label === 'HOT' || p.discountPercent > 20 || p.label === 'NEW');
     }
-    if (slug === 'formal-collection') {
+    if (slug === 'formal-collection' || slug === 'formal-wear') {
       return products.filter((p) => p.title.toLowerCase().includes('formal') || p.description.toLowerCase().includes('formal') || p.title.toLowerCase().includes('office'));
     }
     if (slug === 'weekend-collection' || slug === 'weekend-offers') {

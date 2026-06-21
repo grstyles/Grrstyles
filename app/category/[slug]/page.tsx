@@ -1,38 +1,44 @@
 'use client';
-
+ 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { productService } from '@/services/productService';
 import { categoryService, Category } from '@/services/categoryService';
+import { repo } from '@/lib/repositories';
 import { Product } from '@/lib/data/products';
+import { matchCategory, normalizeSlug } from '@/lib/utils/categoryImageMap';
 import ProductGrid from '@/components/home/ProductGrid';
 import { CategorySkeleton } from '@/components/ui/Skeletons';
 import { NoProductsFound } from '@/components/ui/EmptyStates';
-
+ 
 export default function CategoryPage() {
   const params = useParams();
   const slug = params.slug as string;
-
+ 
   const [category, setCategory] = useState<Category | null>(null);
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-
+ 
   useEffect(() => {
     if (!slug) return;
-
+ 
     let active = true;
     setLoading(true);
-
+ 
     async function loadData() {
       try {
-        const [catData, prodData] = await Promise.all([
-          categoryService.getCategoryBySlug(slug),
-          productService.getProductsByCategory(slug),
+        const normalizedSlug = normalizeSlug(slug);
+        const [catData, allProducts] = await Promise.all([
+          categoryService.getCategoryBySlug(normalizedSlug),
+          repo.products.getAll(),
         ]);
-
+ 
+        const filteredProducts = allProducts.filter((p) =>
+          matchCategory(p, normalizedSlug)
+        );
+ 
         if (active) {
           setCategory(catData);
-          setProductsList(prodData);
+          setProductsList(filteredProducts);
         }
       } catch (err) {
         console.error('Error loading category page data', err);
@@ -42,22 +48,22 @@ export default function CategoryPage() {
         }
       }
     }
-
+ 
     loadData();
-
+ 
     return () => {
       active = false;
     };
   }, [slug]);
-
+ 
   if (loading) {
     return <CategorySkeleton />;
   }
-
+ 
   // Fallback category header metadata if not in categories database
   const categoryTitle = category ? category.name : slug.replace(/-/g, ' ');
   const categoryDesc = category ? category.description : `Premium essentials from our ${slug.replace(/-/g, ' ')} catalog.`;
-
+ 
   return (
     <div className="min-h-screen bg-[#fcfbf9] py-8 sm:py-12">
       {/* Category Header */}
@@ -69,7 +75,7 @@ export default function CategoryPage() {
           {categoryDesc}
         </p>
       </div>
-
+ 
       {productsList.length > 0 ? (
         <ProductGrid products={productsList} />
       ) : (

@@ -198,12 +198,12 @@ export default function Footer() {
               GR STYLES
             </h2>
             <p className="text-[#6b5b4b] text-sm leading-relaxed mb-5 font-light italic">
-              Quality menswear at fair prices
+              Premium Menswear Collection for Modern Men
             </p>
 
             <div className="flex gap-4">
               <a
-                href="https://instagram.com/grstyles"
+                href="https://www.instagram.com/grstyles_/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full bg-[#1a1a1a]/5 flex items-center justify-center hover:bg-[#1a1a1a] hover:text-white transition-all duration-300 text-[#1a1a1a] hover:scale-110"
@@ -216,7 +216,7 @@ export default function Footer() {
                 </svg>
               </a>
               <a
-                href="https://wa.me/919392472134"
+                href="https://wa.me/919553422743"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full bg-[#1a1a1a]/5 flex items-center justify-center hover:bg-[#25D366] hover:text-white transition-all duration-300 text-[#1a1a1a] hover:scale-110"
@@ -227,7 +227,9 @@ export default function Footer() {
                 </svg>
               </a>
               <a
-                href="mailto:info@grstyles.com"
+                href="mailto:grstyles955@gmail.com"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full bg-[#1a1a1a]/5 flex items-center justify-center hover:bg-[#1a1a1a] hover:text-white transition-all duration-300 text-[#1a1a1a] hover:scale-110"
                 aria-label="Email"
               >
@@ -284,18 +286,18 @@ export default function Footer() {
             <div className="space-y-2.5">
               <div className="flex items-start gap-3 text-[#6b5b4b] text-sm font-light">
                 <MapPin size={16} className="text-[#8b7b6b] mt-0.5 flex-shrink-0" />
-                <p>Quality menswear at fair prices</p>
+                <p>Afia Plaza, Masab Tank</p>
               </div>
               <div className="flex items-center gap-3 text-[#6b5b4b] text-sm font-light group">
                 <Phone size={16} className="text-[#8b7b6b] group-hover:text-[#1a1a1a] transition-colors" />
-                <a href="tel:+919392472134" className="hover:text-[#1a1a1a] transition-colors duration-300">
-                  +91 9392472134
+                <a href="tel:+919553422743" className="hover:text-[#1a1a1a] transition-colors duration-300">
+                  +91 95534 22743
                 </a>
               </div>
               <div className="flex items-center gap-3 text-[#6b5b4b] text-sm font-light group">
                 <Mail size={16} className="text-[#8b7b6b] group-hover:text-[#1a1a1a] transition-colors" />
-                <a href="mailto:info@grstyles.com" className="hover:text-[#1a1a1a] transition-colors duration-300">
-                  info@grstyles.com
+                <a href="mailto:grstyles955@gmail.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#1a1a1a] transition-colors duration-300">
+                  grstyles955@gmail.com
                 </a>
               </div>
             </div>

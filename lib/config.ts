@@ -60,29 +60,34 @@ export const DEFAULT_COUPONS = [
 ] as const;
 
 export const COLLECTIONS = [
-  'Korean Collection',
-  'Festival Collection',
-  'Formal Collection',
-  'Weekend Collection',
-  'Denim Collection',
-  'Streetwear Collection',
-  'Premium Essentials',
-  'Office Wear Collection',
-  'New Arrivals',
+  'Korean Collections',
+  'Trending Collections',
+  'Baggy Pants',
+  'Korean Trousers',
+  'Shoes',
+  'Traditional Collections',
+  'Festival Collections',
+  'Combo Offers',
+  'Festival Offers',
+  'Weekend Offers',
+  'Formal Combos',
+  'Deal Of The Day',
 ] as const;
 
 export type CollectionName = (typeof COLLECTIONS)[number];
 
 export const PRODUCT_CATEGORIES = [
   'Shirts',
+  'Printed Shirts',
   'T-Shirts',
-  'Trousers',
-  'Jeans',
   'Jackets',
-  'Hoodies',
-  'Sweatshirts',
-  'Shoes',
+  'Night Tracks',
   'Accessories',
+  'Formal Pant',
+  'Formal Shirts',
+  'Trousers',
+  'Denim Jeans',
+  'Shoes',
 ] as const;
 
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];

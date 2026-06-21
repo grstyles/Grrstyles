@@ -1,7 +1,8 @@
 .section {
-  padding: 6rem 0;
-  background-color: #fff;
+  padding: 5rem 0;
+  background-color: #fcfbf9;
   overflow: hidden;
+  border-bottom: 1px solid #f5f3f0;
 }
 
 .header {
@@ -12,124 +13,177 @@
 
 .title {
   font-family: 'Playfair Display', serif;
-  font-size: 3rem;
-  font-weight: 700;
+  font-size: 2.5rem;
+  font-weight: 400;
+  text-transform: uppercase;
   color: #111;
   margin-bottom: 1rem;
+  letter-spacing: 0.05em;
 }
 
 .subtitle {
   font-family: 'Inter', sans-serif;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   color: #666;
+  font-weight: 300;
+  letter-spacing: 0.02em;
 }
 
-.carouselWrapper {
-  width: 100%;
-  overflow: hidden;
-  cursor: grab;
-}
-
-.carouselWrapper:active {
-  cursor: grabbing;
-}
-
-.carouselTrack {
-  display: flex;
-  gap: 3rem;
-  padding: 1rem 4rem;
-  width: max-content;
+.gridContainer {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2.5rem;
 }
 
 .card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.5rem;
+  display: block;
   text-decoration: none;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
 }
 
-/* LARGER ICON SIZE - Change these values */
 .imageContainer {
-  width: 280px;  /* ← Increase this number for larger icons */
-  height: 280px; /* ← Increase this number for larger icons */
-  border-radius: 50%;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3/4;
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-  transition: transform 0.4s ease, box-shadow 0.4s ease;
   background-color: #f4f1ea;
 }
 
 .image {
   width: 100%;
   height: 100%;
-  object-fit: cover; /* or 'contain' if you don't want cropping */
-  transition: transform 0.6s ease;
+  object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-.card:hover .imageContainer {
-  transform: translateY(-8px) scale(1.05);
-  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.15);
+  transition: background 0.4s ease;
+  z-index: 1;
 }
 
-.card:hover .image {
-  transform: scale(1.1);
+.cardContent {
+  position: absolute;
+  bottom: 2rem;
+  left: 2rem;
+  right: 2rem;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .cardTitle {
   font-family: 'Inter', sans-serif;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #111;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  transition: color 0.3s ease;
+  letter-spacing: 0.15em;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.card:hover .cardTitle {
-  color: #d4af37;
+.ctaButton {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  opacity: 0.85;
+  transform: translateY(4px);
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.4s ease;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-/* Adjust gap and padding for larger icons */
+.arrow {
+  transition: transform 0.4s ease;
+}
+
+/* Hover Effects */
+.card:hover .image {
+  transform: scale(1.05);
+}
+
+.card:hover .overlay {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.card:hover .ctaButton {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.card:hover .arrow {
+  transform: translateX(4px);
+}
+
+/* Responsive Columns */
 @media (max-width: 1024px) {
-  .imageContainer {
-    width: 220px;
-    height: 220px;
+  .section {
+    padding: 4rem 0;
   }
-  
-  .carouselTrack {
-    gap: 2rem;
-  }
-}
 
-@media (max-width: 768px) {
   .title {
-    font-size: 2.2rem;
+    font-size: 2rem;
   }
-  
-  /* Larger mobile size */
-  .imageContainer {
-    width: 180px;  /* Increased from default */
-    height: 180px;
-  }
-  
-  .carouselTrack {
+
+  .gridContainer {
+    grid-template-columns: repeat(3, 1fr);
     gap: 1.5rem;
-    padding: 1rem 2rem;
+    padding: 0 1.5rem;
+  }
+  
+  .cardContent {
+    bottom: 1.5rem;
+    left: 1.5rem;
+    right: 1.5rem;
   }
   
   .cardTitle {
-    font-size: 0.9rem;
+    font-size: 1rem;
   }
 }
 
-@media (max-width: 480px) {
-  .imageContainer {
-    width: 150px;
-    height: 150px;
+@media (max-width: 640px) {
+  .section {
+    padding: 3rem 0;
+  }
+
+  .title {
+    font-size: 1.6rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .gridContainer {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    padding: 0 1rem;
   }
   
-  .carouselTrack {
-    gap: 1rem;
+  .cardContent {
+    bottom: 1rem;
+    left: 1rem;
+    right: 1rem;
+  }
+  
+  .cardTitle {
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+  }
+  
+  .ctaButton {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
   }
 }

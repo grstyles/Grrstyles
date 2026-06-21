@@ -12,7 +12,6 @@ import SaleCompleteTheLook from '@/components/sale/SaleCompleteTheLook';
 import FlashSaleBanner from '@/components/sale/FlashSaleBanner';
 import BestSellersOnSale from '@/components/sale/BestSellersOnSale';
 import WhyChooseUs from '@/components/men/WhyChooseUs';
-import LuxuryNewsletter from '@/components/men/LuxuryNewsletter';
 import type { Product } from '@/lib/data/products';
 
 interface SaleClientProps {
@@ -105,7 +104,6 @@ export default function SaleClient({ initialProducts }: SaleClientProps) {
       <FlashSaleBanner />
       <BestSellersOnSale />
       <WhyChooseUs />
-      <LuxuryNewsletter />
     </main>
   );
 }

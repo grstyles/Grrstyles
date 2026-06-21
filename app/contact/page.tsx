@@ -74,10 +74,6 @@ export default function ContactPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
 
-  // Newsletter states
-  const [newsletterEmail, setNewsletterEmail] = useState('');
-  const [newsletterSubmitted, setNewsletterSubmitted] = useState(false);
-
   // Copy email state
   const [copied, setCopied] = useState(false);
 
@@ -85,7 +81,7 @@ export default function ContactPage() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
   const handleCopyEmail = () => {
-    navigator.clipboard.writeText('support@grstyles.com');
+    navigator.clipboard.writeText('grstyles955@gmail.com');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -113,15 +109,6 @@ export default function ContactPage() {
       });
       setTimeout(() => setFormSubmitted(false), 5000);
     }, 1500);
-  };
-
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newsletterEmail) {
-      setNewsletterSubmitted(true);
-      setNewsletterEmail('');
-      setTimeout(() => setNewsletterSubmitted(false), 4000);
-    }
   };
 
   const supportCards = [
@@ -221,8 +208,8 @@ export default function ContactPage() {
             </div>
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <a href="mailto:support@grstyles.com" className="font-serif font-semibold text-[#111111] hover:text-[#D4AF37] transition-colors text-sm break-all">
-                  support@grstyles.com
+                <a href="mailto:grstyles955@gmail.com" className="font-serif font-semibold text-[#111111] hover:text-[#D4AF37] transition-colors text-sm break-all">
+                  grstyles955@gmail.com
                 </a>
                 <button 
                   onClick={handleCopyEmail} 
@@ -249,8 +236,8 @@ export default function ContactPage() {
               <p className="text-sm text-gray-500 mb-6 leading-relaxed">Speak directly with our fashion and sizing specialists.</p>
             </div>
             <div>
-              <a href="tel:+919876543210" className="font-serif font-semibold text-[#111111] hover:text-[#D4AF37] transition-colors block text-base mb-1">
-                +91 98765 43210
+              <a href="tel:+919553422743" className="font-serif font-semibold text-[#111111] hover:text-[#D4AF37] transition-colors block text-base mb-1">
+                +91 95534 22743
               </a>
               <span className="text-xs text-gray-400">Toll-free across India</span>
             </div>
@@ -287,7 +274,7 @@ export default function ContactPage() {
               <p className="text-sm text-gray-500 mb-6 leading-relaxed">Visit our experience studio to feel our premium fabrics.</p>
             </div>
             <div>
-              <span className="font-semibold text-sm text-gray-900 block font-serif mb-1">108 Galleria Mall, Mumbai</span>
+              <span className="font-semibold text-sm text-gray-900 block font-serif mb-1">Afia Plaza, Masab Tank</span>
               <a 
                 href="https://maps.google.com" 
                 target="_blank" 
@@ -626,51 +613,6 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
-
-      {/* 7. Newsletter Section */}
-      <section className="bg-black text-white py-20 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#222_1px,transparent_1px),linear-gradient(to_bottom,#222_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-30" />
-        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-10 relative z-10">
-          <div className="max-w-2xl mx-auto text-center">
-            <span className="text-[10px] tracking-[0.3em] uppercase text-[#D4AF37] font-semibold mb-4 block">NEWSLETTER</span>
-            <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4 tracking-wide text-white">Stay Updated</h2>
-            <p className="text-sm md:text-base text-gray-400 font-light mb-8 max-w-lg mx-auto">
-              Subscribe to receive updates on seasonal drop events, private sizing consults, and limited editorial drops.
-            </p>
-
-            <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto">
-              <input
-                type="email"
-                required
-                value={newsletterEmail}
-                onChange={(e) => setNewsletterEmail(e.target.value)}
-                placeholder="Enter your email address"
-                className="flex-1 px-5 py-3.5 bg-white/10 border border-white/20 rounded-lg text-sm placeholder:text-gray-500 focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] transition-all text-white"
-              />
-              <button
-                type="submit"
-                className="px-6 py-3.5 bg-white hover:bg-gray-100 active:bg-white text-black font-bold text-xs tracking-widest uppercase rounded-lg transition-colors whitespace-nowrap"
-              >
-                SUBSCRIBE
-              </button>
-            </form>
-
-            <AnimatePresence>
-              {newsletterSubmitted && (
-                <motion.p 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="text-xs text-green-400 mt-4 font-semibold"
-                >
-                  Thank you for joining our style network! Check your inbox soon. 🎉
-                </motion.p>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </section>
-
     </div>
   );
 }

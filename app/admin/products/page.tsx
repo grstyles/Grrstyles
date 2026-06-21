@@ -14,15 +14,24 @@ import { formatPrice } from '@/lib/utils/helpers';
 import Image from 'next/image';
 
 const CATEGORIES = [
-  'Shirts', 'T-Shirts', 'Trousers', 'Jackets', 'Hoodies',
-  'Jeans', 'Sweatshirts', 'Shoes', 'Accessories',
+  'Shirts',
+  'Printed Shirts',
+  'T-Shirts',
+  'Jackets',
+  'Night Tracks',
+  'Accessories',
+  'Formal Pant',
+  'Formal Shirts',
+  'Trousers',
+  'Denim Jeans',
+  'Shoes',
 ];
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const PANT_SIZES  = ['28', '30', '32', '34', '36', '38'];
 const SHOE_SIZES  = ['6', '7', '8', '9', '10', '11'];
 
 function getSizeOptions(cat: string) {
-  if (['Trousers', 'Jeans'].includes(cat)) return PANT_SIZES;
+  if (['Trousers', 'Denim Jeans', 'Formal Pant'].includes(cat)) return PANT_SIZES;
   if (cat === 'Shoes') return SHOE_SIZES;
   return SHIRT_SIZES;
 }

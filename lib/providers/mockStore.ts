@@ -9,6 +9,7 @@
  */
 
 import { Product, products as seedProducts } from '@/lib/data/products';
+import { normalizeCategory, normalizeSlug, normalizeCollection } from '../utils/categoryImageMap';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -75,8 +76,20 @@ class MockStore {
       },
     ];
 
-    // Initialize products from seed data (mutable copy)
-    this._products = [...seedProducts];
+    // Initialize products from seed data with normalized categories, collections, and slugs
+    this._products = seedProducts.map((p) => {
+      let catVal = p.category;
+      // Map watch products specifically to watches
+      if (catVal === 'Accessories' && (p.name.toLowerCase().includes('watch') || p.title.toLowerCase().includes('watch'))) {
+        catVal = 'watches';
+      }
+      return {
+        ...p,
+        category: normalizeCategory(catVal),
+        collection: p.collection ? normalizeCollection(p.collection) : '',
+        slug: p.slug ? normalizeSlug(p.slug) : normalizeSlug(p.name || p.title),
+      };
+    });
 
     // Initialize mock orders
     this._orders = [
@@ -239,6 +252,11 @@ class MockStore {
   }
 
   addProduct(product: Product): Product {
+    // Normalize category, collection, and slug values
+    product.category = normalizeCategory(product.category);
+    product.collection = product.collection ? normalizeCollection(product.collection) : '';
+    product.slug = product.slug ? normalizeSlug(product.slug) : normalizeSlug(product.name || product.title);
+
     // Remove duplicate if same slug/id
     this._products = this._products.filter(
       (p) => p.id !== product.id && p.slug !== product.slug
@@ -250,6 +268,19 @@ class MockStore {
   updateProduct(id: string, updates: Partial<Product>): Product | null {
     const idx = this._products.findIndex((p) => p.id === id || p.productId === id);
     if (idx === -1) return null;
+
+    if (updates.category) {
+      updates.category = normalizeCategory(updates.category);
+    }
+    if (updates.collection !== undefined) {
+      updates.collection = updates.collection ? normalizeCollection(updates.collection) : '';
+    }
+    if (updates.slug) {
+      updates.slug = normalizeSlug(updates.slug);
+    } else if (updates.name) {
+      updates.slug = normalizeSlug(updates.name);
+    }
+
     this._products[idx] = { ...this._products[idx], ...updates };
     return this._products[idx];
   }

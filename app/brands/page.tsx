@@ -721,43 +721,6 @@ export default function PremiumBrandsPage() {
           </div>
         </div>
       </section>
-
-      {/* 11. NEWSLETTER SECTION */}
-      <section className="relative py-32 px-6 overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1594938298596-eb5fd3f6b98e?q=80&w=1920&auto=format&fit=crop"
-            alt="Newsletter Background"
-            className="w-full h-full object-cover object-center"
-          />
-          <div className="absolute inset-0 bg-black/60"></div>
-        </div>
-
-        <div className="relative z-10 max-w-3xl mx-auto text-center text-white p-12 bg-white/10 backdrop-blur-md border border-white/20">
-          <h2 className="text-4xl md:text-5xl font-['Playfair_Display',_serif] mb-6">
-            Stay Updated With Top Brands
-          </h2>
-          <p className="font-light text-gray-300 mb-10 text-lg">
-            Get early access to new brand launches, exclusive collections, and
-            member-only offers directly to your inbox.
-          </p>
-
-          <form className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
-            <input
-              type="email"
-              placeholder="Your Email Address"
-              className="flex-1 bg-transparent border border-white/40 px-6 py-4 text-white placeholder:text-gray-400 focus:outline-none focus:border-white transition-colors"
-              required
-            />
-            <button
-              type="submit"
-              className="px-8 py-4 bg-white text-black text-sm uppercase tracking-widest font-semibold hover:bg-[#D4AF37] hover:text-white transition-colors"
-            >
-              Subscribe
-            </button>
-          </form>
-        </div>
-      </section>
     </div>
   );
 }

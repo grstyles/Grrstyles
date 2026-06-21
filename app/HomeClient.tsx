@@ -3,11 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import AutoScrollCarousel from '@/components/home/AutoScrollCarousel';
 import ProductSection from '@/components/ui/ProductSection';
-import HomeComboSection from '@/components/home/ComboSection';
-import Newsletter from '@/components/home/Newsletter';
 import { Product } from '@/lib/data/products';
 import { repo } from '@/lib/repositories';
 import { config } from '@/lib/config';
+import { matchCategory } from '@/lib/utils/categoryImageMap';
 
 export default function HomeClient({ initialProducts }: { initialProducts: Product[] }) {
   const [products, setProducts] = useState<Product[]>(initialProducts);
@@ -20,118 +19,63 @@ export default function HomeClient({ initialProducts }: { initialProducts: Produ
     }
   }, []);
 
-  // Filter products for each section
-  const koreanCollection = products
-    .filter((p) => (p.name || p.title || '').toLowerCase().includes('korean') || (p.description || '').toLowerCase().includes('korean'))
-    .slice(0, 4);
-
-  const trendingCollection = products
-    .filter((p) => p.bestSeller || p.metadata?.featured || (p as any).isFeatured || p.label === 'HOT')
-    .slice(0, 4);
-
-  const newArrivals = products
-    .filter((p) => p.isNew || (p as any).newArrival || p.label === 'NEW')
-    .slice(0, 4);
-
-  const baggyPantsCollection = products
-    .filter((p) => (p.name || p.title || '').toLowerCase().includes('baggy'))
-    .slice(0, 4);
-
-  const formalWearCollection = products
-    .filter((p) => (p.name || p.title || '').toLowerCase().includes('formal') || (p.name || p.title || '').toLowerCase().includes('office'))
-    .slice(0, 4);
-
-  const festivalCollection = products
-    .filter((p) => p.label === 'HOT' || (p.discountPercent || 0) > 20 || (p.name || p.title || '').toLowerCase().includes('festival'))
-    .slice(0, 4);
-
-  const weekendCollection = products
-    .filter((p) => (p.name || p.title || '').toLowerCase().includes('weekend') || (p.name || p.title || '').toLowerCase().includes('casual'))
-    .slice(0, 4);
-
-  const bestSellers = products
-    .filter((p) => p.bestSeller || (p.rating && p.rating >= 4.6))
-    .slice(0, 4);
+  // Filter products for each approved homepage section using matchCategory
+  const trendingCollections = products.filter((p) => matchCategory(p, 'trending-collections')).slice(0, 4);
+  const dealOfTheDay = products.filter((p) => matchCategory(p, 'deal-of-the-day')).slice(0, 4);
+  const comboOffers = products.filter((p) => matchCategory(p, 'combo-offers')).slice(0, 4);
+  const festivalOffers = products.filter((p) => matchCategory(p, 'festival-offers')).slice(0, 4);
+  const weekendOffers = products.filter((p) => matchCategory(p, 'weekend-offers')).slice(0, 4);
 
   return (
     <>
-      {/* 1. Hero Banner */}
+      {/* Hero Banner */}
       <AutoScrollCarousel />
 
-      {/* 2. Korean Collection */}
+      {/* Trending Collections */}
       <ProductSection
-        title="Korean Collection"
-        subtitle="Minimalist, oversized silhouettes inspired by modern Seoul street fashion."
-        products={koreanCollection}
-        badge="TRENDING STYLE"
-        viewAllHref="/collections/korean-collection"
-      />
-
-      {/* 3. Trending Collection */}
-      <ProductSection
-        title="Trending Collection"
+        title="Trending Collections"
         subtitle="The hot curations and style outlines turning heads this season."
-        products={trendingCollection}
+        products={trendingCollections}
         badge="HOT PICK"
+        viewAllHref="/collections/trending-collections"
       />
 
-      {/* 4. New Arrivals */}
+      {/* Deal Of The Day */}
       <ProductSection
-        title="New Arrivals"
-        subtitle="Fresh drops, premium fabrics, and state-of-the-art designs."
-        products={newArrivals}
-        badge="JUST LAUNCHED"
-        viewAllHref="/new-in"
+        title="Deal Of The Day"
+        subtitle="Exclusive handpicked offers and time-limited deals."
+        products={dealOfTheDay}
+        badge="DEAL OF THE DAY"
+        viewAllHref="/collections/deal-of-the-day"
       />
 
-      {/* 5. Baggy Pants Collection */}
+      {/* Combo Offers */}
       <ProductSection
-        title="Baggy Pants Collection"
-        subtitle="Comfortable loose-fit shapes, brushed twill textures, and drop silhouettes."
-        products={baggyPantsCollection}
-        badge="LOOSE FIT"
+        title="Combo Offers"
+        subtitle="Coordinated outfit sets and bundled savings."
+        products={comboOffers}
+        badge="COMBO"
+        viewAllHref="/collections/combo-offers"
       />
 
-      {/* 6. Formal Wear Collection */}
+      {/* Festival Offers */}
       <ProductSection
-        title="Formal Wear Collection"
-        subtitle="Tailored office shirts, anti-wrinkle flat trousers, and smart executive styles."
-        products={formalWearCollection}
-        badge="OFFICE ESSENTIALS"
-        viewAllHref="/collections/formal-collection"
+        title="Festival Offers"
+        subtitle="Celebrate in style with special festive season discounts."
+        products={festivalOffers}
+        badge="FESTIVAL DEALS"
+        viewAllHref="/collections/festival-offers"
       />
 
-      {/* 7. Festival Collection */}
+      {/* Weekend Offers */}
       <ProductSection
-        title="Festival Collection"
-        subtitle="Vibrant, rich textures and celebratory fits designed for weddings and weekends."
-        products={festivalCollection}
-        badge="CELEBRATION READY"
-        viewAllHref="/collections/festival-collection"
+        title="Weekend Offers"
+        subtitle="Relaxed lightweight weekend items with premium deals."
+        products={weekendOffers}
+        badge="WEEKEND DEALS"
+        viewAllHref="/collections/weekend-offers"
       />
-
-      {/* 8. Weekend Collection */}
-      <ProductSection
-        title="Weekend Collection"
-        subtitle="Relaxed lightweight resort shirts and casual linen chinos for off-duty days."
-        products={weekendCollection}
-        badge="EASY CASUAL"
-        viewAllHref="/collections/weekend-collection"
-      />
-
-      {/* 9. Combo Offers */}
-      <HomeComboSection />
-
-      {/* 10. Best Sellers */}
-      <ProductSection
-        title="Best Sellers"
-        subtitle="Our most loved, heritage pieces with verified customer ratings."
-        products={bestSellers}
-        badge="CUSTOMER FAVORITE"
-      />
-
-      {/* 11. Newsletter */}
-      <Newsletter />
     </>
   );
 }
+

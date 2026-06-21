@@ -79,10 +79,10 @@ export class MockProductRepository implements IProductRepository {
         p.name.toLowerCase().includes('korean') || p.description.toLowerCase().includes('korean')
       );
     }
-    if (slug === 'festival-collection') {
+    if (slug === 'festival-collection' || slug === 'festival-wear') {
       return all.filter((p) => p.label === 'HOT' || p.discountPercent > 20 || p.label === 'NEW');
     }
-    if (slug === 'formal-collection' || slug === 'office-wear-collection') {
+    if (slug === 'formal-collection' || slug === 'formal-wear' || slug === 'office-wear-collection') {
       return all.filter(
         (p) =>
           p.name.toLowerCase().includes('formal') ||

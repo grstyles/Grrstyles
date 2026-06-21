@@ -55,24 +55,30 @@ export interface FilterState {
 const categories = [
   { id: "all", label: "All", icon: "✨" },
   { id: "shirts", label: "Shirts", icon: "👔" },
-  { id: "tshirts", label: "T-Shirts", icon: "👕" },
-  { id: "jeans", label: "Denim Jeans", icon: "👖" },
-  { id: "trousers", label: "Trousers & Pants", icon: "👖" },
-  { id: "jackets", label: "Jackets & Blazers", icon: "🧥" },
-  { id: "hoodies", label: "Hoodies & Sweats", icon: "🧥" },
-  { id: "shoes", label: "Shoes & Sneakers", icon: "👟" },
+  { id: "printed-shirts", label: "Printed Shirts", icon: "👔" },
+  { id: "t-shirts", label: "T-Shirts", icon: "👕" },
+  { id: "jackets", label: "Jackets", icon: "🧥" },
+  { id: "night-tracks", label: "Night Tracks", icon: "🏃" },
   { id: "accessories", label: "Accessories", icon: "💼" },
+  { id: "formal-pant", label: "Formal Pant", icon: "👖" },
+  { id: "formal-shirts", label: "Formal Shirts", icon: "👔" },
+  { id: "trousers", label: "Trousers", icon: "👖" },
+  { id: "denim-jeans", label: "Denim Jeans", icon: "👖" },
+  { id: "shoes", label: "Shoes", icon: "👟" },
 ];
 
-const subCategories = {
-  "shirts": ["Casual Shirts", "Formal Shirts", "Linen Shirts", "Printed Shirts", "Korean Shirts"],
-  "tshirts": ["Crew Neck", "Polo Tees", "Oversized Tees", "Graphic Tees"],
-  "jeans": ["Baggy Jeans", "Slim Fit", "Straight Fit", "Classic Jeans"],
-  "trousers": ["Chinos", "Formal Trousers", "Korean Trousers", "Cargo Pants"],
-  "jackets": ["Denim Jackets", "Bomber Jackets", "Puffer Jackets", "Blazers", "Utility Jackets"],
-  "hoodies": ["Pullover Hoodies", "Zip-Up Hoodies", "Crewneck Sweatshirts", "Oversized Sweatshirts"],
-  "shoes": ["Sneakers", "Loafers", "Chelsea Boots", "Formal Shoes", "Canvas Shoes"],
-  "accessories": ["Leather Wallets", "Watches", "Leather Belts", "Sunglasses", "Ribbed Beanies", "Duffle Bags"],
+const subCategories: Record<string, string[]> = {
+  "shirts": ["Printed Shirts"],
+  "printed-shirts": [],
+  "t-shirts": [],
+  "jackets": [],
+  "night-tracks": [],
+  "accessories": [],
+  "formal-pant": [],
+  "formal-shirts": [],
+  "trousers": [],
+  "denim-jeans": [],
+  "shoes": [],
 };
 
 const sizes = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "3XL", "4XL"];

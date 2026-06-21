@@ -10,6 +10,7 @@ import { RootState } from '@/lib/redux/store';
 import { Filter } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { toggleFilterSidebar } from '@/lib/redux/slices/uiSlice';
+import { matchCategory as globalMatchCategory } from '@/lib/utils/categoryImageMap';
 
 interface ProductGridProps {
   products: Product[];
@@ -40,45 +41,16 @@ export default function ProductGrid({ products }: ProductGridProps) {
   });
   const [sortBy, setSortBy] = useState('new-arrivals');
 
-  const matchCategory = (catId: string, prodCat: string) => {
-    const cat = catId.toLowerCase();
-    const prod = prodCat.toLowerCase();
-    if (cat === 'all') return true;
-
-    // Direct or substring match
-    if (prod.includes(cat) || cat.includes(prod)) return true;
-
-    // Plural/singular cleanups
-    const cleanCat = cat.replace(/s$/, '');
-    const cleanProd = prod.replace(/s$/, '');
-    if (cleanProd.includes(cleanCat) || cleanCat.includes(cleanProd)) return true;
-
-    // Keyword map
-    const sidebarCats: Record<string, string[]> = {
-      shirts: ['shirt'],
-      tshirts: ['t-shirt', 'tshirt'],
-      jeans: ['jean', 'denim'],
-      trousers: ['trouser', 'pant', 'chino', 'cargo'],
-      jackets: ['jacket', 'blazer', 'coat'],
-      hoodies: ['hoodie', 'sweat', 'sweater'],
-      shoes: ['shoe', 'sneaker', 'loafer', 'boot', 'footwear'],
-      accessories: ['accessory', 'belt', 'wallet', 'watch', 'sunglass', 'bag', 'beanie'],
-    };
-
-    const keywords = sidebarCats[catId];
-    if (keywords) {
-      return keywords.some(kw => prod.includes(kw));
-    }
-
-    return false;
+  const matchCategory = (catId: string, p: Product) => {
+    if (catId === 'all') return true;
+    return globalMatchCategory(p, catId);
   };
 
   const filteredProducts = products.filter((product) => {
     // 1. Category filter
     if (filters.categories.length > 0) {
-      const prodCat = product.category || '';
       const matchesAnyCategory = filters.categories.some((catId) =>
-        matchCategory(catId, prodCat)
+        matchCategory(catId, product)
       );
       if (!matchesAnyCategory) return false;
     }
