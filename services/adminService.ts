@@ -88,11 +88,12 @@ export const adminService = {
         totalCoupons: couponCount || 0,
       };
     } catch (e) {
+      console.error('adminService.getDashboardStats failed:', e);
       return {
-        totalProducts: products.length,
-        totalOrders: 142,
-        totalRevenue: 284500,
-        totalCoupons: 3,
+        totalProducts: 0,
+        totalOrders: 0,
+        totalRevenue: 0,
+        totalCoupons: 0,
       };
     }
   },
@@ -131,7 +132,8 @@ export const adminService = {
         };
       });
     } catch (e) {
-      return mockOrders;
+      console.error('adminService.getOrders failed:', e);
+      return [];
     }
   },
 
@@ -196,20 +198,8 @@ export const adminService = {
         sizeStock: d.sizes || [],
       }));
     } catch (e) {
-      return products.map((p) => {
-        const sizesArray = p.sizes || [];
-        const sizeStock = sizesArray.map((s) => ({
-          size: s.size,
-          stock: s.stock,
-        }));
-        return {
-          id: p.id,
-          name: p.name || p.title || '',
-          slug: p.slug,
-          category: p.category,
-          sizeStock,
-        };
-      });
+      console.error('adminService.getInventory failed:', e);
+      return [];
     }
   },
 

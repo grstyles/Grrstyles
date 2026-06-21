@@ -25,7 +25,7 @@ import {
   DashboardStats,
   FullAnalytics,
 } from './interfaces';
-import { MockCoupon, MockOrder, mockStore } from '../providers/mockStore';
+import { MockCoupon, MockOrder } from '../providers/mockStore';
 
 // ─── Supabase Product Repository ──────────────────────────────────────────────
 
@@ -39,8 +39,8 @@ export class SupabaseProductRepository implements IProductRepository {
       if (error || !data) throw error || new Error('No data');
       return data.map(mapDbProduct);
     } catch (e) {
-      console.error('Supabase ProductRepository.getAll failed, using mockStore fallback:', e);
-      return mockStore.getProducts();
+      console.error('Supabase ProductRepository.getAll failed:', e);
+      return [];
     }
   }
 
@@ -55,8 +55,8 @@ export class SupabaseProductRepository implements IProductRepository {
       if (!data) return null;
       return mapDbProduct(data);
     } catch (e) {
-      console.error(`Supabase ProductRepository.getBySlug failed for ${slug}, using mockStore fallback:`, e);
-      return mockStore.getProducts().find((p) => p.slug === slug) || null;
+      console.error(`Supabase ProductRepository.getBySlug failed for ${slug}:`, e);
+      return null;
     }
   }
 
@@ -70,8 +70,8 @@ export class SupabaseProductRepository implements IProductRepository {
       if (error || !data) throw error || new Error('No data');
       return data.map(mapDbProduct);
     } catch (e) {
-      console.error(`Supabase ProductRepository.getByCategory failed for ${category}, using mockStore fallback:`, e);
-      return mockStore.getProducts().filter((p) => normalizeSlug(p.category) === normalizeSlug(category));
+      console.error(`Supabase ProductRepository.getByCategory failed for ${category}:`, e);
+      return [];
     }
   }
 
@@ -85,8 +85,8 @@ export class SupabaseProductRepository implements IProductRepository {
       if (error || !data) throw error || new Error('No data');
       return data.map(mapDbProduct);
     } catch (e) {
-      console.error(`Supabase ProductRepository.getByCollection failed for ${collection}, using mockStore fallback:`, e);
-      return mockStore.getProducts().filter((p) => normalizeSlug(p.collection || '') === normalizeSlug(collection));
+      console.error(`Supabase ProductRepository.getByCollection failed for ${collection}:`, e);
+      return [];
     }
   }
 
@@ -119,8 +119,8 @@ export class SupabaseProductRepository implements IProductRepository {
       if (error || !data) throw error || new Error('No data');
       return mapDbProduct(data);
     } catch (e) {
-      console.error('Supabase ProductRepository.create failed, using mockStore fallback:', e);
-      return mockStore.addProduct(product);
+      console.error('Supabase ProductRepository.create failed:', e);
+      return null;
     }
   }
 
@@ -154,9 +154,8 @@ export class SupabaseProductRepository implements IProductRepository {
       if (error || !data) throw error || new Error('No data');
       return mapDbProduct(data);
     } catch (e) {
-      console.error(`Supabase ProductRepository.update failed for ${id}, using mockStore fallback:`, e);
-      const success = mockStore.updateProduct(id, updates);
-      return success ? { ...updates, id } as any : null;
+      console.error(`Supabase ProductRepository.update failed for ${id}:`, e);
+      return null;
     }
   }
 
@@ -169,8 +168,8 @@ export class SupabaseProductRepository implements IProductRepository {
       if (error) throw error;
       return true;
     } catch (e) {
-      console.error(`Supabase ProductRepository.delete failed for ${id}, using mockStore fallback:`, e);
-      return mockStore.deleteProduct(id);
+      console.error(`Supabase ProductRepository.delete failed for ${id}:`, e);
+      return false;
     }
   }
 
@@ -183,13 +182,8 @@ export class SupabaseProductRepository implements IProductRepository {
       if (error || !data) throw error || new Error('No data');
       return data.map(mapDbProduct);
     } catch (e) {
-      console.error(`Supabase ProductRepository.search failed for ${query}, using mockStore fallback:`, e);
-      return mockStore.getProducts().filter(
-        (p) =>
-          p.name.toLowerCase().includes(query.toLowerCase()) ||
-          p.description.toLowerCase().includes(query.toLowerCase()) ||
-          p.category.toLowerCase().includes(query.toLowerCase())
-      );
+      console.error(`Supabase ProductRepository.search failed for ${query}:`, e);
+      return [];
     }
   }
 
@@ -208,14 +202,8 @@ export class SupabaseProductRepository implements IProductRepository {
         sizeStock: d.sizes || [],
       }));
     } catch (e) {
-      console.error('Supabase ProductRepository.getInventory failed, using mockStore fallback:', e);
-      return mockStore.getProducts().map((p) => ({
-        id: p.id,
-        name: p.name,
-        slug: p.slug,
-        category: p.category,
-        sizeStock: p.sizes || [],
-      }));
+      console.error('Supabase ProductRepository.getInventory failed:', e);
+      return [];
     }
   }
 
@@ -243,8 +231,8 @@ export class SupabaseProductRepository implements IProductRepository {
       if (updateError) throw updateError;
       return true;
     } catch (e) {
-      console.error(`Supabase ProductRepository.updateStock failed for ${productId}, using mockStore fallback:`, e);
-      return mockStore.updateInventory(productId, size, newStock);
+      console.error(`Supabase ProductRepository.updateStock failed for ${productId}:`, e);
+      return false;
     }
   }
 }
@@ -344,7 +332,7 @@ export class SupabaseCouponRepository implements ICouponRepository {
       code: c.code,
       discountPercent: Number(c.discount_percent),
       description: c.description,
-      isActive: c.is_active,
+      isActive: c.active,
       usageCount: 0,
     }));
   }
@@ -354,7 +342,7 @@ export class SupabaseCouponRepository implements ICouponRepository {
       .from('coupons')
       .select('*')
       .eq('code', code.toUpperCase().trim())
-      .eq('is_active', true)
+      .eq('active', true)
       .maybeSingle();
     if (!data) return { valid: false, discount: 0, message: 'Invalid coupon code.' };
     return {
@@ -371,16 +359,16 @@ export class SupabaseCouponRepository implements ICouponRepository {
         code: coupon.code,
         discount_percent: coupon.discountPercent,
         description: coupon.description,
-        is_active: coupon.isActive,
+        active: coupon.isActive,
       })
       .select('*')
       .single();
     if (error || !data) return null;
-    return { code: data.code, discountPercent: data.discount_percent, description: data.description, isActive: data.is_active, usageCount: 0 };
+    return { code: data.code, discountPercent: data.discount_percent, description: data.description, isActive: data.active, usageCount: 0 };
   }
 
   async toggle(code: string, isActive: boolean): Promise<boolean> {
-    const { error } = await supabase!.from('coupons').update({ is_active: isActive }).eq('code', code);
+    const { error } = await supabase!.from('coupons').update({ active: isActive }).eq('code', code);
     return !error;
   }
 
@@ -431,47 +419,200 @@ export class SupabaseAnalyticsRepository implements IAnalyticsRepository {
   }
 
   async getFullAnalytics(): Promise<FullAnalytics> {
-    const [
-      { count: productCount },
-      { count: orderCount },
-      { count: couponCount },
-      { data: revenueData },
-      { data: ordersData },
-    ] = await Promise.all([
-      supabase!.from('products').select('*', { count: 'exact', head: true }),
-      supabase!.from('orders').select('*', { count: 'exact', head: true }),
-      supabase!.from('coupons').select('*', { count: 'exact', head: true }).eq('is_active', true),
-      supabase!.from('orders').select('total_amount, status, created_at, order_number, customer_name, id').neq('status', 'Cancelled').neq('status', 'Returned'),
-      supabase!.from('orders').select('*').order('created_at', { ascending: false }).limit(6),
-    ]);
+    try {
+      const [
+        { data: productsData, error: productsError },
+        { data: ordersData, error: ordersError },
+        { count: couponCount, error: couponError },
+      ] = await Promise.all([
+        supabase!.from('products').select('id, name, sizes, category, sku'),
+        supabase!.from('orders').select('id, order_number, customer_name, total_amount, status, created_at, items'),
+        supabase!.from('coupons').select('*', { count: 'exact', head: true }).eq('active', true),
+      ]);
 
-    const validOrders = revenueData || [];
-    const totalRevenue = validOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
-    const totalOrders = orderCount || 0;
-    const avgOrderValue = validOrders.length > 0 ? Math.round(totalRevenue / validOrders.length) : 0;
+      if (productsError) throw productsError;
+      if (ordersError) throw ordersError;
+      if (couponError) throw couponError;
 
-    return {
-      totalProducts: productCount || 0,
-      totalOrders,
-      totalRevenue,
-      totalCoupons: couponCount || 0,
-      lowStockCount: 0,
-      pendingOrders: 0,
-      avgOrderValue,
-      couponsUsed: 0,
-      topProducts: [],
-      topCategories: [],
-      recentOrders: (ordersData || []).map((o: any) => ({
+      const products = productsData || [];
+      const orders = ordersData || [];
+
+      const totalProducts = products.length;
+      const totalOrders = orders.length;
+      const totalCoupons = couponCount || 0;
+
+      const pendingOrders = orders.filter((o) => o.status === 'Pending').length;
+      const validOrders = orders.filter(
+        (o) => o.status !== 'Cancelled' && o.status !== 'Returned'
+      );
+      const totalRevenue = validOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+      const avgOrderValue =
+        validOrders.length > 0 ? Math.round(totalRevenue / validOrders.length) : 0;
+
+      const couponsUsed = 0;
+
+      // 1. Map of products for lookup
+      const productMap: Record<string, { sku: string; category: string }> = {};
+      for (const p of products) {
+        productMap[p.id] = {
+          sku: p.sku || '',
+          category: p.category || 'Other',
+        };
+      }
+
+      // 2. Top selling products
+      const productSales: Record<
+        string,
+        { name: string; sku: string; sales: number; revenue: number }
+      > = {};
+      for (const order of validOrders) {
+        for (const item of order.items || []) {
+          const key = item.productId;
+          if (!key) continue;
+          if (!productSales[key]) {
+            const dbProd = productMap[key];
+            productSales[key] = {
+              name: item.productName || 'Unknown Product',
+              sku: dbProd?.sku || `GR-${key.slice(0, 6).toUpperCase()}`,
+              sales: 0,
+              revenue: 0,
+            };
+          }
+          productSales[key].sales += item.quantity || 0;
+          productSales[key].revenue += (item.price || 0) * (item.quantity || 0);
+        }
+      }
+
+      const topProducts = Object.values(productSales)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5);
+
+      // 3. Top categories
+      const categoryRevenue: Record<string, number> = {};
+      for (const order of validOrders) {
+        for (const item of order.items || []) {
+          const key = item.productId;
+          const dbProd = productMap[key];
+          const cat = dbProd?.category || 'Other';
+          categoryRevenue[cat] = (categoryRevenue[cat] || 0) + (item.price || 0) * (item.quantity || 0);
+        }
+      }
+      const totalCategoryRevenue = Object.values(categoryRevenue).reduce((a, b) => a + b, 0) || 1;
+      const topCategories = Object.entries(categoryRevenue)
+        .map(([name, revenue]) => ({
+          name,
+          value: Math.round((revenue / totalCategoryRevenue) * 100),
+          revenue,
+        }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 6);
+
+      // 4. Recent orders
+      const recentOrders = orders.slice(0, 6).map((o) => ({
         id: o.id,
         orderNumber: o.order_number,
         customerName: o.customer_name,
-        totalAmount: Number(o.total_amount),
+        totalAmount: Number(o.total_amount || 0),
         status: o.status,
         date: new Date(o.created_at).toISOString().split('T')[0],
-      })),
-      lowStockProducts: [],
-      monthlyPerformance: [],
-      orderStatusBreakdown: [],
-    };
+      }));
+
+      // 5. Low stock products
+      const lowStockProducts: {
+        productId: string;
+        name: string;
+        size: string;
+        stock: number;
+      }[] = [];
+      for (const p of products) {
+        const sizesArray = p.sizes || [];
+        for (const s of sizesArray) {
+          if (s.stock >= 0 && s.stock <= 5) {
+            lowStockProducts.push({
+              productId: p.id,
+              name: p.name,
+              size: s.size,
+              stock: s.stock,
+            });
+          }
+        }
+      }
+      lowStockProducts.sort((a, b) => a.stock - b.stock);
+      const lowStockCount = lowStockProducts.length;
+
+      // 6. Monthly performance
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthlyMap: Record<string, { revenue: number; orders: number }> = {};
+      for (const order of validOrders) {
+        const d = new Date(order.created_at);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        if (!monthlyMap[key]) {
+          monthlyMap[key] = { revenue: 0, orders: 0 };
+        }
+        monthlyMap[key].revenue += Number(order.total_amount || 0);
+        monthlyMap[key].orders += 1;
+      }
+      const monthlyPerformance = Object.entries(monthlyMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(-6)
+        .map(([key, data]) => {
+          const monthIdx = parseInt(key.split('-')[1], 10);
+          return {
+            month: monthNames[monthIdx],
+            revenue: data.revenue,
+            orders: data.orders,
+          };
+        });
+
+      // 7. Order status breakdown
+      const statusLabels = [
+        'Pending',
+        'Confirmed',
+        'Packed',
+        'Shipped',
+        'Delivered',
+        'Cancelled',
+        'Returned',
+      ];
+      const orderStatusBreakdown = statusLabels.map((label) => ({
+        label,
+        count: orders.filter((o) => o.status === label).length,
+      }));
+
+      return {
+        totalProducts,
+        totalOrders,
+        totalRevenue,
+        totalCoupons,
+        lowStockCount,
+        pendingOrders,
+        avgOrderValue,
+        couponsUsed,
+        topProducts,
+        topCategories,
+        recentOrders,
+        lowStockProducts: lowStockProducts.slice(0, 10),
+        monthlyPerformance,
+        orderStatusBreakdown,
+      };
+    } catch (e) {
+      console.error('SupabaseAnalyticsRepository.getFullAnalytics failed:', e);
+      return {
+        totalProducts: 0,
+        totalOrders: 0,
+        totalRevenue: 0,
+        totalCoupons: 0,
+        lowStockCount: 0,
+        pendingOrders: 0,
+        avgOrderValue: 0,
+        couponsUsed: 0,
+        topProducts: [],
+        topCategories: [],
+        recentOrders: [],
+        lowStockProducts: [],
+        monthlyPerformance: [],
+        orderStatusBreakdown: [],
+      };
+    }
   }
 }
