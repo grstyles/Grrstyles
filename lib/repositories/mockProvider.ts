@@ -119,6 +119,7 @@ export class MockProductRepository implements IProductRepository {
   }
 
   async create(product: Product): Promise<Product | null> {
+    console.log('Using Provider: Mock');
     await delay();
     return mockStore.addProduct(product);
   }

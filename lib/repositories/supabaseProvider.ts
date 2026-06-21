@@ -91,6 +91,7 @@ export class SupabaseProductRepository implements IProductRepository {
   }
 
   async create(product: Product): Promise<Product | null> {
+    console.log('Using Provider: Supabase');
     try {
       const mapped = {
         name: product.name,

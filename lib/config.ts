@@ -7,7 +7,7 @@
 
 const env = process.env;
 
-export const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL || '';
+export const SUPABASE_URL = (env.NEXT_PUBLIC_SUPABASE_URL || '').trim().replace(/\/rest\/v1\/?$/, '');
 export const SUPABASE_ANON_KEY = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 export const RAZORPAY_KEY_ID = env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_demo_placeholder';
 export const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
@@ -29,6 +29,14 @@ export const IS_RAZORPAY_CONFIGURED = Boolean(
 );
 
 export const IS_DEMO_MODE = !IS_SUPABASE_CONFIGURED;
+
+if (typeof window === 'undefined') {
+  console.log('--- GR STYLES STARTUP ---');
+  console.log('SUPABASE_URL:', SUPABASE_URL);
+  console.log('IS_SUPABASE_CONFIGURED:', IS_SUPABASE_CONFIGURED);
+  console.log('IS_DEMO_MODE:', IS_DEMO_MODE);
+  console.log('-------------------------');
+}
 
 export const STORE_NAME = 'GR STYLES';
 export const STORE_TAGLINE = "Men's Fashion Store";
