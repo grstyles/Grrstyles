@@ -1,8 +1,8 @@
-﻿import { createClient } from '@supabase/supabase-js';
-import { IS_SUPABASE_CONFIGURED, SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/config';
+import { createClient } from '@supabase/supabase-js';
+import { config } from './config';
 
-export const isSupabaseConfigured = (): boolean => IS_SUPABASE_CONFIGURED;
+export const isSupabaseConfigured = (): boolean => config.isSupabaseConfigured;
 
-export const supabase = IS_SUPABASE_CONFIGURED
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+export const supabase = config.isSupabaseConfigured
+  ? createClient(config.supabaseUrl, config.supabaseKey)
   : null;

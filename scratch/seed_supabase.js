@@ -37,6 +37,13 @@ if (!supabaseUrl || !supabaseKey) {
   process.exit(0);
 }
 
+// Strip /rest/v1/ suffix if it was added
+if (supabaseUrl.endsWith('/rest/v1/')) {
+  supabaseUrl = supabaseUrl.slice(0, -9);
+} else if (supabaseUrl.endsWith('/rest/v1')) {
+  supabaseUrl = supabaseUrl.slice(0, -8);
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Helper to normalize slugs in JavaScript
@@ -121,6 +128,13 @@ const collections = [
   { name: 'Deal Of The Day', slug: 'deal-of-the-day', description: 'Exclusive handpicked offers and time-limited deals.' }
 ];
 
+// Coupons Data
+const coupons = [
+  { code: 'WELCOME10', discount_percent: 10, description: '10% off on your first order', is_active: true },
+  { code: 'WEEKEND10', discount_percent: 10, description: '10% off for weekend specials', is_active: true },
+  { code: 'FESTIVAL20', discount_percent: 20, description: '20% discount on festive wear orders', is_active: true }
+];
+
 // Load Products from typescript file by parsing it or listing static values.
 // Since it is a TS file, we can require a transpiled version or define a seed JSON.
 // To make it 100% reliable without typescript compilers, we extract the products from lib/data/products.ts or define them here.
@@ -128,32 +142,8 @@ const collections = [
 // We can parse products.ts array by searching for patterns, or just read the JSON file if available.
 // Since we have products.ts, let's write a parser helper inside this script to extract products.
 function parseProducts() {
-  const tsPath = path.join(process.cwd(), 'lib/data/products.ts');
-  if (!fs.existsSync(tsPath)) {
-    console.error('products.ts not found at ' + tsPath);
-    return [];
-  }
-  
-  const content = fs.readFileSync(tsPath, 'utf8');
-  
-  // A simple regex approach to find all product objects
-  // The products.ts has "export const productDatabase: Record<string, Product> = { ... }"
-  // We can write a dynamic parser or define a mini-seed of core items.
-  // Wait! Let's use the local node environment to evaluate products.ts by converting it into valid JS.
   try {
-    let jsContent = content
-      .replace(/export interface \w+ \{[^}]*\}/g, '')
-      .replace(/export const productDatabase: Record<string, Product> =/g, 'module.exports =')
-      .replace(/: Product/g, '')
-      .replace(/export const products: Product\[\] =[^;]*;/g, '')
-      .replace(/import .*/g, '');
-      
-    // Write a temporary file and require it
-    const tempFile = path.join(process.cwd(), 'scratch', 'temp_products.js');
-    fs.writeFileSync(tempFile, jsContent);
-    const parsedDB = require(tempFile);
-    fs.unlinkSync(tempFile);
-    
+    const parsedDB = require('../lib/data/products').productDatabase;
     return Object.values(parsedDB);
   } catch (err) {
     console.error('Regex parse failed. Initializing standard seed values.');
@@ -179,6 +169,14 @@ async function seed() {
     if (error) console.error(`Error collection ${col.name}:`, error.message);
   }
   console.log('Collections seeded.');
+
+  // 3. Seed Coupons
+  console.log('Seeding Coupons...');
+  for (const coupon of coupons) {
+    const { error } = await supabase.from('coupons').upsert(coupon, { onConflict: 'code' });
+    if (error) console.error(`Error coupon ${coupon.code}:`, error.message);
+  }
+  console.log('Coupons seeded.');
 
   // 3. Seed Products
   console.log('Parsing products from products.ts...');

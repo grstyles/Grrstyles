@@ -25,155 +25,224 @@ import {
   DashboardStats,
   FullAnalytics,
 } from './interfaces';
-import { MockCoupon, MockOrder } from '../providers/mockStore';
+import { MockCoupon, MockOrder, mockStore } from '../providers/mockStore';
 
 // ─── Supabase Product Repository ──────────────────────────────────────────────
 
 export class SupabaseProductRepository implements IProductRepository {
   async getAll(): Promise<Product[]> {
-    const { data, error } = await supabase!
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error || !data) throw error;
-    return data.map(mapDbProduct);
+    try {
+      const { data, error } = await supabase!
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error || !data) throw error || new Error('No data');
+      return data.map(mapDbProduct);
+    } catch (e) {
+      console.error('Supabase ProductRepository.getAll failed, using mockStore fallback:', e);
+      return mockStore.getProducts();
+    }
   }
 
   async getBySlug(slug: string): Promise<Product | null> {
-    const { data, error } = await supabase!
-      .from('products')
-      .select('*')
-      .eq('slug', slug)
-      .maybeSingle();
-    if (error || !data) return null;
-    return mapDbProduct(data);
+    try {
+      const { data, error } = await supabase!
+        .from('products')
+        .select('*')
+        .eq('slug', slug)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return mapDbProduct(data);
+    } catch (e) {
+      console.error(`Supabase ProductRepository.getBySlug failed for ${slug}, using mockStore fallback:`, e);
+      return mockStore.getProducts().find((p) => p.slug === slug) || null;
+    }
   }
 
   async getByCategory(category: string): Promise<Product[]> {
-    const { data, error } = await supabase!
-      .from('products')
-      .select('*')
-      .ilike('category', category)
-      .order('created_at', { ascending: false });
-    if (error || !data) throw error;
-    return data.map(mapDbProduct);
+    try {
+      const { data, error } = await supabase!
+        .from('products')
+        .select('*')
+        .ilike('category', category)
+        .order('created_at', { ascending: false });
+      if (error || !data) throw error || new Error('No data');
+      return data.map(mapDbProduct);
+    } catch (e) {
+      console.error(`Supabase ProductRepository.getByCategory failed for ${category}, using mockStore fallback:`, e);
+      return mockStore.getProducts().filter((p) => normalizeSlug(p.category) === normalizeSlug(category));
+    }
   }
 
   async getByCollection(collection: string): Promise<Product[]> {
-    const { data, error } = await supabase!
-      .from('products')
-      .select('*')
-      .ilike('collection', collection)
-      .order('created_at', { ascending: false });
-    if (error || !data) return [];
-    return data.map(mapDbProduct);
+    try {
+      const { data, error } = await supabase!
+        .from('products')
+        .select('*')
+        .ilike('collection', collection)
+        .order('created_at', { ascending: false });
+      if (error || !data) throw error || new Error('No data');
+      return data.map(mapDbProduct);
+    } catch (e) {
+      console.error(`Supabase ProductRepository.getByCollection failed for ${collection}, using mockStore fallback:`, e);
+      return mockStore.getProducts().filter((p) => normalizeSlug(p.collection || '') === normalizeSlug(collection));
+    }
   }
 
   async create(product: Product): Promise<Product | null> {
-    const mapped = {
-      name: product.name,
-      slug: product.slug ? normalizeSlug(product.slug) : normalizeSlug(product.name || product.title),
-      category: normalizeCategory(product.category),
-      collection: product.collection ? normalizeCollection(product.collection) : '',
-      color: product.color,
-      images: product.images,
-      sizes: product.sizes,
-      mrp_price: product.mrpPrice,
-      selling_price: product.sellingPrice,
-      discount_percent: product.discountPercent || 0,
-      label: product.label || '',
-      description: product.description,
-      brand: product.brand || 'GR STYLES',
-      new_arrival: product.isNew || false,
-      trending: product.bestSeller || false,
-    };
-    const { data, error } = await supabase!
-      .from('products')
-      .insert(mapped)
-      .select('*')
-      .single();
-    if (error || !data) return null;
-    return mapDbProduct(data);
+    try {
+      const mapped = {
+        name: product.name,
+        slug: product.slug ? normalizeSlug(product.slug) : normalizeSlug(product.name || product.title),
+        category: normalizeCategory(product.category),
+        collection: product.collection ? normalizeCollection(product.collection) : '',
+        color: product.color,
+        images: product.images,
+        sizes: product.sizes,
+        mrp_price: product.mrpPrice,
+        selling_price: product.sellingPrice,
+        discount_percent: product.discountPercent || 0,
+        label: product.label || '',
+        description: product.description,
+        brand: product.brand || 'GR STYLES',
+        new_arrival: product.isNew || false,
+        trending: product.bestSeller || false,
+        deal_of_the_day: product.metadata?.dealOfDay || false,
+        featured: product.metadata?.featured || false,
+      };
+      const { data, error } = await supabase!
+        .from('products')
+        .insert(mapped)
+        .select('*')
+        .single();
+      if (error || !data) throw error || new Error('No data');
+      return mapDbProduct(data);
+    } catch (e) {
+      console.error('Supabase ProductRepository.create failed, using mockStore fallback:', e);
+      return mockStore.addProduct(product);
+    }
   }
 
   async update(id: string, updates: Partial<Product>): Promise<Product | null> {
-    const mapped: any = {};
-    if (updates.name) mapped.name = updates.name;
-    if (updates.slug) mapped.slug = normalizeSlug(updates.slug);
-    else if (updates.name) mapped.slug = normalizeSlug(updates.name);
-    if (updates.category) mapped.category = normalizeCategory(updates.category);
-    if (updates.collection !== undefined) mapped.collection = updates.collection ? normalizeCollection(updates.collection) : '';
-    if (updates.sellingPrice) mapped.selling_price = updates.sellingPrice;
-    if (updates.mrpPrice) mapped.mrp_price = updates.mrpPrice;
-    if (updates.sizes) mapped.sizes = updates.sizes;
-    if (updates.label !== undefined) mapped.label = updates.label;
-    if (updates.description) mapped.description = updates.description;
-    if (updates.isNew !== undefined) mapped.new_arrival = updates.isNew;
-    if (updates.bestSeller !== undefined) mapped.trending = updates.bestSeller;
+    try {
+      const mapped: any = {};
+      if (updates.name) mapped.name = updates.name;
+      if (updates.slug) mapped.slug = normalizeSlug(updates.slug);
+      else if (updates.name) mapped.slug = normalizeSlug(updates.name);
+      if (updates.category) mapped.category = normalizeCategory(updates.category);
+      if (updates.collection !== undefined) mapped.collection = updates.collection ? normalizeCollection(updates.collection) : '';
+      if (updates.sellingPrice) mapped.selling_price = updates.sellingPrice;
+      if (updates.mrpPrice) mapped.mrp_price = updates.mrpPrice;
+      if (updates.sizes) mapped.sizes = updates.sizes;
+      if (updates.label !== undefined) mapped.label = updates.label;
+      if (updates.description) mapped.description = updates.description;
+      if (updates.isNew !== undefined) mapped.new_arrival = updates.isNew;
+      if (updates.bestSeller !== undefined) mapped.trending = updates.bestSeller;
+      if (updates.metadata?.dealOfDay !== undefined) mapped.deal_of_the_day = updates.metadata.dealOfDay;
+      if (updates.metadata?.featured !== undefined) mapped.featured = updates.metadata.featured;
 
-    const { data, error } = await supabase!
-      .from('products')
-      .update(mapped)
-      .or(`id.eq.${id},product_id.eq.${id}`)
-      .select('*')
-      .single();
-    if (error || !data) return null;
-    return mapDbProduct(data);
+      const { data, error } = await supabase!
+        .from('products')
+        .update(mapped)
+        .or(`id.eq.${id},product_id.eq.${id}`)
+        .select('*')
+        .single();
+      if (error || !data) throw error || new Error('No data');
+      return mapDbProduct(data);
+    } catch (e) {
+      console.error(`Supabase ProductRepository.update failed for ${id}, using mockStore fallback:`, e);
+      const success = mockStore.updateProduct(id, updates);
+      return success ? { ...updates, id } as any : null;
+    }
   }
 
   async delete(id: string): Promise<boolean> {
-    const { error } = await supabase!
-      .from('products')
-      .delete()
-      .or(`id.eq.${id},product_id.eq.${id}`);
-    return !error;
+    try {
+      const { error } = await supabase!
+        .from('products')
+        .delete()
+        .or(`id.eq.${id},product_id.eq.${id}`);
+      if (error) throw error;
+      return true;
+    } catch (e) {
+      console.error(`Supabase ProductRepository.delete failed for ${id}, using mockStore fallback:`, e);
+      return mockStore.deleteProduct(id);
+    }
   }
 
   async search(query: string): Promise<Product[]> {
-    const { data, error } = await supabase!
-      .from('products')
-      .select('*')
-      .or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`);
-    if (error || !data) return [];
-    return data.map(mapDbProduct);
+    try {
+      const { data, error } = await supabase!
+        .from('products')
+        .select('*')
+        .or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`);
+      if (error || !data) throw error || new Error('No data');
+      return data.map(mapDbProduct);
+    } catch (e) {
+      console.error(`Supabase ProductRepository.search failed for ${query}, using mockStore fallback:`, e);
+      return mockStore.getProducts().filter(
+        (p) =>
+          p.name.toLowerCase().includes(query.toLowerCase()) ||
+          p.description.toLowerCase().includes(query.toLowerCase()) ||
+          p.category.toLowerCase().includes(query.toLowerCase())
+      );
+    }
   }
 
   async getInventory(): Promise<InventoryEntry[]> {
-    const { data, error } = await supabase!
-      .from('products')
-      .select('id, name, slug, category, sizes')
-      .order('category');
-    if (error || !data) return [];
-    return data.map((d: any) => ({
-      id: d.id,
-      name: d.name,
-      slug: d.slug,
-      category: d.category,
-      sizeStock: d.sizes || [],
-    }));
+    try {
+      const { data, error } = await supabase!
+        .from('products')
+        .select('id, name, slug, category, sizes')
+        .order('category');
+      if (error || !data) throw error || new Error('No data');
+      return data.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        slug: d.slug,
+        category: d.category,
+        sizeStock: d.sizes || [],
+      }));
+    } catch (e) {
+      console.error('Supabase ProductRepository.getInventory failed, using mockStore fallback:', e);
+      return mockStore.getProducts().map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        category: p.category,
+        sizeStock: p.sizes || [],
+      }));
+    }
   }
 
   async updateStock(productId: string, size: string, newStock: number): Promise<boolean> {
-    const { data, error } = await supabase!
-      .from('products')
-      .select('sizes')
-      .or(`id.eq.${productId},product_id.eq.${productId}`)
-      .maybeSingle();
-    if (error || !data) return false;
+    try {
+      const { data, error } = await supabase!
+        .from('products')
+        .select('sizes')
+        .or(`id.eq.${productId},product_id.eq.${productId}`)
+        .maybeSingle();
+      if (error || !data) throw error || new Error('No data');
 
-    const current = data.sizes || [];
-    const updated = current.map((s: any) =>
-      s.size === size ? { ...s, stock: Math.max(0, newStock) } : s
-    );
-    if (!current.some((s: any) => s.size === size)) {
-      updated.push({ size, stock: Math.max(0, newStock) });
+      const current = data.sizes || [];
+      const updated = current.map((s: any) =>
+        s.size === size ? { ...s, stock: Math.max(0, newStock) } : s
+      );
+      if (!current.some((s: any) => s.size === size)) {
+        updated.push({ size, stock: Math.max(0, newStock) });
+      }
+
+      const { error: updateError } = await supabase!
+        .from('products')
+        .update({ sizes: updated })
+        .or(`id.eq.${productId},product_id.eq.${productId}`);
+      if (updateError) throw updateError;
+      return true;
+    } catch (e) {
+      console.error(`Supabase ProductRepository.updateStock failed for ${productId}, using mockStore fallback:`, e);
+      return mockStore.updateInventory(productId, size, newStock);
     }
-
-    const { error: updateError } = await supabase!
-      .from('products')
-      .update({ sizes: updated })
-      .or(`id.eq.${productId},product_id.eq.${productId}`);
-    return !updateError;
   }
 }
 

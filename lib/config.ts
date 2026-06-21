@@ -18,7 +18,8 @@ export const IS_PRODUCTION = env.NODE_ENV === 'production';
 export const IS_SUPABASE_CONFIGURED = Boolean(
   SUPABASE_URL &&
   SUPABASE_ANON_KEY &&
-  !SUPABASE_URL.includes('YOUR_SUPABASE_URL')
+  !SUPABASE_URL.includes('YOUR_SUPABASE_URL') &&
+  !SUPABASE_URL.includes('PASTE_SUPABASE_URL_HERE')
 );
 
 export const IS_RAZORPAY_CONFIGURED = Boolean(
