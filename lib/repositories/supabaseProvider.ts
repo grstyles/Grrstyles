@@ -31,209 +31,160 @@ import { MockCoupon, MockOrder } from '../providers/mockStore';
 
 export class SupabaseProductRepository implements IProductRepository {
   async getAll(): Promise<Product[]> {
-    try {
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error || !data) throw error || new Error('No data');
-      return data.map(mapDbProduct);
-    } catch (e) {
-      console.error('Supabase ProductRepository.getAll failed:', e);
-      return [];
-    }
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapDbProduct);
   }
 
   async getBySlug(slug: string): Promise<Product | null> {
-    try {
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*')
-        .eq('slug', slug)
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) return null;
-      return mapDbProduct(data);
-    } catch (e) {
-      console.error(`Supabase ProductRepository.getBySlug failed for ${slug}:`, e);
-      return null;
-    }
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return mapDbProduct(data);
   }
 
   async getByCategory(category: string): Promise<Product[]> {
-    try {
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*')
-        .ilike('category', category)
-        .order('created_at', { ascending: false });
-      if (error || !data) throw error || new Error('No data');
-      return data.map(mapDbProduct);
-    } catch (e) {
-      console.error(`Supabase ProductRepository.getByCategory failed for ${category}:`, e);
-      return [];
-    }
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*')
+      .ilike('category', category)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapDbProduct);
   }
 
   async getByCollection(collection: string): Promise<Product[]> {
-    try {
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*')
-        .ilike('collection', collection)
-        .order('created_at', { ascending: false });
-      if (error || !data) throw error || new Error('No data');
-      return data.map(mapDbProduct);
-    } catch (e) {
-      console.error(`Supabase ProductRepository.getByCollection failed for ${collection}:`, e);
-      return [];
-    }
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*')
+      .ilike('collection', collection)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapDbProduct);
   }
 
   async create(product: Product): Promise<Product | null> {
     console.log('Using Provider: Supabase');
-    try {
-      const mapped = {
-        sku: product.sku || `GR-${product.category.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`,
-        name: product.name,
-        slug: product.slug ? normalizeSlug(product.slug) : normalizeSlug(product.name || product.title),
-        category: normalizeCategory(product.category),
-        collection: product.collection ? normalizeCollection(product.collection) : '',
-        images: product.images,
-        sizes: product.sizes,
-        stock: product.sizes?.reduce((sum: number, s: any) => sum + (s.stock || 0), 0) || 0,
-        mrp: product.mrpPrice,
-        selling_price: product.sellingPrice,
-        description: product.description,
-        brand: product.brand || 'GR STYLES',
-        new_arrival: product.isNew || false,
-        trending: product.bestSeller || false,
-        deal_of_day: product.metadata?.dealOfDay || false,
-        featured: product.metadata?.featured || false,
-      };
-      const { data, error } = await supabase!
-        .from('products')
-        .insert(mapped)
-        .select('*')
-        .single();
-      if (error || !data) throw error || new Error('No data');
-      return mapDbProduct(data);
-    } catch (e) {
-      console.error('Supabase ProductRepository.create failed:', e);
-      return null;
-    }
+    const mapped = {
+      sku: product.sku || `GR-${product.category.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+      name: product.name,
+      slug: product.slug ? normalizeSlug(product.slug) : normalizeSlug(product.name || product.title),
+      category: normalizeCategory(product.category),
+      collection: product.collection ? normalizeCollection(product.collection) : '',
+      images: product.images,
+      sizes: product.sizes,
+      stock: product.sizes?.reduce((sum: number, s: any) => sum + (s.stock || 0), 0) || 0,
+      mrp: product.mrpPrice,
+      selling_price: product.sellingPrice,
+      description: product.description,
+      brand: product.brand || 'GR STYLES',
+      new_arrival: product.isNew || false,
+      trending: product.bestSeller || false,
+      deal_of_day: product.metadata?.dealOfDay || false,
+      featured: product.metadata?.featured || false,
+    };
+    const { data, error } = await supabase!
+      .from('products')
+      .insert(mapped)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data ? mapDbProduct(data) : null;
   }
 
   async update(id: string, updates: Partial<Product>): Promise<Product | null> {
-    try {
-      const mapped: any = {};
-      if (updates.name) mapped.name = updates.name;
-      if (updates.slug) mapped.slug = normalizeSlug(updates.slug);
-      else if (updates.name) mapped.slug = normalizeSlug(updates.name);
-      if (updates.category) mapped.category = normalizeCategory(updates.category);
-      if (updates.collection !== undefined) mapped.collection = updates.collection ? normalizeCollection(updates.collection) : '';
-      if (updates.sellingPrice) mapped.selling_price = updates.sellingPrice;
-      if (updates.mrpPrice) mapped.mrp = updates.mrpPrice;
-      if (updates.sizes) {
-        mapped.sizes = updates.sizes;
-        mapped.stock = updates.sizes.reduce((sum: number, s: any) => sum + (s.stock || 0), 0);
-      }
-      if (updates.description) mapped.description = updates.description;
-      if (updates.isNew !== undefined) mapped.new_arrival = updates.isNew;
-      if (updates.bestSeller !== undefined) mapped.trending = updates.bestSeller;
-      if (updates.metadata?.dealOfDay !== undefined) mapped.deal_of_day = updates.metadata.dealOfDay;
-      if (updates.metadata?.featured !== undefined) mapped.featured = updates.metadata.featured;
-      if (updates.brand) mapped.brand = updates.brand;
-
-      const { data, error } = await supabase!
-        .from('products')
-        .update(mapped)
-        .or(`id.eq.${id},product_id.eq.${id}`)
-        .select('*')
-        .single();
-      if (error || !data) throw error || new Error('No data');
-      return mapDbProduct(data);
-    } catch (e) {
-      console.error(`Supabase ProductRepository.update failed for ${id}:`, e);
-      return null;
+    const mapped: any = {};
+    if (updates.name) mapped.name = updates.name;
+    if (updates.slug) mapped.slug = normalizeSlug(updates.slug);
+    else if (updates.name) mapped.slug = normalizeSlug(updates.name);
+    if (updates.category) mapped.category = normalizeCategory(updates.category);
+    if (updates.collection !== undefined) mapped.collection = updates.collection ? normalizeCollection(updates.collection) : '';
+    if (updates.sellingPrice) mapped.selling_price = updates.sellingPrice;
+    if (updates.mrpPrice) mapped.mrp = updates.mrpPrice;
+    if (updates.sizes) {
+      mapped.sizes = updates.sizes;
+      mapped.stock = updates.sizes.reduce((sum: number, s: any) => sum + (s.stock || 0), 0);
     }
+    if (updates.description) mapped.description = updates.description;
+    if (updates.isNew !== undefined) mapped.new_arrival = updates.isNew;
+    if (updates.bestSeller !== undefined) mapped.trending = updates.bestSeller;
+    if (updates.metadata?.dealOfDay !== undefined) mapped.deal_of_day = updates.metadata.dealOfDay;
+    if (updates.metadata?.featured !== undefined) mapped.featured = updates.metadata.featured;
+    if (updates.brand) mapped.brand = updates.brand;
+
+    const { data, error } = await supabase!
+      .from('products')
+      .update(mapped)
+      .or(`id.eq.${id},product_id.eq.${id}`)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data ? mapDbProduct(data) : null;
   }
 
   async delete(id: string): Promise<boolean> {
-    try {
-      const { error } = await supabase!
-        .from('products')
-        .delete()
-        .or(`id.eq.${id},product_id.eq.${id}`);
-      if (error) throw error;
-      return true;
-    } catch (e) {
-      console.error(`Supabase ProductRepository.delete failed for ${id}:`, e);
-      return false;
-    }
+    const { error } = await supabase!
+      .from('products')
+      .delete()
+      .or(`id.eq.${id},product_id.eq.${id}`);
+    if (error) throw error;
+    return true;
   }
 
   async search(query: string): Promise<Product[]> {
-    try {
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*')
-        .or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`);
-      if (error || !data) throw error || new Error('No data');
-      return data.map(mapDbProduct);
-    } catch (e) {
-      console.error(`Supabase ProductRepository.search failed for ${query}:`, e);
-      return [];
-    }
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*')
+      .or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`);
+    if (error) throw error;
+    return (data || []).map(mapDbProduct);
   }
 
   async getInventory(): Promise<InventoryEntry[]> {
-    try {
-      const { data, error } = await supabase!
-        .from('products')
-        .select('id, name, slug, category, sizes')
-        .order('category');
-      if (error || !data) throw error || new Error('No data');
-      return data.map((d: any) => ({
-        id: d.id,
-        name: d.name,
-        slug: d.slug,
-        category: d.category,
-        sizeStock: d.sizes || [],
-      }));
-    } catch (e) {
-      console.error('Supabase ProductRepository.getInventory failed:', e);
-      return [];
-    }
+    const { data, error } = await supabase!
+      .from('products')
+      .select('id, name, slug, category, sizes')
+      .order('category');
+    if (error) throw error;
+    return (data || []).map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      slug: d.slug,
+      category: d.category,
+      sizeStock: d.sizes || [],
+    }));
   }
 
   async updateStock(productId: string, size: string, newStock: number): Promise<boolean> {
-    try {
-      const { data, error } = await supabase!
-        .from('products')
-        .select('sizes')
-        .or(`id.eq.${productId},product_id.eq.${productId}`)
-        .maybeSingle();
-      if (error || !data) throw error || new Error('No data');
+    const { data, error } = await supabase!
+      .from('products')
+      .select('sizes')
+      .or(`id.eq.${productId},product_id.eq.${productId}`)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error('Product not found');
 
-      const current = data.sizes || [];
-      const updated = current.map((s: any) =>
-        s.size === size ? { ...s, stock: Math.max(0, newStock) } : s
-      );
-      if (!current.some((s: any) => s.size === size)) {
-        updated.push({ size, stock: Math.max(0, newStock) });
-      }
-
-      const { error: updateError } = await supabase!
-        .from('products')
-        .update({ sizes: updated })
-        .or(`id.eq.${productId},product_id.eq.${productId}`);
-      if (updateError) throw updateError;
-      return true;
-    } catch (e) {
-      console.error(`Supabase ProductRepository.updateStock failed for ${productId}:`, e);
-      return false;
+    const current = data.sizes || [];
+    const updated = current.map((s: any) =>
+      s.size === size ? { ...s, stock: Math.max(0, newStock) } : s
+    );
+    if (!current.some((s: any) => s.size === size)) {
+      updated.push({ size, stock: Math.max(0, newStock) });
     }
+
+    const { error: updateError } = await supabase!
+      .from('products')
+      .update({ sizes: updated })
+      .or(`id.eq.${productId},product_id.eq.${productId}`);
+    if (updateError) throw updateError;
+    return true;
   }
 }
 
@@ -419,200 +370,180 @@ export class SupabaseAnalyticsRepository implements IAnalyticsRepository {
   }
 
   async getFullAnalytics(): Promise<FullAnalytics> {
-    try {
-      const [
-        { data: productsData, error: productsError },
-        { data: ordersData, error: ordersError },
-        { count: couponCount, error: couponError },
-      ] = await Promise.all([
-        supabase!.from('products').select('id, name, sizes, category, sku'),
-        supabase!.from('orders').select('id, order_number, customer_name, total_amount, status, created_at, items'),
-        supabase!.from('coupons').select('*', { count: 'exact', head: true }).eq('active', true),
-      ]);
+    const [
+      { data: productsData, error: productsError },
+      { data: ordersData, error: ordersError },
+      { count: couponCount, error: couponError },
+    ] = await Promise.all([
+      supabase!.from('products').select('id, name, sizes, category, sku'),
+      supabase!.from('orders').select('id, order_number, customer_name, total_amount, status, created_at, items'),
+      supabase!.from('coupons').select('*', { count: 'exact', head: true }).eq('active', true),
+    ]);
 
-      if (productsError) throw productsError;
-      if (ordersError) throw ordersError;
-      if (couponError) throw couponError;
+    if (productsError) throw productsError;
+    if (ordersError) throw ordersError;
+    if (couponError) throw couponError;
 
-      const products = productsData || [];
-      const orders = ordersData || [];
+    const products = productsData || [];
+    const orders = ordersData || [];
 
-      const totalProducts = products.length;
-      const totalOrders = orders.length;
-      const totalCoupons = couponCount || 0;
+    const totalProducts = products.length;
+    const totalOrders = orders.length;
+    const totalCoupons = couponCount || 0;
 
-      const pendingOrders = orders.filter((o) => o.status === 'Pending').length;
-      const validOrders = orders.filter(
-        (o) => o.status !== 'Cancelled' && o.status !== 'Returned'
-      );
-      const totalRevenue = validOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
-      const avgOrderValue =
-        validOrders.length > 0 ? Math.round(totalRevenue / validOrders.length) : 0;
+    const pendingOrders = orders.filter((o) => o.status === 'Pending').length;
+    const validOrders = orders.filter(
+      (o) => o.status !== 'Cancelled' && o.status !== 'Returned'
+    );
+    const totalRevenue = validOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const avgOrderValue =
+      validOrders.length > 0 ? Math.round(totalRevenue / validOrders.length) : 0;
 
-      const couponsUsed = 0;
+    const couponsUsed = 0;
 
-      // 1. Map of products for lookup
-      const productMap: Record<string, { sku: string; category: string }> = {};
-      for (const p of products) {
-        productMap[p.id] = {
-          sku: p.sku || '',
-          category: p.category || 'Other',
-        };
-      }
-
-      // 2. Top selling products
-      const productSales: Record<
-        string,
-        { name: string; sku: string; sales: number; revenue: number }
-      > = {};
-      for (const order of validOrders) {
-        for (const item of order.items || []) {
-          const key = item.productId;
-          if (!key) continue;
-          if (!productSales[key]) {
-            const dbProd = productMap[key];
-            productSales[key] = {
-              name: item.productName || 'Unknown Product',
-              sku: dbProd?.sku || `GR-${key.slice(0, 6).toUpperCase()}`,
-              sales: 0,
-              revenue: 0,
-            };
-          }
-          productSales[key].sales += item.quantity || 0;
-          productSales[key].revenue += (item.price || 0) * (item.quantity || 0);
-        }
-      }
-
-      const topProducts = Object.values(productSales)
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 5);
-
-      // 3. Top categories
-      const categoryRevenue: Record<string, number> = {};
-      for (const order of validOrders) {
-        for (const item of order.items || []) {
-          const key = item.productId;
-          const dbProd = productMap[key];
-          const cat = dbProd?.category || 'Other';
-          categoryRevenue[cat] = (categoryRevenue[cat] || 0) + (item.price || 0) * (item.quantity || 0);
-        }
-      }
-      const totalCategoryRevenue = Object.values(categoryRevenue).reduce((a, b) => a + b, 0) || 1;
-      const topCategories = Object.entries(categoryRevenue)
-        .map(([name, revenue]) => ({
-          name,
-          value: Math.round((revenue / totalCategoryRevenue) * 100),
-          revenue,
-        }))
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 6);
-
-      // 4. Recent orders
-      const recentOrders = orders.slice(0, 6).map((o) => ({
-        id: o.id,
-        orderNumber: o.order_number,
-        customerName: o.customer_name,
-        totalAmount: Number(o.total_amount || 0),
-        status: o.status,
-        date: new Date(o.created_at).toISOString().split('T')[0],
-      }));
-
-      // 5. Low stock products
-      const lowStockProducts: {
-        productId: string;
-        name: string;
-        size: string;
-        stock: number;
-      }[] = [];
-      for (const p of products) {
-        const sizesArray = p.sizes || [];
-        for (const s of sizesArray) {
-          if (s.stock >= 0 && s.stock <= 5) {
-            lowStockProducts.push({
-              productId: p.id,
-              name: p.name,
-              size: s.size,
-              stock: s.stock,
-            });
-          }
-        }
-      }
-      lowStockProducts.sort((a, b) => a.stock - b.stock);
-      const lowStockCount = lowStockProducts.length;
-
-      // 6. Monthly performance
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const monthlyMap: Record<string, { revenue: number; orders: number }> = {};
-      for (const order of validOrders) {
-        const d = new Date(order.created_at);
-        const key = `${d.getFullYear()}-${d.getMonth()}`;
-        if (!monthlyMap[key]) {
-          monthlyMap[key] = { revenue: 0, orders: 0 };
-        }
-        monthlyMap[key].revenue += Number(order.total_amount || 0);
-        monthlyMap[key].orders += 1;
-      }
-      const monthlyPerformance = Object.entries(monthlyMap)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .slice(-6)
-        .map(([key, data]) => {
-          const monthIdx = parseInt(key.split('-')[1], 10);
-          return {
-            month: monthNames[monthIdx],
-            revenue: data.revenue,
-            orders: data.orders,
-          };
-        });
-
-      // 7. Order status breakdown
-      const statusLabels = [
-        'Pending',
-        'Confirmed',
-        'Packed',
-        'Shipped',
-        'Delivered',
-        'Cancelled',
-        'Returned',
-      ];
-      const orderStatusBreakdown = statusLabels.map((label) => ({
-        label,
-        count: orders.filter((o) => o.status === label).length,
-      }));
-
-      return {
-        totalProducts,
-        totalOrders,
-        totalRevenue,
-        totalCoupons,
-        lowStockCount,
-        pendingOrders,
-        avgOrderValue,
-        couponsUsed,
-        topProducts,
-        topCategories,
-        recentOrders,
-        lowStockProducts: lowStockProducts.slice(0, 10),
-        monthlyPerformance,
-        orderStatusBreakdown,
-      };
-    } catch (e) {
-      console.error('SupabaseAnalyticsRepository.getFullAnalytics failed:', e);
-      return {
-        totalProducts: 0,
-        totalOrders: 0,
-        totalRevenue: 0,
-        totalCoupons: 0,
-        lowStockCount: 0,
-        pendingOrders: 0,
-        avgOrderValue: 0,
-        couponsUsed: 0,
-        topProducts: [],
-        topCategories: [],
-        recentOrders: [],
-        lowStockProducts: [],
-        monthlyPerformance: [],
-        orderStatusBreakdown: [],
+    // 1. Map of products for lookup
+    const productMap: Record<string, { sku: string; category: string }> = {};
+    for (const p of products) {
+      productMap[p.id] = {
+        sku: p.sku || '',
+        category: p.category || 'Other',
       };
     }
+
+    // 2. Top selling products
+    const productSales: Record<
+      string,
+      { name: string; sku: string; sales: number; revenue: number }
+    > = {};
+    for (const order of validOrders) {
+      for (const item of order.items || []) {
+        const key = item.productId;
+        if (!key) continue;
+        if (!productSales[key]) {
+          const dbProd = productMap[key];
+          productSales[key] = {
+            name: item.productName || 'Unknown Product',
+            sku: dbProd?.sku || `GR-${key.slice(0, 6).toUpperCase()}`,
+            sales: 0,
+            revenue: 0,
+          };
+        }
+        productSales[key].sales += item.quantity || 0;
+        productSales[key].revenue += (item.price || 0) * (item.quantity || 0);
+      }
+    }
+
+    const topProducts = Object.values(productSales)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
+
+    // 3. Top categories
+    const categoryRevenue: Record<string, number> = {};
+    for (const order of validOrders) {
+      for (const item of order.items || []) {
+        const key = item.productId;
+        const dbProd = productMap[key];
+        const cat = dbProd?.category || 'Other';
+        categoryRevenue[cat] = (categoryRevenue[cat] || 0) + (item.price || 0) * (item.quantity || 0);
+      }
+    }
+    const totalCategoryRevenue = Object.values(categoryRevenue).reduce((a, b) => a + b, 0) || 1;
+    const topCategories = Object.entries(categoryRevenue)
+      .map(([name, revenue]) => ({
+        name,
+        value: Math.round((revenue / totalCategoryRevenue) * 100),
+        revenue,
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 6);
+
+    // 4. Recent orders
+    const recentOrders = orders.slice(0, 6).map((o) => ({
+      id: o.id,
+      orderNumber: o.order_number,
+      customerName: o.customer_name,
+      totalAmount: Number(o.total_amount || 0),
+      status: o.status,
+      date: new Date(o.created_at).toISOString().split('T')[0],
+    }));
+
+    // 5. Low stock products
+    const lowStockProducts: {
+      productId: string;
+      name: string;
+      size: string;
+      stock: number;
+    }[] = [];
+    for (const p of products) {
+      const sizesArray = p.sizes || [];
+      for (const s of sizesArray) {
+        if (s.stock >= 0 && s.stock <= 5) {
+          lowStockProducts.push({
+            productId: p.id,
+            name: p.name,
+            size: s.size,
+            stock: s.stock,
+          });
+        }
+      }
+    }
+    lowStockProducts.sort((a, b) => a.stock - b.stock);
+    const lowStockCount = lowStockProducts.length;
+
+    // 6. Monthly performance
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyMap: Record<string, { revenue: number; orders: number }> = {};
+    for (const order of validOrders) {
+      const d = new Date(order.created_at);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!monthlyMap[key]) {
+        monthlyMap[key] = { revenue: 0, orders: 0 };
+      }
+      monthlyMap[key].revenue += Number(order.total_amount || 0);
+      monthlyMap[key].orders += 1;
+    }
+    const monthlyPerformance = Object.entries(monthlyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6)
+      .map(([key, data]) => {
+        const monthIdx = parseInt(key.split('-')[1], 10);
+        return {
+          month: monthNames[monthIdx],
+          revenue: data.revenue,
+          orders: data.orders,
+        };
+      });
+
+    // 7. Order status breakdown
+    const statusLabels = [
+      'Pending',
+      'Confirmed',
+      'Packed',
+      'Shipped',
+      'Delivered',
+      'Cancelled',
+      'Returned',
+    ];
+    const orderStatusBreakdown = statusLabels.map((label) => ({
+      label,
+      count: orders.filter((o) => o.status === label).length,
+    }));
+
+    return {
+      totalProducts,
+      totalOrders,
+      totalRevenue,
+      totalCoupons,
+      lowStockCount,
+      pendingOrders,
+      avgOrderValue,
+      couponsUsed,
+      topProducts,
+      topCategories,
+      recentOrders,
+      lowStockProducts: lowStockProducts.slice(0, 10),
+      monthlyPerformance,
+      orderStatusBreakdown,
+    };
   }
 }

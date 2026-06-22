@@ -56,46 +56,40 @@ export const adminService = {
       };
     }
 
-    try {
-      // 1. Total Products
-      const { count: prodCount } = await supabase!
-        .from('products')
-        .select('*', { count: 'exact', head: true });
+    // 1. Total Products
+    const { count: prodCount, error: prodErr } = await supabase!
+      .from('products')
+      .select('*', { count: 'exact', head: true });
+    if (prodErr) throw prodErr;
 
-      // 2. Total Orders
-      const { count: orderCount } = await supabase!
-        .from('orders')
-        .select('*', { count: 'exact', head: true });
+    // 2. Total Orders
+    const { count: orderCount, error: orderErr } = await supabase!
+      .from('orders')
+      .select('*', { count: 'exact', head: true });
+    if (orderErr) throw orderErr;
 
-      // 3. Active Coupons
-      const { count: couponCount } = await supabase!
-        .from('coupons')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
+    // 3. Active Coupons
+    const { count: couponCount, error: couponErr } = await supabase!
+      .from('coupons')
+      .select('*', { count: 'exact', head: true })
+      .eq('active', true);
+    if (couponErr) throw couponErr;
 
-      // 4. Total Revenue
-      const { data: revenueData } = await supabase!
-        .from('orders')
-        .select('total_amount')
-        .neq('status', 'Cancelled');
+    // 4. Total Revenue
+    const { data: revenueData, error: revenueErr } = await supabase!
+      .from('orders')
+      .select('total_amount')
+      .neq('status', 'Cancelled');
+    if (revenueErr) throw revenueErr;
 
-      const rev = (revenueData || []).reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const rev = (revenueData || []).reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 
-      return {
-        totalProducts: prodCount || 0,
-        totalOrders: orderCount || 0,
-        totalRevenue: rev || 0,
-        totalCoupons: couponCount || 0,
-      };
-    } catch (e) {
-      console.error('adminService.getDashboardStats failed:', e);
-      return {
-        totalProducts: 0,
-        totalOrders: 0,
-        totalRevenue: 0,
-        totalCoupons: 0,
-      };
-    }
+    return {
+      totalProducts: prodCount || 0,
+      totalOrders: orderCount || 0,
+      totalRevenue: rev || 0,
+      totalCoupons: couponCount || 0,
+    };
   },
 
   async getOrders(): Promise<AdminOrder[]> {
@@ -104,37 +98,30 @@ export const adminService = {
       return mockOrders;
     }
 
-    try {
-      const { data, error } = await supabase!
-        .from('orders')
-        .select(`
-          *,
-          order_items (quantity)
-        `)
-        .order('created_at', { ascending: false });
+    const { data, error } = await supabase!
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-      if (error || !data) throw error;
+    if (error) throw error;
+    if (!data) return [];
 
-      return data.map((d: any) => {
-        const itemsCount = (d.order_items || []).reduce((sum: number, it: any) => sum + (it.quantity || 0), 0);
-        return {
-          id: d.id,
-          orderNumber: d.order_number,
-          customerName: d.customer_name,
-          email: d.email,
-          phone: d.phone,
-          address: d.shipping_address,
-          itemsCount,
-          totalAmount: Number(d.total_amount),
-          status: d.status as any,
-          paymentStatus: d.payment_status,
-          date: new Date(d.created_at).toISOString().split('T')[0],
-        };
-      });
-    } catch (e) {
-      console.error('adminService.getOrders failed:', e);
-      return [];
-    }
+    return data.map((d: any) => {
+      const itemsCount = (d.items || []).reduce((sum: number, it: any) => sum + (it.quantity || 0), 0);
+      return {
+        id: d.id,
+        orderNumber: d.order_number,
+        customerName: d.customer_name,
+        email: d.customer_email || '',
+        phone: d.customer_phone || '',
+        address: d.shipping_address,
+        itemsCount,
+        totalAmount: Number(d.total_amount),
+        status: d.status as any,
+        paymentStatus: d.payment_status,
+        date: new Date(d.created_at).toISOString().split('T')[0],
+      };
+    });
   },
 
   async updateOrderStatus(orderId: string, status: AdminOrder['status']): Promise<boolean> {
@@ -148,23 +135,19 @@ export const adminService = {
       return false;
     }
 
-    try {
-      // Map legacy statuses if any
-      const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1);
-      const { error } = await supabase!
-        .from('orders')
-        .update({ status: normalizedStatus })
-        .eq('id', orderId);
+    const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1);
+    const { error } = await supabase!
+      .from('orders')
+      .update({ status: normalizedStatus })
+      .eq('id', orderId);
 
-      return !error;
-    } catch (e) {
-      return false;
-    }
+    if (error) throw error;
+    return true;
   },
 
   async getInventory(): Promise<InventoryItem[]> {
-    const products = mockStore.getProducts();
     if (!isSupabaseConfigured()) {
+      const products = mockStore.getProducts();
       await new Promise((resolve) => setTimeout(resolve, 50));
       return products.map((p) => {
         const sizesArray = p.sizes || [];
@@ -182,25 +165,21 @@ export const adminService = {
       });
     }
 
-    try {
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*')
-        .order('category', { ascending: true });
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*')
+      .order('category', { ascending: true });
 
-      if (error || !data) throw error;
+    if (error) throw error;
+    if (!data) return [];
 
-      return data.map((d: any) => ({
-        id: d.id,
-        name: d.name,
-        slug: d.slug,
-        category: d.category,
-        sizeStock: d.sizes || [],
-      }));
-    } catch (e) {
-      console.error('adminService.getInventory failed:', e);
-      return [];
-    }
+    return data.map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      slug: d.slug,
+      category: d.category,
+      sizeStock: d.sizes || [],
+    }));
   },
 
   async updateInventoryStock(productId: string, size: string, newStock: number): Promise<boolean> {
@@ -210,36 +189,34 @@ export const adminService = {
       return true;
     }
 
-    try {
-      // 1. Fetch current product sizes array
-      const { data, error: fetchError } = await supabase!
-        .from('products')
-        .select('sizes')
-        .eq('id', productId)
-        .single();
+    // 1. Fetch current product sizes array
+    const { data, error: fetchError } = await supabase!
+      .from('products')
+      .select('sizes')
+      .eq('id', productId)
+      .single();
 
-      if (fetchError || !data) return false;
+    if (fetchError) throw fetchError;
+    if (!data) throw new Error('Product not found');
 
-      const currentSizes = data.sizes || [];
-      const updatedSizes = currentSizes.map((s: any) => 
-        s.size === size ? { ...s, stock: Math.max(0, newStock) } : s
-      );
+    const currentSizes = data.sizes || [];
+    const updatedSizes = currentSizes.map((s: any) => 
+      s.size === size ? { ...s, stock: Math.max(0, newStock) } : s
+    );
 
-      // If size is not present, add it
-      if (!currentSizes.some((s: any) => s.size === size)) {
-        updatedSizes.push({ size, stock: Math.max(0, newStock) });
-      }
-
-      // 2. Write updated sizes array back
-      const { error: updateError } = await supabase!
-        .from('products')
-        .update({ sizes: updatedSizes })
-        .eq('id', productId);
-
-      return !updateError;
-    } catch (e) {
-      return false;
+    // If size is not present, add it
+    if (!currentSizes.some((s: any) => s.size === size)) {
+      updatedSizes.push({ size, stock: Math.max(0, newStock) });
     }
+
+    // 2. Write updated sizes array back
+    const { error: updateError } = await supabase!
+      .from('products')
+      .update({ sizes: updatedSizes })
+      .eq('id', productId);
+
+    if (updateError) throw updateError;
+    return true;
   },
 };
 
