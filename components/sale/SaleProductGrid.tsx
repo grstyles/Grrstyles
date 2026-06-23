@@ -3,7 +3,6 @@
 
 import SaleProductCard, { SaleProduct } from './SaleProductCard';
 import { Product } from '@/lib/data/products';
-import { mockStore } from '@/lib/providers/mockStore';
 
 interface SaleProductGridProps {
   products?: (Product | SaleProduct)[];
@@ -22,8 +21,8 @@ export default function SaleProductGrid({
   filterDiscount = 0,
   limit
 }: SaleProductGridProps) {
-  // If products is not passed, use all products that have a discount
-  const baseProducts = products || mockStore.getProducts().filter(p => (p.discountPercent || 0) > 0);
+  // If products is not passed, default to empty array
+  const baseProducts = products || [];
 
   // Filter products by discount percent
   let filtered = baseProducts.filter(p => {

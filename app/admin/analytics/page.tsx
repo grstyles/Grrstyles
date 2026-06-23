@@ -83,7 +83,7 @@ export default function AdminAnalyticsPage() {
       <div className="flex items-start justify-between flex-wrap gap-4 border-b border-gray-100 pb-6">
         <div>
           <h1 className="text-3xl font-light tracking-tight text-gray-900 uppercase">Analytics</h1>
-          <p className="text-sm text-gray-400 mt-1">Store performance overview · Live from MockStore</p>
+          <p className="text-sm text-gray-400 mt-1">Store performance overview · Live from Supabase</p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono text-gray-400 bg-gray-50 border border-gray-100 px-4 py-2 rounded-xl">
           <span className={`w-2 h-2 rounded-full animate-pulse ${config.demoMode ? 'bg-amber-400' : 'bg-green-400'}`} />

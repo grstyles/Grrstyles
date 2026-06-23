@@ -8,7 +8,42 @@
  */
 
 import { Product } from '@/lib/data/products';
-import { MockOrder, MockCoupon } from '@/lib/providers/mockStore';
+
+export interface MockOrderItem {
+  productId: string;
+  productName: string;
+  size: string;
+  quantity: number;
+  price: number;
+}
+
+export interface MockOrder {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  email: string;
+  phone?: string;
+  itemsCount: number;
+  totalAmount: number;
+  status: 'Pending' | 'Confirmed' | 'Packed' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Returned';
+  paymentStatus: 'Pending' | 'Paid' | 'Failed' | 'Refunded';
+  paymentMethod: string;
+  shippingAddress?: any;
+  couponCode?: string;
+  discountAmount?: number;
+  date: string;
+  items?: MockOrderItem[];
+}
+
+export interface MockCoupon {
+  code: string;
+  discountPercent: number;
+  description: string;
+  isActive: boolean;
+  usageCount: number;
+  maxUsage?: number;
+  expiresAt?: string;
+}
 
 // ─── Product Repository ───────────────────────────────────────────────────────
 
@@ -111,13 +146,13 @@ export interface ICouponRepository {
 
 export interface IStorageRepository {
   /** Upload an image file, returns public URL */
-  uploadImage(file: File, bucket: 'products' | 'banners' | 'collections'): Promise<string | null>;
+  uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections'): Promise<string | null>;
 
   /** Delete an image by URL or path */
-  deleteImage(url: string, bucket: 'products' | 'banners' | 'collections'): Promise<boolean>;
+  deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections'): Promise<boolean>;
 
   /** Get public URL for a stored asset */
-  getImageUrl(path: string, bucket: 'products' | 'banners' | 'collections'): string;
+  getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections'): string;
 }
 
 // ─── Analytics Repository ─────────────────────────────────────────────────────

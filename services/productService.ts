@@ -1,6 +1,5 @@
 import { Product } from '@/lib/data/products';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { mockStore } from '@/lib/providers/mockStore';
+import { supabase } from '@/lib/supabase';
 import { normalizeSlug, matchCategory } from '@/lib/utils/categoryImageMap';
 
 // Helper to map DB columns to frontend Product schema
@@ -46,181 +45,95 @@ export function mapDbProduct(db: any): Product {
 
 export const productService = {
   async getProducts(): Promise<Product[]> {
-    if (!isSupabaseConfigured()) {
-      await new Promise((resolve) => setTimeout(resolve, 80));
-      return mockStore.getProducts(); // Live from singleton — reflects admin CRUD
-    }
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    try {
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error || !data) throw error || new Error('No data');
-      return data.map(mapDbProduct);
-    } catch (err) {
-      console.error('Failed to getProducts from Supabase, falling back:', err);
-      return mockStore.getProducts();
-    }
+    if (error || !data) throw error || new Error('No data');
+    return data.map(mapDbProduct);
   },
 
   async getProductBySlug(slug: string): Promise<Product | null> {
-    const products = mockStore.getProducts();
-    if (!isSupabaseConfigured()) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      const prod = products.find((p) => p.slug === slug);
-      return prod || null;
-    }
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*')
+      .eq('slug', slug)
+      .maybeSingle();
 
-    try {
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*')
-        .eq('slug', slug)
-        .maybeSingle();
-
-      if (error || !data) return null;
-      return mapDbProduct(data);
-    } catch (err) {
-      console.error('Failed to getProductBySlug from Supabase, falling back:', err);
-      const prod = products.find((p) => p.slug === slug);
-      return prod || null;
-    }
+    if (error) throw error;
+    if (!data) return null;
+    return mapDbProduct(data);
   },
 
   async getProductsByCategory(categorySlug: string): Promise<Product[]> {
-    if (!isSupabaseConfigured()) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return this.getLocalByCategory(categorySlug);
-    }
-
-    try {
-      const normalizedSlug = normalizeSlug(categorySlug);
-      // Query all products and then filter dynamically via matchCategory
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*');
-
-      if (error || !data) throw error || new Error('No data');
-      return data.map(mapDbProduct).filter((p) => matchCategory(p, normalizedSlug));
-    } catch (err) {
-      console.error('Failed to getProductsByCategory from Supabase, falling back:', err);
-      return this.getLocalByCategory(categorySlug);
-    }
-  },
-
-  getLocalByCategory(categorySlug: string): Product[] {
-    const products = mockStore.getProducts();
     const normalizedSlug = normalizeSlug(categorySlug);
-    return products.filter((p) => matchCategory(p, normalizedSlug));
+    // Query all products and then filter dynamically via matchCategory
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*');
+
+    if (error || !data) throw error || new Error('No data');
+    return data.map(mapDbProduct).filter((p) => matchCategory(p, normalizedSlug));
   },
 
   async getProductsByCollection(collectionSlug: string): Promise<Product[]> {
-    if (!isSupabaseConfigured()) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return this.getLocalByCollection(collectionSlug);
-    }
-
-    try {
-      const slug = collectionSlug.toLowerCase().trim();
-      let query = supabase!.from('products').select('*');
-
-      // We can query by collection column in public.products table
-      // If collection is set dynamically, query it directly
-      const colMap: Record<string, string> = {
-        'korean-collection': 'Korean Collection',
-        'festival-collection': 'Festival Collection',
-        'festival-wear': 'Festival Collection',
-        'formal-collection': 'Formal Collection',
-        'formal-wear': 'Formal Collection',
-        'weekend-collection': 'Weekend Collection',
-        'weekend-offers': 'Weekend Collection',
-        'denim-collection': 'Denim Collection',
-        'streetwear-collection': 'Streetwear Collection',
-        'premium-essentials': 'Premium Essentials',
-        'office-wear-collection': 'Office Wear Collection'
-      };
-
-      const dbCol = colMap[slug];
-      if (dbCol) {
-        query = query.eq('collection', dbCol);
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
-      if (error || !data || data.length === 0) {
-        // Fallback to text query filtering on DB products
-        const { data: allProds } = await supabase!.from('products').select('*');
-        if (allProds) {
-          const filtered = allProds.map(mapDbProduct).filter(p => {
-            if (slug === 'korean-collection') return p.name.toLowerCase().includes('korean') || p.description.toLowerCase().includes('korean');
-            if (slug === 'festival-collection' || slug === 'festival-wear') return p.label === 'HOT' || p.discountPercent > 20 || p.label === 'NEW';
-            if (slug === 'formal-collection' || slug === 'formal-wear') return p.name.toLowerCase().includes('formal') || p.description.toLowerCase().includes('formal') || p.name.toLowerCase().includes('office');
-            if (slug === 'weekend-collection') return p.name.toLowerCase().includes('weekend') || p.name.toLowerCase().includes('casual');
-            if (slug === 'denim-collection') return p.category === 'Jeans' || p.name.toLowerCase().includes('denim');
-            if (slug === 'streetwear-collection') return p.name.toLowerCase().includes('streetwear') || p.name.toLowerCase().includes('oversized') || p.category === 'Hoodies';
-            if (slug === 'premium-essentials') return p.name.toLowerCase().includes('premium') || p.name.toLowerCase().includes('basic');
-            if (slug === 'office-wear-collection') return p.name.toLowerCase().includes('office') || p.name.toLowerCase().includes('formal');
-            return true;
-          });
-          if (filtered.length > 0) return filtered;
-        }
-        return this.getLocalByCollection(collectionSlug);
-      }
-
-      return data.map(mapDbProduct);
-    } catch (err) {
-      console.error('Failed to getProductsByCollection from Supabase, falling back:', err);
-      return this.getLocalByCollection(collectionSlug);
-    }
-  },
-
-  getLocalByCollection(collectionSlug: string): Product[] {
-    const products = mockStore.getProducts();
     const slug = collectionSlug.toLowerCase().trim();
-    if (slug === 'korean-collection') {
-      return products.filter((p) => p.title.toLowerCase().includes('korean') || p.description.toLowerCase().includes('korean'));
+    let query = supabase!.from('products').select('*');
+
+    const colMap: Record<string, string> = {
+      'korean-collection': 'Korean Collection',
+      'festival-collection': 'Festival Collection',
+      'festival-wear': 'Festival Collection',
+      'formal-collection': 'Formal Collection',
+      'formal-wear': 'Formal Collection',
+      'weekend-collection': 'Weekend Collection',
+      'weekend-offers': 'Weekend Collection',
+      'denim-collection': 'Denim Collection',
+      'streetwear-collection': 'Streetwear Collection',
+      'premium-essentials': 'Premium Essentials',
+      'office-wear-collection': 'Office Wear Collection'
+    };
+
+    const dbCol = colMap[slug];
+    if (dbCol) {
+      query = query.eq('collection', dbCol);
     }
-    if (slug === 'festival-collection' || slug === 'festival-wear') {
-      return products.filter((p) => p.label === 'HOT' || p.discountPercent > 20 || p.label === 'NEW');
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      // Fallback to text query filtering on DB products
+      const { data: allProds, error: allErr } = await supabase!.from('products').select('*');
+      if (allErr) throw allErr;
+      if (allProds) {
+        return allProds.map(mapDbProduct).filter(p => {
+          if (slug === 'korean-collection') return p.name.toLowerCase().includes('korean') || p.description.toLowerCase().includes('korean');
+          if (slug === 'festival-collection' || slug === 'festival-wear') return p.label === 'HOT' || p.discountPercent > 20 || p.label === 'NEW';
+          if (slug === 'formal-collection' || slug === 'formal-wear') return p.name.toLowerCase().includes('formal') || p.description.toLowerCase().includes('formal') || p.name.toLowerCase().includes('office');
+          if (slug === 'weekend-collection') return p.name.toLowerCase().includes('weekend') || p.name.toLowerCase().includes('casual');
+          if (slug === 'denim-collection') return p.category === 'Jeans' || p.name.toLowerCase().includes('denim');
+          if (slug === 'streetwear-collection') return p.name.toLowerCase().includes('streetwear') || p.name.toLowerCase().includes('oversized') || p.category === 'Hoodies';
+          if (slug === 'premium-essentials') return p.name.toLowerCase().includes('premium') || p.name.toLowerCase().includes('basic');
+          if (slug === 'office-wear-collection') return p.name.toLowerCase().includes('office') || p.name.toLowerCase().includes('formal');
+          return true;
+        });
+      }
+      return [];
     }
-    if (slug === 'formal-collection' || slug === 'formal-wear') {
-      return products.filter((p) => p.title.toLowerCase().includes('formal') || p.description.toLowerCase().includes('formal') || p.title.toLowerCase().includes('office'));
-    }
-    if (slug === 'weekend-collection' || slug === 'weekend-offers') {
-      return products.filter((p) => p.title.toLowerCase().includes('weekend') || p.title.toLowerCase().includes('casual') || p.description.toLowerCase().includes('weekend'));
-    }
-    if (slug === 'denim-collection') {
-      return products.filter((p) => p.category === 'Jeans' || p.title.toLowerCase().includes('denim') || p.description.toLowerCase().includes('denim'));
-    }
-    if (slug === 'streetwear-collection') {
-      return products.filter((p) => p.title.toLowerCase().includes('streetwear') || p.title.toLowerCase().includes('oversized') || p.category === 'Hoodies' || p.category === 'Sweatshirts');
-    }
-    if (slug === 'premium-essentials') {
-      return products.filter((p) => p.title.toLowerCase().includes('premium') || p.title.toLowerCase().includes('basic'));
-    }
-    if (slug === 'office-wear-collection') {
-      return products.filter((p) => p.title.toLowerCase().includes('office') || p.title.toLowerCase().includes('formal'));
-    }
-    return products.slice(0, 8);
+
+    return data.map(mapDbProduct);
   },
 
   async getProductsByBrand(brandSlug: string): Promise<Product[]> {
-    const products = mockStore.getProducts();
-    if (!isSupabaseConfigured()) {
-      return products.filter((p) => (p.brand || '').toLowerCase() === brandSlug.replace(/-/g, ' ').toLowerCase());
-    }
-    try {
-      const cleanBrand = brandSlug.replace(/-/g, ' ').toLowerCase();
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*')
-        .ilike('brand', `%${cleanBrand}%`);
-      if (error || !data) throw error;
-      return data.map(mapDbProduct);
-    } catch (e) {
-      return products.filter((p) => (p.brand || '').toLowerCase() === brandSlug.replace(/-/g, ' ').toLowerCase());
-    }
+    const cleanBrand = brandSlug.replace(/-/g, ' ').toLowerCase();
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*')
+      .ilike('brand', `%${cleanBrand}%`);
+    if (error) throw error;
+    return (data || []).map(mapDbProduct);
   },
 
   async getProductsByFestival(festivalSlug: string): Promise<Product[]> {
@@ -228,174 +141,129 @@ export const productService = {
   },
 
   async getProductsByCombo(comboSlug: string): Promise<Product[]> {
-    // Combos represent complementary products. Handled by client configs
     return this.getProducts();
   },
 
   async getRelatedProducts(slug: string): Promise<Product[]> {
-    const products = mockStore.getProducts();
-    if (!isSupabaseConfigured()) {
-      return products.filter((p) => p.slug !== slug).slice(0, 4);
-    }
-    try {
-      const current = await this.getProductBySlug(slug);
-      if (!current) return products.slice(0, 4);
+    const current = await this.getProductBySlug(slug);
+    if (!current) return [];
 
-      const { data, error } = await supabase!
-        .from('products')
-        .select('*')
-        .eq('category', current.category)
-        .neq('slug', slug)
-        .limit(4);
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*')
+      .eq('category', current.category)
+      .neq('slug', slug)
+      .limit(4);
 
-      if (error || !data || data.length === 0) {
-        return products.filter((p) => p.slug !== slug).slice(0, 4);
-      }
-      return data.map(mapDbProduct);
-    } catch (e) {
-      return products.filter((p) => p.slug !== slug).slice(0, 4);
-    }
+    if (error) throw error;
+    return (data || []).map(mapDbProduct);
   },
 
   async createProduct(p: Product): Promise<Product | null> {
-    if (!isSupabaseConfigured()) {
-      return mockStore.addProduct(p); // Sync with mockStore singleton
-    }
-    try {
-      const mapped: any = {
-        sku: p.sku || `GR-${p.category.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`,
-        name: p.name,
-        slug: p.slug,
-        category: p.category,
-        collection: p.collection || '',
-        images: p.images,
-        sizes: p.sizes,
-        stock: p.sizes?.reduce((sum: number, s: any) => sum + (s.stock || 0), 0) || 0,
-        mrp: p.mrpPrice,
-        selling_price: p.sellingPrice,
-        description: p.description,
-        featured: p.metadata?.featured || false,
-        trending: p.bestSeller || false,
-        new_arrival: p.isNew || false,
-        deal_of_day: p.metadata?.dealOfDay || false,
-        brand: p.brand || 'GR STYLES',
-      };
-      const { data, error } = await supabase!
-        .from('products')
-        .insert(mapped)
-        .select('*')
-        .single();
-      if (error || !data) throw error;
-      return mapDbProduct(data);
-    } catch (e) {
-      console.error('Failed to create product in Supabase:', e);
-      mockStore.addProduct(p);
-      return p;
-    }
+    const mapped: any = {
+      sku: p.sku || `GR-${p.category.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+      name: p.name,
+      slug: p.slug,
+      category: p.category,
+      collection: p.collection || '',
+      images: p.images,
+      sizes: p.sizes,
+      stock: p.sizes?.reduce((sum: number, s: any) => sum + (s.stock || 0), 0) || 0,
+      mrp: p.mrpPrice,
+      selling_price: p.sellingPrice,
+      description: p.description,
+      featured: p.metadata?.featured || false,
+      trending: p.bestSeller || false,
+      new_arrival: p.isNew || false,
+      deal_of_day: p.metadata?.dealOfDay || false,
+      brand: p.brand || 'GR STYLES',
+    };
+    const { data, error } = await supabase!
+      .from('products')
+      .insert(mapped)
+      .select('*')
+      .single();
+    if (error || !data) throw error || new Error('Product creation failed');
+    return mapDbProduct(data);
   },
 
   async deleteProduct(id: string): Promise<boolean> {
-    if (!isSupabaseConfigured()) {
-      return mockStore.deleteProduct(id); // Sync with mockStore singleton
-    }
-    try {
-      // Try by UUID
-      const { error } = await supabase!
+    const { error } = await supabase!
+      .from('products')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      const { error: err2 } = await supabase!
         .from('products')
         .delete()
-        .eq('id', id);
-
-      if (error) {
-        // Try by product_id string (legacy support)
-        const { error: err2 } = await supabase!
-          .from('products')
-          .delete()
-          .eq('product_id', id);
-        return !err2;
-      }
-      return !error;
-    } catch (e) {
-      return false;
+        .eq('product_id', id);
+      if (err2) throw err2;
     }
+    return true;
   },
 
   async createOrder(order: any, items: any[]): Promise<string | null> {
     const orderNumber = `GR-2026-${Math.floor(100000 + Math.random() * 900000)}`;
     
-    if (!isSupabaseConfigured()) {
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('gr_last_order_number', orderNumber);
-      }
-      return orderNumber;
-    }
+    // 1. Insert order
+    const { data: orderRow, error: orderError } = await supabase!
+      .from('orders')
+      .insert({
+        order_number: orderNumber,
+        customer_name: order.customerName,
+        customer_email: order.email,
+        customer_phone: order.phone,
+        shipping_address: order.shippingAddress,
+        total_amount: order.totalAmount,
+        status: 'Pending',
+        payment_status: order.paymentStatus || 'Pending',
+        items: items.map(item => ({
+          productId: item.productId || item.id,
+          productName: item.productName || item.title,
+          size: item.size || 'One Size',
+          quantity: item.quantity,
+          price: item.discountedPrice || item.price
+        }))
+      })
+      .select('*')
+      .single();
 
-    try {
-      // Get current profile
-      const { data: { session } } = await supabase!.auth.getSession();
-      const userId = session?.user?.id || null;
+    if (orderError || !orderRow) throw orderError || new Error('Order creation failed');
 
-      // 1. Insert order
-      const { data: orderRow, error: orderError } = await supabase!
-        .from('orders')
-        .insert({
-          order_number: orderNumber,
-          customer_name: order.customerName,
-          customer_email: order.email,
-          customer_phone: order.phone,
-          shipping_address: order.shippingAddress,
-          total_amount: order.totalAmount,
-          status: 'Pending',
-          payment_status: order.paymentStatus || 'Pending',
-          items: items.map(item => ({
-            productId: item.productId || item.id,
-            productName: item.productName || item.title,
-            size: item.size || 'One Size',
-            quantity: item.quantity,
-            price: item.discountedPrice || item.price
-          }))
-        })
-        .select('*')
-        .single();
+    // 2. Decrement stock
+    for (const item of items) {
+      const { data: prod, error: prodErr } = await supabase!
+        .from('products')
+        .select('id, sizes')
+        .or(`id.eq.${item.id},product_id.eq.${item.id}`)
+        .maybeSingle();
 
-      if (orderError || !orderRow) throw orderError || new Error('Order creation failed');
+      if (prodErr) throw prodErr;
 
-      // 2. Decrement stock
-      for (const item of items) {
-        // Find UUID product
-        const { data: prod } = await supabase!
+      if (prod) {
+        // Decrement stock
+        const currentSizes = prod.sizes || [];
+        const updatedSizes = currentSizes.map((s: any) => {
+          if (s.size === item.size) {
+            return { ...s, stock: Math.max(0, s.stock - item.quantity) };
+          }
+          return s;
+        });
+
+        const { error: updateErr } = await supabase!
           .from('products')
-          .select('id, sizes')
-          .or(`id.eq.${item.id},product_id.eq.${item.id}`)
-          .maybeSingle();
+          .update({ sizes: updatedSizes })
+          .eq('id', prod.id);
 
-        if (prod) {
-          // Decrement stock
-          const currentSizes = prod.sizes || [];
-          const updatedSizes = currentSizes.map((s: any) => {
-            if (s.size === item.size) {
-              return { ...s, stock: Math.max(0, s.stock - item.quantity) };
-            }
-            return s;
-          });
-
-          await supabase!
-            .from('products')
-            .update({ sizes: updatedSizes })
-            .eq('id', prod.id);
-        }
+        if (updateErr) throw updateErr;
       }
-
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('gr_last_order_number', orderNumber);
-      }
-      return orderNumber;
-    } catch (e) {
-      console.error('Failed to create order in Supabase, running fallback:', e);
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('gr_last_order_number', orderNumber);
-      }
-      return orderNumber;
     }
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('gr_last_order_number', orderNumber);
+    }
+    return orderNumber;
   }
-};
+};;
 

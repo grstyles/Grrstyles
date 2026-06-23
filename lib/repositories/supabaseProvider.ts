@@ -24,8 +24,9 @@ import {
   CreateOrderInput,
   DashboardStats,
   FullAnalytics,
+  MockCoupon,
+  MockOrder,
 } from './interfaces';
-import { MockCoupon, MockOrder } from '../providers/mockStore';
 
 // ─── Supabase Product Repository ──────────────────────────────────────────────
 
@@ -332,7 +333,7 @@ export class SupabaseCouponRepository implements ICouponRepository {
 // ─── Supabase Storage Repository ─────────────────────────────────────────────
 
 export class SupabaseStorageRepository implements IStorageRepository {
-  async uploadImage(file: File, bucket: 'products' | 'banners' | 'collections'): Promise<string | null> {
+  async uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections'): Promise<string | null> {
     const ext = file.name.split('.').pop();
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
     const { error } = await supabase!.storage.from(bucket).upload(path, file);
@@ -341,14 +342,14 @@ export class SupabaseStorageRepository implements IStorageRepository {
     return data.publicUrl;
   }
 
-  async deleteImage(url: string, bucket: 'products' | 'banners' | 'collections'): Promise<boolean> {
+  async deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections'): Promise<boolean> {
     const path = url.split(`/${bucket}/`)[1];
     if (!path) return false;
     const { error } = await supabase!.storage.from(bucket).remove([path]);
     return !error;
   }
 
-  getImageUrl(path: string, bucket: 'products' | 'banners' | 'collections'): string {
+  getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections'): string {
     const { data } = supabase!.storage.from(bucket).getPublicUrl(path);
     return data.publicUrl;
   }

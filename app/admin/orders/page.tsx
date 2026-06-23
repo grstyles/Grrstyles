@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { repo } from '@/lib/repositories';
-import { MockOrder } from '@/lib/providers/mockStore';
+import { repo, MockOrder, MockOrderItem } from '@/lib/repositories';
 import { ClipboardList, RefreshCw, Search, Eye, X } from 'lucide-react';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useDispatch } from 'react-redux';
@@ -52,7 +51,7 @@ export default function AdminOrdersPage() {
       if (success) {
         setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status } : o)));
         if (selectedOrder?.id === orderId) {
-          setSelectedOrder((prev) => prev ? { ...prev, status } : prev);
+          setSelectedOrder((prev: MockOrder | null) => prev ? { ...prev, status } : prev);
         }
         dispatch(addToast({ message: `Order status → "${status}"`, type: 'success' }));
       }
@@ -250,7 +249,7 @@ export default function AdminOrdersPage() {
             {selectedOrder.items && selectedOrder.items.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Items</p>
-                {selectedOrder.items.map((item, i) => (
+                {selectedOrder.items.map((item: MockOrderItem, i: number) => (
                   <div key={i} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0 text-xs">
                     <div>
                       <p className="font-semibold text-gray-800">{item.productName}</p>

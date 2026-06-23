@@ -244,7 +244,7 @@ export class MockCouponRepository implements ICouponRepository {
 export class MockStorageRepository implements IStorageRepository {
   async uploadImage(
     file: File,
-    _bucket: 'products' | 'banners' | 'collections'
+    _bucket: 'product-images' | 'banners' | 'collections'
   ): Promise<string | null> {
     await delay(600);
     // Return a data URL (for demo mode — no actual upload)
@@ -258,13 +258,13 @@ export class MockStorageRepository implements IStorageRepository {
 
   async deleteImage(
     _url: string,
-    _bucket: 'products' | 'banners' | 'collections'
+    _bucket: 'product-images' | 'banners' | 'collections'
   ): Promise<boolean> {
     await delay();
     return true; // No-op in demo mode
   }
 
-  getImageUrl(path: string, _bucket: 'products' | 'banners' | 'collections'): string {
+  getImageUrl(path: string, _bucket: 'product-images' | 'banners' | 'collections'): string {
     return path; // In demo mode, paths are already URLs
   }
 }

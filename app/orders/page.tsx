@@ -4,8 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/context/AuthContext';
-import { repo } from '@/lib/repositories';
-import { MockOrder, MockOrderItem } from '@/lib/providers/mockStore';
+import { repo, MockOrder, MockOrderItem } from '@/lib/repositories';
 import { formatPrice } from '@/lib/utils/helpers';
 import { ClipboardList, ChevronDown, ChevronUp, Package, Clock, Truck, CheckCircle2, AlertTriangle, ArrowLeft } from 'lucide-react';
 

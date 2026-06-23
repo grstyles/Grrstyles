@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { repo } from '@/lib/repositories';
-import { MockCoupon } from '@/lib/providers/mockStore';
+import { repo, MockCoupon } from '@/lib/repositories';
 import { Tag, Plus, X, Percent, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useDispatch } from 'react-redux';

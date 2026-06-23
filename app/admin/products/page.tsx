@@ -101,7 +101,7 @@ export default function AdminProductsPage() {
     if (!file) return;
     setUploading(true);
     try {
-      const url = await repo.storage.uploadImage(file, 'products');
+      const url = await repo.storage.uploadImage(file, 'product-images');
       if (url) {
         setImagesList((prev) => [...prev, url]);
         dispatch(addToast({ message: 'Image uploaded successfully!', type: 'success' }));

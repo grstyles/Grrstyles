@@ -1,0 +1,106 @@
+{
+  "testResults": {
+    "TEST 1": "PASS",
+    "TEST 2": "PASS",
+    "TEST 3": "PASS",
+    "TEST 4": "PASS",
+    "TEST 5": "PASS",
+    "TEST 6": "PASS",
+    "TEST 7": "PASS",
+    "TEST 8": "PASS",
+    "TEST 9": "PASS",
+    "TEST 10": "PASS",
+    "TEST 11": "PASS"
+  },
+  "productId": "c0dc28e1-b018-4c1a-993a-3cc0ce56c0df",
+  "productRow": {
+    "id": "c0dc28e1-b018-4c1a-993a-3cc0ce56c0df",
+    "sku": "OXF-PUR-001",
+    "name": "OXFORD SHIRT",
+    "slug": "oxford-shirt",
+    "category": "formal-shirts",
+    "collection": "trending-collections",
+    "brand": "GR STYLES",
+    "description": "Premium Oxford Shirt crafted from high-quality Oxford cloth. Designed for comfort, durability, and a refined formal look suitable for office wear, business meetings, and special occasions.",
+    "mrp": 1000,
+    "selling_price": 599,
+    "featured": true,
+    "trending": true,
+    "deal_of_day": false,
+    "new_arrival": true,
+    "stock": 15,
+    "images": [
+      "https://xqxnezvhrmyndpsfmrbc.supabase.co/storage/v1/object/public/product-images/oxford-shirt-1782207321237.jpg"
+    ],
+    "sizes": [
+      {
+        "size": "M",
+        "stock": 5
+      },
+      {
+        "size": "L",
+        "stock": 5
+      },
+      {
+        "size": "XL",
+        "stock": 5
+      }
+    ],
+    "tags": null,
+    "created_at": "2026-06-23T09:35:22.417356+00:00",
+    "updated_at": "2026-06-23T09:35:22.417356+00:00"
+  },
+  "productUrl": "/product/oxford-shirt",
+  "categoryUrl": "/category/formal-shirts",
+  "collectionUrl": "/collections/trending-collections",
+  "storageUploadUrl": "https://xqxnezvhrmyndpsfmrbc.supabase.co/storage/v1/object/public/product-images/oxford-shirt-1782207321237.jpg",
+  "orderId": "GR-2026-523513",
+  "orderRow": {
+    "id": "735d34cb-87b0-47fd-9c87-88ffc1d7ac2d",
+    "order_number": "GR-2026-523513",
+    "customer_name": "Oxford Buyer",
+    "customer_email": "oxfordbuyer@gmail.com",
+    "customer_phone": "9876543210",
+    "status": "Pending",
+    "total_amount": 1198,
+    "payment_status": "Paid",
+    "items": [
+      {
+        "size": "M",
+        "price": 599,
+        "quantity": 1,
+        "productId": "c0dc28e1-b018-4c1a-993a-3cc0ce56c0df",
+        "productName": "OXFORD SHIRT"
+      },
+      {
+        "size": "L",
+        "price": 599,
+        "quantity": 1,
+        "productId": "c0dc28e1-b018-4c1a-993a-3cc0ce56c0df",
+        "productName": "OXFORD SHIRT"
+      }
+    ],
+    "shipping_address": {
+      "zip": "400001",
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "address": "GR STYLES Office, 45 Fashion Avenue",
+      "country": "India"
+    },
+    "created_at": "2026-06-23T09:35:22.594725+00:00",
+    "updated_at": "2026-06-23T09:35:22.594725+00:00"
+  },
+  "inventoryBefore": "M=5, L=5, XL=5",
+  "inventoryAfter": "M=4, L=4, XL=5",
+  "dashboardMetrics": {
+    "totalProducts": 1,
+    "totalOrders": 2,
+    "totalRevenue": 1298
+  },
+  "uiBugs": "None",
+  "dbBugs": "None",
+  "productionBlockers": "None",
+  "mockStoreReferences": 0,
+  "demoArchitectureReferences": 0,
+  "readinessScore": 100
+}

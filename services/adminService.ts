@@ -1,7 +1,6 @@
 import { Product } from '@/lib/data/products';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { mapDbProduct } from './productService';
-import { mockStore } from '@/lib/providers/mockStore';
 
 export interface AdminStats {
   totalProducts: number;
@@ -32,30 +31,8 @@ export interface InventoryItem {
   sizeStock: { size: string; stock: number }[];
 }
 
-const mockOrders: AdminOrder[] = [
-  { id: 'ORD-2026-108', orderNumber: 'GR-2026-100108', customerName: 'Rahul Kumar', email: 'rahul.k@gmail.com', itemsCount: 2, totalAmount: 2798, status: 'Pending', date: '2026-06-19', phone: '+91 9876500108' },
-  { id: 'ORD-2026-107', orderNumber: 'GR-2026-100107', customerName: 'Arjun Sharma', email: 'arjun.s@gmail.com', itemsCount: 1, totalAmount: 1499, status: 'Confirmed', date: '2026-06-19', phone: '+91 9876500107' },
-  { id: 'ORD-2026-106', orderNumber: 'GR-2026-100106', customerName: 'Vikram Singh', email: 'vikram.s@gmail.com', itemsCount: 3, totalAmount: 4497, status: 'Packed', date: '2026-06-18', phone: '+91 9876500106' },
-  { id: 'ORD-2026-105', orderNumber: 'GR-2026-100105', customerName: 'Sanjay Patel', email: 'sanjay.p@gmail.com', itemsCount: 2, totalAmount: 3398, status: 'Shipped', date: '2026-06-18', phone: '+91 9876500105' },
-  { id: 'ORD-2026-104', orderNumber: 'GR-2026-100104', customerName: 'Nikhil Mehta', email: 'nikhil.m@gmail.com', itemsCount: 1, totalAmount: 1199, status: 'Delivered', date: '2026-06-17', phone: '+91 9876500104' },
-  { id: 'ORD-2026-103', orderNumber: 'GR-2026-100103', customerName: 'Rohan Verma', email: 'rohan.v@gmail.com', itemsCount: 3, totalAmount: 5697, status: 'Delivered', date: '2026-06-17', phone: '+91 9876500103' },
-  { id: 'ORD-2026-102', orderNumber: 'GR-2026-100102', customerName: 'Deepak Nair', email: 'deepak.n@gmail.com', itemsCount: 1, totalAmount: 1999, status: 'Cancelled', date: '2026-06-16', phone: '+91 9876500102' },
-  { id: 'ORD-2026-101', orderNumber: 'GR-2026-100101', customerName: 'Aakash Gupta', email: 'aakash.g@gmail.com', itemsCount: 2, totalAmount: 3298, status: 'Returned', date: '2026-06-15', phone: '+91 9876500101' },
-];
-
 export const adminService = {
   async getDashboardStats(): Promise<AdminStats> {
-    const products = mockStore.getProducts();
-    if (!isSupabaseConfigured()) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      return {
-        totalProducts: products.length,
-        totalOrders: 142,
-        totalRevenue: 284500,
-        totalCoupons: 3,
-      };
-    }
-
     // 1. Total Products
     const { count: prodCount, error: prodErr } = await supabase!
       .from('products')
@@ -93,11 +70,6 @@ export const adminService = {
   },
 
   async getOrders(): Promise<AdminOrder[]> {
-    if (!isSupabaseConfigured()) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      return mockOrders;
-    }
-
     const { data, error } = await supabase!
       .from('orders')
       .select('*')
@@ -125,16 +97,6 @@ export const adminService = {
   },
 
   async updateOrderStatus(orderId: string, status: AdminOrder['status']): Promise<boolean> {
-    if (!isSupabaseConfigured()) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      const order = mockOrders.find((o) => o.id === orderId);
-      if (order) {
-        order.status = status;
-        return true;
-      }
-      return false;
-    }
-
     const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1);
     const { error } = await supabase!
       .from('orders')
@@ -146,25 +108,6 @@ export const adminService = {
   },
 
   async getInventory(): Promise<InventoryItem[]> {
-    if (!isSupabaseConfigured()) {
-      const products = mockStore.getProducts();
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      return products.map((p) => {
-        const sizesArray = p.sizes || [];
-        const sizeStock = sizesArray.map((s) => ({
-          size: s.size,
-          stock: s.stock,
-        }));
-        return {
-          id: p.id,
-          name: p.name || p.title || '',
-          slug: p.slug,
-          category: p.category,
-          sizeStock,
-        };
-      });
-    }
-
     const { data, error } = await supabase!
       .from('products')
       .select('*')
@@ -183,12 +126,6 @@ export const adminService = {
   },
 
   async updateInventoryStock(productId: string, size: string, newStock: number): Promise<boolean> {
-    if (!isSupabaseConfigured()) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      console.log(`Simulated Inventory update: Product ${productId}, Size ${size}, Stock ${newStock}`);
-      return true;
-    }
-
     // 1. Fetch current product sizes array
     const { data, error: fetchError } = await supabase!
       .from('products')
@@ -219,4 +156,3 @@ export const adminService = {
     return true;
   },
 };
-

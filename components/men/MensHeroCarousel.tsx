@@ -6,48 +6,59 @@ import { ChevronLeft, ChevronRight, ArrowRight, ShoppingBag } from "lucide-react
 
 const slides = [
   {
-    title: "Premium Shirts Collection",
-    subtitle: "Elevate Your Everyday Style",
-    description: "Crafted from premium fabrics with meticulous attention to detail. Perfect for the modern man who values quality and sophistication.",
-    image: "https://images.unsplash.com/photo-1617137968427-85924c800a22?q=80&w=2000&auto=format&fit=crop",
+    title: "New Arrivals",
+    subtitle: "FRESH SEASON SELECTIONS",
+    description: "Upgrade your wardrobe with our newest cuts, premium fabrics, and modern fits.",
+    image: "/images/banners/banner-1.jpg",
+    ctaText: "Shop New",
+    ctaLink: "/new-in",
+    secondaryCta: "Explore All",
+    secondaryCtaLink: "/collections",
+    badge: "JUST LANDED"
+  },
+  {
+    title: "Premium Shirts",
+    subtitle: "COTTON & LINEN MASTERPIECES",
+    description: "Crisp formal oxfords, elegant linen designs, and comfortable casual shirting.",
+    image: "/images/banners/banner-2.jpg",
     ctaText: "Shop Shirts",
-    ctaLink: "/shirts",
-    secondaryCta: "Explore Collection",
+    ctaLink: "/category/shirts",
+    secondaryCta: "Explore All",
     secondaryCtaLink: "/collections",
-    badge: "NEW SEASON"
+    badge: "CLASSIC SHIRTING"
   },
   {
-    title: "Summer Essentials",
-    subtitle: "Stay Cool, Stay Stylish",
-    description: "Lightweight fabrics and breathable designs for the warmest days. Look sharp while staying comfortable all season long.",
-    image: "https://images.unsplash.com/photo-1516826957135-700ede19c6ce?q=80&w=2000&auto=format&fit=crop",
-    ctaText: "Shop Summer",
-    ctaLink: "/summer-collection",
-    secondaryCta: "View All",
+    title: "Denim Collection",
+    subtitle: "PERFECT FIT & WASHES",
+    description: "Distressed streetwear fits, classic straight cuts, and stretch denim built to last.",
+    image: "/images/banners/banner-3.jpg",
+    ctaText: "Shop Denim",
+    ctaLink: "/category/denim-jeans",
+    secondaryCta: "Explore All",
     secondaryCtaLink: "/collections",
-    badge: "SUMMER '24"
+    badge: "EVERYDAY JEANS"
   },
   {
-    title: "Business Collection",
-    subtitle: "Executive Style Redefined",
-    description: "Sophisticated tailoring meets modern design. From boardroom meetings to client dinners, make a lasting impression.",
-    image: "https://images.unsplash.com/photo-1594938298603-c8148c4dae35?q=80&w=2000&auto=format&fit=crop",
-    ctaText: "Shop Business",
-    ctaLink: "/business-collection",
-    secondaryCta: "View Collection",
+    title: "Formal Collection",
+    subtitle: "TAILORED BUSINESS WEAR",
+    description: "Structured office shirts, sharp trousers, and formal combos for the professional.",
+    image: "/images/banners/banner-4.jpg",
+    ctaText: "Shop Formals",
+    ctaLink: "/category/formal-pant",
+    secondaryCta: "Explore All",
     secondaryCtaLink: "/collections",
-    badge: "EXECUTIVE"
+    badge: "OFFICE ELEGANCE"
   },
   {
-    title: "Smart Casual Collection",
-    subtitle: "Effortless Style for Every Occasion",
-    description: "Versatile pieces that transition seamlessly from day to night. Modern cuts with a relaxed sophistication.",
-    image: "https://images.unsplash.com/photo-1517438476313-10fd5c2f2f1d?q=80&w=2000&auto=format&fit=crop",
-    ctaText: "Shop Smart Casual",
-    ctaLink: "/smart-casual",
-    secondaryCta: "Explore More",
+    title: "Weekend Collection",
+    subtitle: "RELAXED LIFESTYLE SHIRTS",
+    description: "Unstructured casual shirts, night tracks, and comfort wear for your off-duty days.",
+    image: "/images/banners/banner-5.jpg",
+    ctaText: "Shop Casuals",
+    ctaLink: "/category/trousers",
+    secondaryCta: "Explore All",
     secondaryCtaLink: "/collections",
-    badge: "BESTSELLER"
+    badge: "SMART CASUAL"
   }
 ];
 

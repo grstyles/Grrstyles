@@ -1,4 +1,4 @@
-﻿/**
+/**
  * GR STYLES â€“ Repository Factory
  * ================================
  * Single entry point for all data access.
@@ -11,11 +11,7 @@
  *   import { repo } from '@/lib/repositories'
  *   const products = await repo.products.getAll()
  *   const orders = await repo.orders.getAll()
- * 
- * To add Supabase later: just set env vars. Zero code changes.
  */
-
-import { isSupabaseConfigured } from '@/lib/supabase';
 
 import {
   IProductRepository,
@@ -25,15 +21,7 @@ import {
   IAnalyticsRepository,
 } from './interfaces';
 export type { IUserRepository, UserProfile } from './userRepository';
-import { IUserRepository, MockUserRepository, SupabaseUserRepository } from './userRepository';
-
-import {
-  MockProductRepository,
-  MockOrderRepository,
-  MockCouponRepository,
-  MockStorageRepository,
-  MockAnalyticsRepository,
-} from './mockProvider';
+import { IUserRepository, SupabaseUserRepository } from './userRepository';
 
 import {
   SupabaseProductRepository,
@@ -43,7 +31,7 @@ import {
   SupabaseAnalyticsRepository,
 } from './supabaseProvider';
 
-// â”€â”€â”€ Repository Set â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Repository Set ─────────────────────────────────────────────────────────────
 
 interface RepositorySet {
   products: IProductRepository;
@@ -54,33 +42,21 @@ interface RepositorySet {
   users: IUserRepository;
 }
 
-// â”€â”€â”€ Factory Function â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Factory Function ──────────────────────────────────────────────────────────
 
 function createRepositories(): RepositorySet {
-  if (isSupabaseConfigured()) {
-    // âœ… Supabase Mode â€“ live data
-    return {
-      products: new SupabaseProductRepository(),
-      orders: new SupabaseOrderRepository(),
-      coupons: new SupabaseCouponRepository(),
-      storage: new SupabaseStorageRepository(),
-      analytics: new SupabaseAnalyticsRepository(),
-      users: new SupabaseUserRepository(),
-    };
-  }
-
-  // âœ… Demo / Mock Mode â€“ in-memory data
+  // ✅ Supabase Mode Only
   return {
-    products: new MockProductRepository(),
-    orders: new MockOrderRepository(),
-    coupons: new MockCouponRepository(),
-    storage: new MockStorageRepository(),
-    analytics: new MockAnalyticsRepository(),
-    users: new MockUserRepository(),
+    products: new SupabaseProductRepository(),
+    orders: new SupabaseOrderRepository(),
+    coupons: new SupabaseCouponRepository(),
+    storage: new SupabaseStorageRepository(),
+    analytics: new SupabaseAnalyticsRepository(),
+    users: new SupabaseUserRepository(),
   };
 }
 
-// â”€â”€â”€ Singleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ──────────────────────────────────────────────────────────────────────────────
 
 const repoKey = '__gr_repositories__';
 if (!(globalThis as any)[repoKey]) {
@@ -116,5 +92,8 @@ export type {
   AnalyticsRecentOrder,
   AnalyticsLowStockItem,
   AnalyticsMonthlyData,
+  MockOrder,
+  MockOrderItem,
+  MockCoupon,
 } from './interfaces';
 
