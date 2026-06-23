@@ -12,9 +12,9 @@
     "TEST 10": "PASS",
     "TEST 11": "PASS"
   },
-  "productId": "c0dc28e1-b018-4c1a-993a-3cc0ce56c0df",
+  "productId": "c9140caf-1abb-4aa1-b4aa-2f018ef4ab9e",
   "productRow": {
-    "id": "c0dc28e1-b018-4c1a-993a-3cc0ce56c0df",
+    "id": "c9140caf-1abb-4aa1-b4aa-2f018ef4ab9e",
     "sku": "OXF-PUR-001",
     "name": "OXFORD SHIRT",
     "slug": "oxford-shirt",
@@ -30,7 +30,7 @@
     "new_arrival": true,
     "stock": 15,
     "images": [
-      "https://xqxnezvhrmyndpsfmrbc.supabase.co/storage/v1/object/public/product-images/oxford-shirt-1782207321237.jpg"
+      "https://xqxnezvhrmyndpsfmrbc.supabase.co/storage/v1/object/public/product-images/oxford-shirt-1782215842477.jpg"
     ],
     "sizes": [
       {
@@ -47,17 +47,17 @@
       }
     ],
     "tags": null,
-    "created_at": "2026-06-23T09:35:22.417356+00:00",
-    "updated_at": "2026-06-23T09:35:22.417356+00:00"
+    "created_at": "2026-06-23T11:57:23.547597+00:00",
+    "updated_at": "2026-06-23T11:57:23.547597+00:00"
   },
   "productUrl": "/product/oxford-shirt",
   "categoryUrl": "/category/formal-shirts",
   "collectionUrl": "/collections/trending-collections",
-  "storageUploadUrl": "https://xqxnezvhrmyndpsfmrbc.supabase.co/storage/v1/object/public/product-images/oxford-shirt-1782207321237.jpg",
-  "orderId": "GR-2026-523513",
+  "storageUploadUrl": "https://xqxnezvhrmyndpsfmrbc.supabase.co/storage/v1/object/public/product-images/oxford-shirt-1782215842477.jpg",
+  "orderId": "GR-2026-551972",
   "orderRow": {
-    "id": "735d34cb-87b0-47fd-9c87-88ffc1d7ac2d",
-    "order_number": "GR-2026-523513",
+    "id": "40ff7290-51b2-41ed-aa08-d5ac649b057d",
+    "order_number": "GR-2026-551972",
     "customer_name": "Oxford Buyer",
     "customer_email": "oxfordbuyer@gmail.com",
     "customer_phone": "9876543210",
@@ -69,14 +69,14 @@
         "size": "M",
         "price": 599,
         "quantity": 1,
-        "productId": "c0dc28e1-b018-4c1a-993a-3cc0ce56c0df",
+        "productId": "c9140caf-1abb-4aa1-b4aa-2f018ef4ab9e",
         "productName": "OXFORD SHIRT"
       },
       {
         "size": "L",
         "price": 599,
         "quantity": 1,
-        "productId": "c0dc28e1-b018-4c1a-993a-3cc0ce56c0df",
+        "productId": "c9140caf-1abb-4aa1-b4aa-2f018ef4ab9e",
         "productName": "OXFORD SHIRT"
       }
     ],
@@ -87,8 +87,8 @@
       "address": "GR STYLES Office, 45 Fashion Avenue",
       "country": "India"
     },
-    "created_at": "2026-06-23T09:35:22.594725+00:00",
-    "updated_at": "2026-06-23T09:35:22.594725+00:00"
+    "created_at": "2026-06-23T11:57:23.70541+00:00",
+    "updated_at": "2026-06-23T11:57:23.70541+00:00"
   },
   "inventoryBefore": "M=5, L=5, XL=5",
   "inventoryAfter": "M=4, L=4, XL=5",

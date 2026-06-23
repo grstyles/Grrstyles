@@ -49,11 +49,11 @@ create trigger on_auth_user_created
 -- 4. Bootstrap the existing Admin User
 -- (Since sign-up was done before the trigger was fixed, we insert the profile manually)
 insert into public.profiles (id, email, full_name, role)
-values ('7ed46cd4-fad6-47c3-b0ff-0b42dd98990f', 'grstyles955@gmail.com', 'GR STYLES ADMIN', 'admin')
+values ('54deeb4e-c52a-423b-af9a-69d53080ae24', 'grstyles955@gmail.com', 'GR STYLES ADMIN', 'admin')
 on conflict (id) do update set role = 'admin';
 
 insert into public.admins (user_id)
-values ('7ed46cd4-fad6-47c3-b0ff-0b42dd98990f')
+values ('54deeb4e-c52a-423b-af9a-69d53080ae24')
 on conflict do nothing;
 
 -- 5. Profiles Table RLS

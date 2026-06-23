@@ -29,7 +29,7 @@ async function insertProfile() {
   const { data, error } = await supabase
     .from('profiles')
     .insert({
-      id: '7ed46cd4-fad6-47c3-b0ff-0b42dd98990f',
+      id: '54deeb4e-c52a-423b-af9a-69d53080ae24',
       email: 'grstyles955@gmail.com',
       full_name: 'GR STYLES ADMIN',
       role: 'admin'

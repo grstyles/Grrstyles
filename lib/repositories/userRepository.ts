@@ -65,11 +65,13 @@ export class SupabaseUserRepository implements IUserRepository {
       .eq('id', user.id)
       .maybeSingle();
 
+    const resolvedRole = (profile?.role || user.user_metadata?.role || 'customer') as 'customer' | 'admin';
+
     return {
       id: user.id,
       email: user.email || '',
       fullName: profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-      role: profile?.role || 'customer',
+      role: resolvedRole,
       avatar: user.user_metadata?.avatar_url || '',
     };
   }

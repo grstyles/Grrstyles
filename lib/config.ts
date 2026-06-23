@@ -30,6 +30,8 @@ export const IS_DEMO_MODE = !IS_SUPABASE_CONFIGURED;
 
 if (typeof window === 'undefined') {
   console.log('--- GR STYLES STARTUP ---');
+  console.log('process.env.NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log('process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '[SET]' : '[NOT SET]');
   console.log('SUPABASE_URL:', SUPABASE_URL);
   console.log('IS_SUPABASE_CONFIGURED:', IS_SUPABASE_CONFIGURED);
   console.log('IS_DEMO_MODE:', IS_DEMO_MODE);

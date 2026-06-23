@@ -34,7 +34,7 @@ export default function LoginPage() {
             : 'Logged in successfully!',
           type: 'success',
         }));
-        router.push(res.user.role === 'admin' ? '/admin' : '/');
+        router.push(res.user.role === 'admin' ? '/admin' : '/profile');
       } else {
         dispatch(addToast({ message: res.error || 'Invalid credentials.', type: 'error' }));
       }
