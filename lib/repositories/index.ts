@@ -20,7 +20,7 @@ import {
   IStorageRepository,
   IAnalyticsRepository,
 } from './interfaces';
-export type { IUserRepository, UserProfile } from './userRepository';
+export type { IUserRepository, UserProfile, UserAddress } from './userRepository';
 import { IUserRepository, SupabaseUserRepository } from './userRepository';
 
 import {

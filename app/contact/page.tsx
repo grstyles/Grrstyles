@@ -236,8 +236,8 @@ export default function ContactPage() {
               <p className="text-sm text-gray-500 mb-6 leading-relaxed">Speak directly with our fashion and sizing specialists.</p>
             </div>
             <div>
-              <a href="tel:+919553422743" className="font-serif font-semibold text-[#111111] hover:text-[#D4AF37] transition-colors block text-base mb-1">
-                +91 95534 22743
+              <a href="tel:7386489584" className="font-serif font-semibold text-[#111111] hover:text-[#D4AF37] transition-colors block text-base mb-1">
+                7386489584
               </a>
               <span className="text-xs text-gray-400">Toll-free across India</span>
             </div>
@@ -602,7 +602,7 @@ export default function ContactPage() {
             </a>
             
             <a 
-              href="https://whatsapp.com" 
+              href="https://wa.me/917386489584" 
               target="_blank" 
               rel="noopener noreferrer"
               className="px-6 py-4 bg-white border border-gray-100 rounded-xl hover:border-gray-300 hover:shadow-sm hover:text-[#D4AF37] transition-all duration-300 flex items-center gap-3 font-semibold text-xs uppercase tracking-wider text-gray-700"

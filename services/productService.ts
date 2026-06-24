@@ -264,6 +264,83 @@ export const productService = {
       sessionStorage.setItem('gr_last_order_number', orderNumber);
     }
     return orderNumber;
+  },
+
+  async getReviews(productId: string): Promise<any[]> {
+    const { data, error } = await supabase!
+      .from('product_reviews')
+      .select('*, profiles(full_name)')
+      .eq('product_id', productId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching reviews:', error);
+      return [];
+    }
+    return data || [];
+  },
+
+  async submitReview(review: {
+    productId: string;
+    userId: string;
+    rating: number;
+    reviewText: string;
+    reviewImages: string[];
+  }): Promise<any> {
+    const { data, error } = await supabase!
+      .from('product_reviews')
+      .insert({
+        product_id: review.productId,
+        user_id: review.userId,
+        rating: review.rating,
+        review_text: review.reviewText,
+        review_images: review.reviewImages,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    try {
+      const { data: allReviews } = await supabase!
+        .from('product_reviews')
+        .select('rating')
+        .eq('product_id', review.productId);
+
+      if (allReviews && allReviews.length > 0) {
+        const count = allReviews.length;
+        const avg = allReviews.reduce((sum, r) => sum + r.rating, 0) / count;
+        await supabase!
+          .from('products')
+          .update({
+            rating: Number(avg.toFixed(2)),
+            reviews_count: count
+          })
+          .eq('id', review.productId);
+      }
+    } catch (err) {
+      console.error('Failed to update product rating/reviews_count:', err);
+    }
+
+    return data;
+  },
+
+  async uploadReviewImage(file: File): Promise<string> {
+    const ext = file.name.split('.').pop();
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase!.storage.from('reviews').upload(path, file);
+    if (error) throw error;
+    const { data } = supabase!.storage.from('reviews').getPublicUrl(path);
+    return data.publicUrl;
+  },
+
+  async uploadCustomImage(file: File): Promise<string> {
+    const ext = file.name.split('.').pop();
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase!.storage.from('custom_uploads').upload(path, file);
+    if (error) throw error;
+    const { data } = supabase!.storage.from('custom_uploads').getPublicUrl(path);
+    return data.publicUrl;
   }
 };;
 

@@ -30,7 +30,7 @@ const defaultSettings: StoreSettings = {
   storeName: 'GR STYLES',
   tagline: "Premium Men's Fashion Store",
   supportEmail: 'grstyles955@gmail.com',
-  supportPhone: '+91 95534 22743',
+  supportPhone: '7386489584',
   address: 'Afia Plaza, Masab Tank',
   city: 'Hyderabad',
   state: 'Telangana',

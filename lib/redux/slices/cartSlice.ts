@@ -11,6 +11,8 @@ export interface CartItem {
   quantity: number;
   size?: string;
   color?: string;
+  selected?: boolean;
+  custom_images?: { image_url: string; color_name: string }[];
 }
 
 interface CartState {
@@ -46,7 +48,10 @@ const cartSlice = createSlice({
       if (existingItem) {
         existingItem.quantity += action.payload.quantity;
       } else {
-        state.items.push(action.payload);
+        state.items.push({
+          ...action.payload,
+          selected: action.payload.selected !== false // default to true
+        });
       }
 
       state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
@@ -91,6 +96,27 @@ const cartSlice = createSlice({
 
       console.log('Cart state after update:', current(state));
     },
+    toggleSelectItem: (
+      state,
+      action: PayloadAction<{ id: string; size?: string; color?: string }>
+    ) => {
+      const item = state.items.find(
+        (item) =>
+          item.id === action.payload.id &&
+          item.size === action.payload.size &&
+          item.color === action.payload.color
+      );
+      if (item) {
+        item.selected = item.selected === false ? true : false;
+        state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+      }
+    },
+    toggleSelectAllItems: (state, action: PayloadAction<{ selected: boolean }>) => {
+      state.items.forEach((item) => {
+        item.selected = action.payload.selected;
+      });
+      state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+    },
     clearCart: (state) => {
       console.log('Redux Action: cart/clearCart');
       console.log('Cart state before update:', current(state));
@@ -102,13 +128,25 @@ const cartSlice = createSlice({
 
       console.log('Cart state after update:', current(state));
     },
+    clearSelectedItems: (state) => {
+      state.items = state.items.filter((item) => item.selected === false);
+      state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+      if (state.items.length === 0) {
+        state.discountPercent = 0;
+        state.appliedPromo = '';
+      }
+    },
     hydrateCart: (state, action: PayloadAction<CartItem[]>) => {
       console.log('Redux Action: cart/hydrateCart');
       console.log('Hydration data received:', action.payload);
       console.log('Cart state before update:', current(state));
 
-      state.items = action.payload;
-      state.total = action.payload.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+      // Make sure hydrated items have a selected property (defaulting to true if not defined)
+      state.items = action.payload.map(item => ({
+        ...item,
+        selected: item.selected !== false
+      }));
+      state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
 
       console.log('Cart state after update:', current(state));
     },
@@ -123,6 +161,17 @@ const cartSlice = createSlice({
   },
 });
 
-export const { addToCart, removeFromCart, updateQuantity, clearCart, hydrateCart, applyPromo, removePromo } = cartSlice.actions;
+export const {
+  addToCart,
+  removeFromCart,
+  updateQuantity,
+  toggleSelectItem,
+  toggleSelectAllItems,
+  clearCart,
+  clearSelectedItems,
+  hydrateCart,
+  applyPromo,
+  removePromo,
+} = cartSlice.actions;
 export default cartSlice.reducer;
 

@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useDispatch, useSelector } from 'react-redux';
 import { Minus, Plus, Trash2, ArrowLeft, Tag, ShoppingBag, ShieldCheck, Truck, Percent } from 'lucide-react';
 import { RootState } from '@/lib/redux/store';
-import { removeFromCart, updateQuantity, applyPromo, removePromo } from '@/lib/redux/slices/cartSlice';
+import { removeFromCart, updateQuantity, applyPromo, removePromo, toggleSelectItem, toggleSelectAllItems } from '@/lib/redux/slices/cartSlice';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { formatPrice } from '@/lib/utils/helpers';
 import { repo } from '@/lib/repositories';
@@ -18,7 +18,8 @@ export default function CartPage() {
   const router = useRouter();
   
   const cartItems = useSelector((state: RootState) => state.cart.items);
-  const subtotal = useSelector((state: RootState) => state.cart.total);
+  const selectedItems = cartItems.filter(item => item.selected !== false);
+  const subtotal = selectedItems.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
   const discountPercent = useSelector((state: RootState) => state.cart.discountPercent);
   const appliedCode = useSelector((state: RootState) => state.cart.appliedPromo);
 
@@ -33,6 +34,18 @@ export default function CartPage() {
   const discount = Math.round((subtotal * discountPercent) / 100);
   // Final total
   const finalTotal = subtotal - discount + shipping + tax;
+
+  const handleToggleSelect = (item: any) => {
+    dispatch(toggleSelectItem({
+      id: item.id,
+      size: item.size,
+      color: item.color
+    }));
+  };
+
+  const handleToggleSelectAll = (checked: boolean) => {
+    dispatch(toggleSelectAllItems({ selected: checked }));
+  };
 
   const handleApplyPromo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,9 +139,24 @@ export default function CartPage() {
           Continue Shopping
         </Link>
 
-        <h1 className="text-3xl font-light tracking-tight text-[#1a1a1a] mb-8 sm:mb-12">
-          Shopping Bag <span className="text-base text-gray-400 font-normal">({cartItems.reduce((acc, i) => acc + i.quantity, 0)} items)</span>
-        </h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 sm:mb-12">
+          <h1 className="text-3xl font-light tracking-tight text-[#1a1a1a]">
+            Shopping Bag <span className="text-base text-gray-400 font-normal">({cartItems.reduce((acc, i) => acc + i.quantity, 0)} items)</span>
+          </h1>
+          
+          <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl border border-gray-100 shadow-sm w-fit self-start sm:self-center">
+            <input
+              type="checkbox"
+              id="select-all"
+              checked={cartItems.length > 0 && cartItems.every((item) => item.selected !== false)}
+              onChange={(e) => handleToggleSelectAll(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black accent-black cursor-pointer"
+            />
+            <label htmlFor="select-all" className="text-xs font-semibold text-gray-700 cursor-pointer select-none">
+              Select All (Option B)
+            </label>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-12 items-start">
           
@@ -149,7 +177,14 @@ export default function CartPage() {
                   >
                     
                     {/* Item Details block */}
-                    <div className="flex gap-4 items-center">
+                    <div className="flex gap-4 items-center w-full sm:w-auto">
+                      <input
+                        type="checkbox"
+                        checked={item.selected !== false}
+                        onChange={() => handleToggleSelect(item)}
+                        className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black accent-black cursor-pointer flex-shrink-0 mr-1"
+                        title="Select for checkout (Option A)"
+                      />
                       <div className="relative w-20 h-24 sm:w-24 sm:h-32 bg-[#f5f0eb] rounded-xl overflow-hidden flex-shrink-0">
                         <Image
                           src={item.image || '/placeholder.png'}
@@ -331,9 +366,10 @@ export default function CartPage() {
 
               <button
                 onClick={() => router.push('/checkout')}
-                className="block w-full py-4 bg-black text-white rounded-xl text-sm font-semibold uppercase tracking-wider hover:bg-gray-900 transition-colors shadow-md text-center pt-4"
+                disabled={selectedItems.length === 0}
+                className="block w-full py-4 bg-black text-white rounded-xl text-sm font-semibold uppercase tracking-wider hover:bg-gray-900 transition-colors shadow-md text-center pt-4 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                Proceed to Checkout
+                Proceed to Checkout ({selectedItems.length})
               </button>
 
               <div className="pt-3 border-t border-gray-100 flex items-center justify-center gap-1.5 text-[10px] text-gray-400 font-medium">
@@ -344,7 +380,7 @@ export default function CartPage() {
 
             {/* Support/Faq */}
             <div className="text-center text-xs text-gray-400">
-              Need assistance? Email grstyles955@gmail.com or call +91 95534 22743
+              Need assistance? Email grstyles955@gmail.com or call 7386489584
             </div>
 
           </div>

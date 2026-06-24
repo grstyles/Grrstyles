@@ -252,7 +252,8 @@ export class SupabaseOrderRepository implements IOrderRepository {
           productName: item.productName,
           size: item.size,
           quantity: item.quantity,
-          price: item.price
+          price: item.price,
+          custom_images: (item as any).custom_images || []
         }))
       })
       .select('*')

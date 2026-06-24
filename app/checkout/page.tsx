@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/lib/redux/store';
 import { formatPrice } from '@/lib/utils/helpers';
-import { clearCart } from '@/lib/redux/slices/cartSlice';
-import { repo } from '@/lib/repositories';
+import { clearSelectedItems } from '@/lib/redux/slices/cartSlice';
+import { repo, UserAddress } from '@/lib/repositories';
 import { RAZORPAY_KEY_ID } from '@/lib/config';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useAuth } from '@/lib/context/AuthContext';
@@ -17,8 +17,9 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { user, requireAuth } = useAuth();
   const [authChecked, setAuthChecked] = useState(false);
-  const cartItems = useSelector((state: RootState) => state.cart.items);
-  const total = useSelector((state: RootState) => state.cart.total);
+  const cartItemsAll = useSelector((state: RootState) => state.cart.items);
+  const cartItems = cartItemsAll.filter((item) => item.selected !== false);
+  const total = cartItems.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -30,6 +31,77 @@ export default function CheckoutPage() {
     zip: '',
     country: 'India',
   });
+
+  const [addresses, setAddresses] = useState<UserAddress[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState('new');
+  const [saveAddressToProfile, setSaveAddressToProfile] = useState(false);
+
+  useEffect(() => {
+    if (authChecked && user) {
+      const loadAddresses = async () => {
+        setLoadingAddresses(true);
+        try {
+          const list = await repo.users.getAddresses(user.id);
+          setAddresses(list);
+          const defaultAddr = list.find((a) => a.isDefault);
+          if (defaultAddr) {
+            setSelectedAddressId(defaultAddr.id);
+            selectAddress(defaultAddr);
+          } else if (list.length > 0) {
+            setSelectedAddressId(list[0].id);
+            selectAddress(list[0]);
+          } else {
+            setSelectedAddressId('new');
+          }
+        } catch (err) {
+          console.error('Failed to load saved addresses:', err);
+        } finally {
+          setLoadingAddresses(false);
+        }
+      };
+      loadAddresses();
+    }
+  }, [authChecked, user]);
+
+  const selectAddress = (addr: UserAddress) => {
+    const names = addr.fullName.trim().split(/\s+/);
+    const firstName = names[0] || '';
+    const lastName = names.slice(1).join(' ') || '';
+    
+    setFormData({
+      firstName,
+      lastName,
+      email: addr.email || user?.email || '',
+      phone: addr.phone,
+      address: addr.addressLine1 + (addr.addressLine2 ? `, ${addr.addressLine2}` : ''),
+      city: addr.city,
+      state: addr.state,
+      zip: addr.pincode,
+      country: addr.country,
+    });
+  };
+
+  const handleSelectAddressChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const id = e.target.value;
+    setSelectedAddressId(id);
+    if (id === 'new') {
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: user?.email || '',
+        phone: '',
+        address: '',
+        city: '',
+        state: '',
+        zip: '',
+        country: 'India',
+      });
+    } else {
+      const addr = addresses.find((a) => a.id === id);
+      if (addr) selectAddress(addr);
+    }
+  };
 
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [loading, setLoading] = useState(false);
@@ -98,14 +170,12 @@ export default function CheckoutPage() {
           size: item.size || 'One Size',
           quantity: item.quantity,
           price: item.discountedPrice,
+          custom_images: item.custom_images || []
         })),
       });
 
       if (orderNumber) {
-        dispatch(clearCart());
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('gr_styles_cart');
-        }
+        dispatch(clearSelectedItems());
         dispatch(addToast({ message: `Order ${orderNumber} placed successfully!`, type: 'success' }));
         router.push('/order-success');
       } else {
@@ -121,6 +191,27 @@ export default function CheckoutPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
+
+    if (selectedAddressId === 'new' && saveAddressToProfile && user) {
+      try {
+        await repo.users.addAddress({
+          userId: user.id,
+          fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+          phone: formData.phone,
+          email: formData.email,
+          addressLine1: formData.address,
+          addressLine2: '',
+          city: formData.city,
+          state: formData.state,
+          pincode: formData.zip,
+          country: formData.country,
+          isDefault: addresses.length === 0
+        });
+        setSaveAddressToProfile(false);
+      } catch (err) {
+        console.error('Failed to auto-save address to profile:', err);
+      }
+    }
 
     const addressString = `${formData.address}, ${formData.city}, ${formData.state} - ${formData.zip}, ${formData.country}`;
     const orderPayload = {
@@ -240,7 +331,26 @@ export default function CheckoutPage() {
               {/* Shipping Information */}
               <section className="border-b border-gray-200 pb-8">
                 <h2 className="text-2xl font-bold mb-6">Shipping Information</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {addresses.length > 0 && (
+                  <div className="mb-6">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Select a Saved Address</label>
+                    <select
+                      value={selectedAddressId}
+                      onChange={handleSelectAddressChange}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black appearance-none cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                    >
+                      {addresses.map((addr) => (
+                        <option key={addr.id} value={addr.id}>
+                          {addr.fullName} - {addr.addressLine1}, {addr.city} ({addr.isDefault ? 'Default' : 'Saved'})
+                        </option>
+                      ))}
+                      <option value="new">+ Enter New Address</option>
+                    </select>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-span-2">
                   <input
                     type="text"
                     name="firstName"
@@ -307,7 +417,7 @@ export default function CheckoutPage() {
                   <input
                     type="text"
                     name="zip"
-                    placeholder="ZIP Code"
+                    placeholder="Pincode"
                     value={formData.zip}
                     onChange={handleChange}
                     required
@@ -325,6 +435,21 @@ export default function CheckoutPage() {
                     <option>United Arab Emirates</option>
                     <option>Canada</option>
                   </select>
+                  
+                  {selectedAddressId === 'new' && user && (
+                    <div className="md:col-span-2 flex items-center gap-2 mt-2">
+                      <input
+                        type="checkbox"
+                        id="save-address"
+                        checked={saveAddressToProfile}
+                        onChange={(e) => setSaveAddressToProfile(e.target.checked)}
+                        className="w-4 h-4 accent-black rounded focus:ring-black cursor-pointer"
+                      />
+                      <label htmlFor="save-address" className="text-xs text-gray-600 cursor-pointer select-none">
+                        Save this address to my profile for future purchases
+                      </label>
+                    </div>
+                  )}
                 </div>
               </section>
 

@@ -3,20 +3,66 @@ import { CartItem } from '@/lib/redux/slices/cartSlice';
 import { Product } from '@/lib/data/products';
 
 export const syncService = {
+  // Helper to get or create cart_id for user
+  async getOrCreateCartId(userId: string): Promise<string | null> {
+    if (!isSupabaseConfigured()) return null;
+    try {
+      const { data, error } = await supabase!
+        .from('carts')
+        .upsert({ user_id: userId }, { onConflict: 'user_id' })
+        .select('id')
+        .single();
+        
+      if (error || !data) {
+        console.error('Error getting or creating cart for user:', error?.message);
+        return null;
+      }
+      return data.id;
+    } catch (e) {
+      console.error('getOrCreateCartId error:', e);
+      return null;
+    }
+  },
+
+  // Helper to get or create wishlist_id for user
+  async getOrCreateWishlistId(userId: string): Promise<string | null> {
+    if (!isSupabaseConfigured()) return null;
+    try {
+      const { data, error } = await supabase!
+        .from('wishlists')
+        .upsert({ user_id: userId }, { onConflict: 'user_id' })
+        .select('id')
+        .single();
+        
+      if (error || !data) {
+        console.error('Error getting or creating wishlist for user:', error?.message);
+        return null;
+      }
+      return data.id;
+    } catch (e) {
+      console.error('getOrCreateWishlistId error:', e);
+      return null;
+    }
+  },
+
   // ==========================================
   // CART SYNC
   // ==========================================
   async fetchDbCart(userId: string): Promise<CartItem[]> {
     if (!isSupabaseConfigured()) return [];
     try {
+      const cartId = await this.getOrCreateCartId(userId);
+      if (!cartId) return [];
+
       const { data, error } = await supabase!
-        .from('cart')
+        .from('cart_items')
         .select(`
           quantity,
           size,
+          custom_images,
           products (*)
         `)
-        .eq('user_id', userId);
+        .eq('cart_id', cartId);
 
       if (error || !data) throw error || new Error('No data');
 
@@ -33,6 +79,7 @@ export const syncService = {
           quantity: item.quantity,
           size: item.size || 'One Size',
           color: p.color,
+          custom_images: item.custom_images || [],
         };
       });
     } catch (e) {
@@ -44,6 +91,9 @@ export const syncService = {
   async syncCartItem(userId: string, item: CartItem) {
     if (!isSupabaseConfigured()) return;
     try {
+      const cartId = await this.getOrCreateCartId(userId);
+      if (!cartId) return;
+
       // Find database UUID for the product
       const { data: prod, error: prodError } = await supabase!
         .from('products')
@@ -57,15 +107,16 @@ export const syncService = {
       }
 
       const { error } = await supabase!
-        .from('cart')
+        .from('cart_items')
         .upsert({
-          user_id: userId,
+          cart_id: cartId,
           product_id: prod.id,
           size: item.size || 'One Size',
           quantity: item.quantity,
+          custom_images: item.custom_images || [],
           updated_at: new Date().toISOString(),
         }, {
-          onConflict: 'user_id,product_id,size'
+          onConflict: 'cart_id,product_id,size'
         });
 
       if (error) console.error('Error upserting cart item to DB:', error.message);
@@ -77,6 +128,9 @@ export const syncService = {
   async removeCartItem(userId: string, productId: string, size?: string) {
     if (!isSupabaseConfigured()) return;
     try {
+      const cartId = await this.getOrCreateCartId(userId);
+      if (!cartId) return;
+
       const { data: prod } = await supabase!
         .from('products')
         .select('id')
@@ -86,9 +140,9 @@ export const syncService = {
       if (!prod) return;
 
       const { error } = await supabase!
-        .from('cart')
+        .from('cart_items')
         .delete()
-        .eq('user_id', userId)
+        .eq('cart_id', cartId)
         .eq('product_id', prod.id)
         .eq('size', size || 'One Size');
 
@@ -101,10 +155,13 @@ export const syncService = {
   async clearCart(userId: string) {
     if (!isSupabaseConfigured()) return;
     try {
+      const cartId = await this.getOrCreateCartId(userId);
+      if (!cartId) return;
+
       const { error } = await supabase!
-        .from('cart')
+        .from('cart_items')
         .delete()
-        .eq('user_id', userId);
+        .eq('cart_id', cartId);
       if (error) console.error('Error clearing DB cart:', error.message);
     } catch (e) {
       console.error(e);
@@ -117,12 +174,15 @@ export const syncService = {
   async fetchDbWishlist(userId: string): Promise<string[]> {
     if (!isSupabaseConfigured()) return [];
     try {
+      const wishlistId = await this.getOrCreateWishlistId(userId);
+      if (!wishlistId) return [];
+
       const { data, error } = await supabase!
-        .from('wishlist')
+        .from('wishlist_items')
         .select(`
           products (product_id, id)
         `)
-        .eq('user_id', userId);
+        .eq('wishlist_id', wishlistId);
 
       if (error || !data) throw error;
       return data.map((item: any) => item.products?.product_id || item.products?.id).filter(Boolean);
@@ -135,6 +195,9 @@ export const syncService = {
   async addToWishlist(userId: string, productId: string) {
     if (!isSupabaseConfigured()) return;
     try {
+      const wishlistId = await this.getOrCreateWishlistId(userId);
+      if (!wishlistId) return;
+
       const { data: prod } = await supabase!
         .from('products')
         .select('id')
@@ -144,12 +207,12 @@ export const syncService = {
       if (!prod) return;
 
       const { error } = await supabase!
-        .from('wishlist')
+        .from('wishlist_items')
         .upsert({
-          user_id: userId,
+          wishlist_id: wishlistId,
           product_id: prod.id,
         }, {
-          onConflict: 'user_id,product_id'
+          onConflict: 'wishlist_id,product_id'
         });
 
       if (error) console.error('Error adding to DB wishlist:', error.message);
@@ -161,6 +224,9 @@ export const syncService = {
   async removeFromWishlist(userId: string, productId: string) {
     if (!isSupabaseConfigured()) return;
     try {
+      const wishlistId = await this.getOrCreateWishlistId(userId);
+      if (!wishlistId) return;
+
       const { data: prod } = await supabase!
         .from('products')
         .select('id')
@@ -170,9 +236,9 @@ export const syncService = {
       if (!prod) return;
 
       const { error } = await supabase!
-        .from('wishlist')
+        .from('wishlist_items')
         .delete()
-        .eq('user_id', userId)
+        .eq('wishlist_id', wishlistId)
         .eq('product_id', prod.id);
 
       if (error) console.error('Error removing from DB wishlist:', error.message);
