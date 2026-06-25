@@ -61,6 +61,8 @@ export default function AdminProductsPage() {
   const [label, setLabel] = useState('');
   const [sizesInput, setSizesInput] = useState<{ size: string; stock: number }[]>([]);
   const [imagesList, setImagesList] = useState<string[]>([]);
+  const [imageColors, setImageColors] = useState<string[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   // Feature toggles
   const [isNewArrival, setIsNewArrival] = useState(false);
@@ -96,6 +98,78 @@ export default function AdminProductsPage() {
     );
   };
 
+  const handlePrimaryColorChange = (newColor: string) => {
+    setColor(newColor);
+    setImageColors((prev) => {
+      const updated = [...prev];
+      if (updated.length > 0) {
+        updated[0] = newColor;
+      } else {
+        updated.push(newColor);
+      }
+      return updated;
+    });
+  };
+
+  const handleImageColorChange = (idx: number, val: string) => {
+    setImageColors((prev) => {
+      const updated = [...prev];
+      updated[idx] = val;
+      return updated;
+    });
+    if (idx === 0) {
+      setColor(val);
+    }
+  };
+
+  const handleRemoveImage = (idx: number) => {
+    setImagesList((prev) => prev.filter((_, i) => i !== idx));
+    setImageColors((prev) => {
+      const updated = prev.filter((_, i) => i !== idx);
+      if (idx === 0 && updated.length > 0) {
+        setColor(updated[0] || '');
+      }
+      return updated;
+    });
+  };
+
+  const handleDragStart = (idx: number) => {
+    setDraggedIndex(idx);
+  };
+
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIdx: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIdx) return;
+
+    setImagesList((prev) => {
+      const newImages = [...prev];
+      const [draggedImg] = newImages.splice(draggedIndex, 1);
+      newImages.splice(targetIdx, 0, draggedImg);
+      return newImages;
+    });
+
+    setImageColors((prev) => {
+      const newColors = [...prev];
+      const [draggedCol] = newColors.splice(draggedIndex, 1);
+      newColors.splice(targetIdx, 0, draggedCol);
+      if (targetIdx === 0 || draggedIndex === 0) {
+        setColor(newColors[0] || '');
+      }
+      return newColors;
+    });
+
+    setDraggedIndex(null);
+  };
+
+  const getOrdinalText = (index: number): string => {
+    const ordinals = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth'];
+    return ordinals[index] || `${index + 1}th`;
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -103,7 +177,19 @@ export default function AdminProductsPage() {
     try {
       const url = await repo.storage.uploadImage(file, 'product-images');
       if (url) {
-        setImagesList((prev) => [...prev, url]);
+        setImagesList((prev) => {
+          const newList = [...prev, url];
+          setImageColors((colorsPrev) => {
+            const newColors = [...colorsPrev];
+            if (newColors.length === 0) {
+              newColors.push(color || '');
+            } else {
+              newColors.push(''); // required input for subsequent images
+            }
+            return newColors;
+          });
+          return newList;
+        });
         dispatch(addToast({ message: 'Image uploaded successfully!', type: 'success' }));
       } else {
         dispatch(addToast({ message: 'Image upload failed.', type: 'error' }));
@@ -125,6 +211,7 @@ export default function AdminProductsPage() {
     setBrand('GR STYLES');
     setTagsInput('');
     setColor('');
+    setImageColors([]);
     setMrpPrice('');
     setSellingPrice('');
     setDescription('');
@@ -144,13 +231,22 @@ export default function AdminProductsPage() {
     setCollection(product.collection || '');
     setBrand(product.brand || 'GR STYLES');
     setTagsInput((product.metadata?.tags || []).join(', '));
-    setColor(product.color);
+    setColor(product.color || '');
     setMrpPrice(String(product.mrpPrice || product.price || ''));
     setSellingPrice(String(product.sellingPrice || product.discountedPrice || ''));
     setDescription(product.description);
     setLabel(product.label || '');
     setSizesInput(product.sizes?.length ? [...product.sizes] : getSizeOptions(product.category).map((s) => ({ size: s, stock: 10 })));
     setImagesList(product.images || []);
+
+    const defaultColors = (product.images || []).map((_, idx) => {
+      if ((product as any).imageColors && (product as any).imageColors[idx]) {
+        return (product as any).imageColors[idx].color_name;
+      }
+      return product.color || '';
+    });
+    setImageColors(defaultColors);
+
     setIsNewArrival(!!product.isNew);
     setIsTrending(!!product.bestSeller);
     setIsFeatured(!!product.metadata?.featured);
@@ -167,6 +263,8 @@ export default function AdminProductsPage() {
     let effectiveLabel = label;
     if (isNewArrival && !effectiveLabel) effectiveLabel = 'NEW';
 
+    const uniqueColors = Array.from(new Set(imageColors.filter(Boolean)));
+
     return {
       id,
       productId: id,
@@ -177,8 +275,8 @@ export default function AdminProductsPage() {
       category,
       collection,
       images: imagesList.length > 0 ? imagesList : ['/placeholder.png'],
-      color,
-      colors: [color],
+      color: color || imageColors[0] || '',
+      colors: uniqueColors.length > 0 ? uniqueColors : [color || 'Original'],
       mrpPrice: mrp,
       price: mrp,
       sellingPrice: selling,
@@ -199,7 +297,12 @@ export default function AdminProductsPage() {
         featured: isFeatured,
         tags,
       },
-    };
+      imageColors: imagesList.map((img, idx) => ({
+        image_url: img,
+        color_name: imageColors[idx] || color || 'Original',
+        display_order: idx
+      }))
+    } as any;
   };
 
   const handleAddProduct = async (e: React.FormEvent) => {
@@ -216,6 +319,16 @@ export default function AdminProductsPage() {
     if (selling > mrp) {
       dispatch(addToast({ message: 'Selling price cannot exceed MRP.', type: 'error' }));
       return;
+    }
+
+    // Verify all subsequent images have colors assigned
+    if (imagesList.length > 1) {
+      for (let i = 1; i < imagesList.length; i++) {
+        if (!imageColors[i] || !imageColors[i].trim()) {
+          dispatch(addToast({ message: `Please specify a color name for the ${getOrdinalText(i)} image.`, type: 'error' }));
+          return;
+        }
+      }
     }
 
     const tempId = editingId || `p-${Date.now()}`;
@@ -438,7 +551,7 @@ export default function AdminProductsPage() {
                     type="text"
                     required
                     value={color}
-                    onChange={(e) => setColor(e.target.value)}
+                    onChange={(e) => handlePrimaryColorChange(e.target.value)}
                     placeholder="e.g. White"
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
                   />
@@ -561,46 +674,89 @@ export default function AdminProductsPage() {
                 </div>
               </div>
 
-              {/* Images */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase">Product Images</label>
+              {/* Images and Colors */}
+              <div className="space-y-4">
+                <label className="text-xs font-bold text-gray-500 uppercase">Product Images & Colors</label>
+                
+                {imagesList.length > 1 && (
+                  <p className="text-[9px] text-gray-400 italic">Drag and drop images to reorder them.</p>
+                )}
+
                 <div className="flex gap-2 flex-wrap">
                   {imagesList.map((img, idx) => (
-                    <div key={idx} className="relative w-12 h-16 border rounded-lg overflow-hidden bg-white flex-shrink-0">
+                    <div
+                      key={idx}
+                      draggable
+                      onDragStart={() => handleDragStart(idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDrop={(e) => handleDrop(e, idx)}
+                      className={`relative w-14 h-20 border rounded-xl overflow-hidden bg-white flex-shrink-0 cursor-move transition-all ${
+                        draggedIndex === idx ? 'opacity-40 border-black ring-2 ring-black' : 'border-gray-200 hover:border-black'
+                      }`}
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img} alt={`Product ${idx}`} className="object-cover w-full h-full" />
+                      <img src={img} alt={`Product ${idx}`} className="object-cover w-full h-full pointer-events-none" />
                       <button
                         type="button"
-                        onClick={() => setImagesList((prev) => prev.filter((_, i) => i !== idx))}
-                        className="absolute top-0.5 right-0.5 p-0.5 bg-black/60 text-white rounded-full"
+                        onClick={() => handleRemoveImage(idx)}
+                        className="absolute top-0.5 right-0.5 p-1 bg-black/60 hover:bg-black text-white rounded-full transition-colors"
+                        title="Remove Image"
                       >
                         <X size={8} />
                       </button>
+                      <div className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-[8px] text-center py-0.5 font-bold truncate px-1 pointer-events-none">
+                        {imageColors[idx] || color || 'No Color'}
+                      </div>
                     </div>
                   ))}
+                  
                   <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                   <button
                     type="button"
                     disabled={uploading}
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-12 h-16 border-2 border-dashed border-gray-300 hover:border-black rounded-lg flex flex-col items-center justify-center text-gray-400 hover:text-black transition-colors flex-shrink-0"
+                    className="w-14 h-20 border-2 border-dashed border-gray-300 hover:border-black rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-black transition-colors flex-shrink-0"
                   >
                     {uploading ? (
-                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <>
-                        <Upload size={13} />
-                        <span className="text-[7px] font-bold mt-1">UPLOAD</span>
+                        <Upload size={14} />
+                        <span className="text-[8px] font-bold mt-1">UPLOAD</span>
                       </>
                     )}
                   </button>
                 </div>
-                {mrpPrice && sellingPrice && parseFloat(mrpPrice) > 0 && (
-                  <div className="text-[10px] text-gray-400 bg-white rounded-xl border border-gray-100 px-3 py-2">
-                    Discount: <strong className="text-green-600">{Math.round(((parseFloat(mrpPrice) - parseFloat(sellingPrice)) / parseFloat(mrpPrice)) * 100)}% off</strong>
-                  </div>
-                )}
+
+                {/* Dynamic color inputs for images beyond the first */}
+                {imagesList.map((img, idx) => {
+                  if (idx === 0) return null;
+                  const labelText = `${getOrdinalText(idx)} Product Color`;
+                  return (
+                    <div key={idx} className="space-y-1 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="relative w-8 h-10 border rounded overflow-hidden">
+                          <img src={img} alt={`Thumbnail ${idx}`} className="object-cover w-full h-full" />
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">{labelText} *</span>
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={imageColors[idx] || ''}
+                        onChange={(e) => handleImageColorChange(idx, e.target.value)}
+                        placeholder="e.g. Red, Black"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-xs font-semibold"
+                      />
+                    </div>
+                  );
+                })}
               </div>
+              {mrpPrice && sellingPrice && parseFloat(mrpPrice) > 0 && (
+                <div className="text-[10px] text-gray-400 bg-white rounded-xl border border-gray-100 px-3 py-2">
+                  Discount: <strong className="text-green-600">{Math.round(((parseFloat(mrpPrice) - parseFloat(sellingPrice)) / parseFloat(mrpPrice)) * 100)}% off</strong>
+                </div>
+              )}
             </div>
           </div>
 

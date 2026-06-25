@@ -59,61 +59,7 @@ export default function ProductDetailsPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
 
-  // Customization state (Task 7)
-  const [customImages, setCustomImages] = useState<{ url: string; colorName: string; fileName: string; uploading: boolean }[]>([]);
-
-  const handleCustomImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const files = Array.from(e.target.files);
-    
-    // Add placeholders to state for upload indicator
-    const newItems = files.map(file => ({
-      url: '',
-      colorName: '',
-      fileName: file.name,
-      uploading: true
-    }));
-    
-    setCustomImages(prev => [...prev, ...newItems]);
-    
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      try {
-        const url = await productService.uploadCustomImage(file);
-        // Find index of the placeholder we just added and update it
-        setCustomImages(prev => {
-          const updated = [...prev];
-          const placeholderIdx = updated.findIndex(item => item.fileName === file.name && item.uploading);
-          if (placeholderIdx !== -1) {
-            updated[placeholderIdx] = {
-              url: url || '',
-              colorName: '', // Let the user input the color name
-              fileName: file.name,
-              uploading: false
-            };
-          }
-          return updated;
-        });
-      } catch (err) {
-        console.error('Failed to upload custom image:', err);
-        dispatch(addToast({ message: `Failed to upload ${file.name}`, type: 'error' }));
-        // Remove the failed placeholder
-        setCustomImages(prev => prev.filter(item => !(item.fileName === file.name && item.uploading)));
-      }
-    }
-  };
-
-  const removeCustomImage = (idx: number) => {
-    setCustomImages(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const updateCustomImageColor = (idx: number, color: string) => {
-    setCustomImages(prev => {
-      const updated = [...prev];
-      updated[idx].colorName = color;
-      return updated;
-    });
-  };
+  // Customization state removed
 
   // Zoom & Lightbox state
   const [zoomPos, setZoomPos] = useState({ x: 0, y: 0 });
@@ -257,14 +203,6 @@ export default function ProductDetailsPage() {
       dispatch(addToast({ message: "Please select a size first", type: "error" }));
       return;
     }
-    if (customImages.some(img => img.uploading)) {
-      dispatch(addToast({ message: "Please wait for custom images to finish uploading.", type: "error" }));
-      return;
-    }
-    if (customImages.some(img => !img.colorName.trim())) {
-      dispatch(addToast({ message: "Please specify a color name for each custom image.", type: "error" }));
-      return;
-    }
     setSizeWarning(false);
     setIsAdding(true);
 
@@ -281,13 +219,11 @@ export default function ProductDetailsPage() {
           quantity: quantity,
           size: selectedSize || undefined,
           color: selectedColor || undefined,
-          custom_images: customImages.map(img => ({ image_url: img.url, color_name: img.colorName }))
         }),
       );
       dispatch(addToast({ message: `${product.title} added to cart! 🛒`, type: "success" }));
       setIsAdding(false);
       setAddedSuccess(true);
-      setCustomImages([]); // clear custom images on success
       setTimeout(() => setAddedSuccess(false), 2000);
     }, 800);
   };
@@ -297,14 +233,6 @@ export default function ProductDetailsPage() {
     if (sizeRequired && !selectedSize) {
       setSizeWarning(true);
       dispatch(addToast({ message: "Please select a size first", type: "error" }));
-      return;
-    }
-    if (customImages.some(img => img.uploading)) {
-      dispatch(addToast({ message: "Please wait for custom images to finish uploading.", type: "error" }));
-      return;
-    }
-    if (customImages.some(img => !img.colorName.trim())) {
-      dispatch(addToast({ message: "Please specify a color name for each custom image.", type: "error" }));
       return;
     }
     setSizeWarning(false);
@@ -323,12 +251,10 @@ export default function ProductDetailsPage() {
           quantity: quantity,
           size: selectedSize || undefined,
           color: selectedColor || undefined,
-          custom_images: customImages.map(img => ({ image_url: img.url, color_name: img.colorName }))
         }),
       );
       dispatch(addToast({ message: `${product.title} added to cart! 🛒`, type: "success" }));
       setIsBuying(false);
-      setCustomImages([]); // clear custom images on success
       router.push('/cart');
     }, 600);
   };
@@ -375,6 +301,17 @@ export default function ProductDetailsPage() {
 
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
 
+  const visibleImages = product?.imageColors && product.imageColors.length > 0
+    ? product.imageColors
+        .filter((img: any) => !selectedColor || img.color_name === selectedColor)
+        .map((img: any) => img.image_url)
+    : (product?.images || []);
+
+  const handleColorSelect = (colorName: string) => {
+    setSelectedColor(colorName);
+    setActiveImageIndex(0);
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Back Button */}
@@ -410,7 +347,7 @@ export default function ProductDetailsPage() {
                 )}
               </div>
 
-              {product.images && product.images.length > 0 ? (
+              {visibleImages && visibleImages.length > 0 ? (
                 <div 
                   className="relative w-full h-full cursor-zoom-in overflow-hidden rounded-2xl"
                   onMouseEnter={() => setIsZoomed(true)}
@@ -450,7 +387,7 @@ export default function ProductDetailsPage() {
                   onClick={() => openLightbox(activeImageIndex)}
                 >
                   <Image
-                    src={product.images[activeImageIndex] || product.images[0]}
+                    src={visibleImages[activeImageIndex] || visibleImages[0]}
                     alt={product.title}
                     fill
                     className="object-cover transition-transform duration-100"
@@ -467,16 +404,16 @@ export default function ProductDetailsPage() {
                 </div>
               )}
               
-              {product.images && product.images.length > 1 && (
+              {visibleImages && visibleImages.length > 1 && (
                 <>
                   <button
-                    onClick={() => setActiveImageIndex((idx) => idx === 0 ? product.images.length - 1 : idx - 1)}
+                    onClick={() => setActiveImageIndex((idx) => idx === 0 ? visibleImages.length - 1 : idx - 1)}
                     className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-lg transition-all"
                   >
                     <ChevronLeft size={20} />
                   </button>
                   <button
-                    onClick={() => setActiveImageIndex((idx) => idx === product.images.length - 1 ? 0 : idx + 1)}
+                    onClick={() => setActiveImageIndex((idx) => idx === visibleImages.length - 1 ? 0 : idx + 1)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-lg transition-all"
                   >
                     <ChevronRight size={20} />
@@ -486,9 +423,9 @@ export default function ProductDetailsPage() {
             </div>
 
             {/* Thumbnails */}
-            {product.images && product.images.length > 1 && (
+            {visibleImages && visibleImages.length > 1 && (
               <div className="flex gap-3 overflow-x-auto pb-2">
-                {product.images.map((img: string, idx: number) => (
+                {visibleImages.map((img: string, idx: number) => (
                   <button
                     key={idx}
                     onClick={() => setActiveImageIndex(idx)}
@@ -608,7 +545,7 @@ export default function ProductDetailsPage() {
                     return (
                       <button
                         key={color}
-                        onClick={() => setSelectedColor(color)}
+                        onClick={() => handleColorSelect(color)}
                         className={`w-10 h-10 rounded-full transition-all relative flex items-center justify-center ${
                           isSelected ? 'ring-2 ring-black ring-offset-2 scale-110' : 'hover:scale-105'
                         }`}
@@ -648,63 +585,7 @@ export default function ProductDetailsPage() {
               </div>
             </div>
 
-            {/* Customization Section (Task 7) */}
-            <div className="mb-6 p-5 bg-[#faf8f5] border border-gray-100 rounded-2xl">
-              <span className="text-sm font-semibold text-[#1a1a1a] block mb-1">
-                Personalize Your Product
-              </span>
-              <p className="text-xs text-[#6b5b4b] mb-4">
-                Upload custom design files (e.g. front design, back design) and assign a color name to each.
-              </p>
-              
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleCustomImageUpload}
-                className="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-black file:text-white hover:file:bg-gray-800 file:cursor-pointer"
-              />
-
-              {customImages.length > 0 && (
-                <div className="space-y-3 mt-4">
-                  {customImages.map((img, idx) => (
-                    <div key={idx} className="flex items-center gap-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                      <div className="relative w-12 h-16 rounded overflow-hidden bg-gray-50 border flex-shrink-0">
-                        {img.uploading ? (
-                          <div className="absolute inset-0 flex items-center justify-center bg-white/80">
-                            <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                          </div>
-                        ) : (
-                          <img src={img.url} alt={img.fileName} className="w-full h-full object-cover" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-gray-800 truncate mb-1">{img.fileName}</p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Color:</span>
-                          <input
-                            type="text"
-                            required
-                            placeholder="e.g. Purple, Lavender"
-                            value={img.colorName}
-                            onChange={(e) => updateCustomImageColor(idx, e.target.value)}
-                            className="flex-1 min-w-[120px] px-2 py-1 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-black"
-                          />
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeCustomImage(idx)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Remove custom image"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Customization Section Removed */}
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 mb-3">

@@ -116,20 +116,21 @@ export default function PremiumProductCard({ product }: PremiumProductCardProps)
       <Link href={`/product/${product.slug}`} className="block">
         <div className="relative aspect-[3/4] bg-[#f5f0eb] overflow-hidden">
           <Image src={imageUrl} alt={product.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
-          <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+          {/* Badges */}
+          <div className="absolute bottom-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
             {product.discountPercent && product.discountPercent > 0 && (
-              <span className="bg-red-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-md">
+              <span className="bg-red-600 text-white text-[7.5px] tracking-wide font-extrabold px-1.5 py-0.5 rounded-[3px] shadow-sm uppercase">
                 {product.discountPercent}% OFF
               </span>
             )}
             {product.bestSeller && (
-              <span className="bg-gradient-to-r from-yellow-400 to-amber-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-md flex items-center gap-1">
-                <Star size={10} className="fill-white" />
+              <span className="bg-gradient-to-r from-yellow-400 to-amber-500 text-white text-[7.5px] tracking-wide font-extrabold px-1.5 py-0.5 rounded-[3px] shadow-sm flex items-center gap-0.5 uppercase">
+                <Star size={7} className="fill-white" />
                 BEST SELLER
               </span>
             )}
             {product.isNew && (
-              <span className="bg-green-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-md">
+              <span className="bg-green-500 text-white text-[7.5px] tracking-wide font-extrabold px-1.5 py-0.5 rounded-[3px] shadow-sm uppercase">
                 NEW
               </span>
             )}

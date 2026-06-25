@@ -30,14 +30,51 @@ import {
 
 // ─── Supabase Product Repository ──────────────────────────────────────────────
 
+// Helpers for repository product images mapping
+async function getRepoProductImagesMap(): Promise<Record<string, any[]>> {
+  const imageMap: Record<string, any[]> = {};
+  try {
+    const { data, error } = await supabase!
+      .from('product_images')
+      .select('*')
+      .order('display_order', { ascending: true });
+    if (!error && data) {
+      data.forEach((row: any) => {
+        const pId = row.product_id;
+        if (!imageMap[pId]) imageMap[pId] = [];
+        imageMap[pId].push(row);
+      });
+    }
+  } catch (err) {
+    console.warn('Could not query product_images table in repo, using fallback:', err);
+  }
+  return imageMap;
+}
+
+async function getRepoProductImagesForId(productId: string): Promise<any[]> {
+  try {
+    const { data, error } = await supabase!
+      .from('product_images')
+      .select('*')
+      .eq('product_id', productId)
+      .order('display_order', { ascending: true });
+    if (!error && data) {
+      return data;
+    }
+  } catch (err) {
+    console.warn('Could not query product_images for ID in repo, using fallback:', err);
+  }
+  return [];
+}
+
 export class SupabaseProductRepository implements IProductRepository {
   async getAll(): Promise<Product[]> {
-    const { data, error } = await supabase!
-      .from('products')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return (data || []).map(mapDbProduct);
+    const [productsRes, imagesMap] = await Promise.all([
+      supabase!.from('products').select('*').order('created_at', { ascending: false }),
+      getRepoProductImagesMap()
+    ]);
+    if (productsRes.error) throw productsRes.error;
+    return (productsRes.data || []).map(p => mapDbProduct(p, imagesMap[p.id]));
   }
 
   async getBySlug(slug: string): Promise<Product | null> {
@@ -48,27 +85,26 @@ export class SupabaseProductRepository implements IProductRepository {
       .maybeSingle();
     if (error) throw error;
     if (!data) return null;
-    return mapDbProduct(data);
+    const images = await getRepoProductImagesForId(data.id);
+    return mapDbProduct(data, images);
   }
 
   async getByCategory(category: string): Promise<Product[]> {
-    const { data, error } = await supabase!
-      .from('products')
-      .select('*')
-      .ilike('category', category)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return (data || []).map(mapDbProduct);
+    const [productsRes, imagesMap] = await Promise.all([
+      supabase!.from('products').select('*').ilike('category', category).order('created_at', { ascending: false }),
+      getRepoProductImagesMap()
+    ]);
+    if (productsRes.error) throw productsRes.error;
+    return (productsRes.data || []).map(p => mapDbProduct(p, imagesMap[p.id]));
   }
 
   async getByCollection(collection: string): Promise<Product[]> {
-    const { data, error } = await supabase!
-      .from('products')
-      .select('*')
-      .ilike('collection', collection)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return (data || []).map(mapDbProduct);
+    const [productsRes, imagesMap] = await Promise.all([
+      supabase!.from('products').select('*').ilike('collection', collection).order('created_at', { ascending: false }),
+      getRepoProductImagesMap()
+    ]);
+    if (productsRes.error) throw productsRes.error;
+    return (productsRes.data || []).map(p => mapDbProduct(p, imagesMap[p.id]));
   }
 
   async create(product: Product): Promise<Product | null> {
@@ -80,6 +116,7 @@ export class SupabaseProductRepository implements IProductRepository {
       category: normalizeCategory(product.category),
       collection: product.collection ? normalizeCollection(product.collection) : '',
       images: product.images,
+      color: product.color || '',
       sizes: product.sizes,
       stock: product.sizes?.reduce((sum: number, s: any) => sum + (s.stock || 0), 0) || 0,
       mrp: product.mrpPrice,
@@ -97,7 +134,23 @@ export class SupabaseProductRepository implements IProductRepository {
       .select('*')
       .single();
     if (error) throw error;
-    return data ? mapDbProduct(data) : null;
+
+    if (data && (product as any).imageColors) {
+      try {
+        const rows = (product as any).imageColors.map((ic: any, idx: number) => ({
+          product_id: data.id,
+          image_url: ic.image_url,
+          color_name: ic.color_name,
+          display_order: idx
+        }));
+        await supabase!.from('product_images').insert(rows);
+      } catch (err) {
+        console.warn('Failed to save product_images in repo on create:', err);
+      }
+    }
+
+    const images = await getRepoProductImagesForId(data.id);
+    return data ? mapDbProduct(data, images) : null;
   }
 
   async update(id: string, updates: Partial<Product>): Promise<Product | null> {
@@ -119,6 +172,8 @@ export class SupabaseProductRepository implements IProductRepository {
     if (updates.metadata?.dealOfDay !== undefined) mapped.deal_of_day = updates.metadata.dealOfDay;
     if (updates.metadata?.featured !== undefined) mapped.featured = updates.metadata.featured;
     if (updates.brand) mapped.brand = updates.brand;
+    if (updates.images) mapped.images = updates.images;
+    if (updates.color !== undefined) mapped.color = updates.color;
 
     const { data, error } = await supabase!
       .from('products')
@@ -127,7 +182,24 @@ export class SupabaseProductRepository implements IProductRepository {
       .select('*')
       .single();
     if (error) throw error;
-    return data ? mapDbProduct(data) : null;
+
+    if (data && (updates as any).imageColors) {
+      try {
+        await supabase!.from('product_images').delete().eq('product_id', data.id);
+        const rows = (updates as any).imageColors.map((ic: any, idx: number) => ({
+          product_id: data.id,
+          image_url: ic.image_url,
+          color_name: ic.color_name,
+          display_order: idx
+        }));
+        await supabase!.from('product_images').insert(rows);
+      } catch (err) {
+        console.warn('Failed to update product_images in repo:', err);
+      }
+    }
+
+    const images = await getRepoProductImagesForId(data.id);
+    return data ? mapDbProduct(data, images) : null;
   }
 
   async delete(id: string): Promise<boolean> {
@@ -136,16 +208,23 @@ export class SupabaseProductRepository implements IProductRepository {
       .delete()
       .or(`id.eq.${id},product_id.eq.${id}`);
     if (error) throw error;
+
+    try {
+      await supabase!.from('product_images').delete().eq('product_id', id);
+    } catch (err) {
+      console.warn('Failed to delete product_images in repo on delete:', err);
+    }
+
     return true;
   }
 
   async search(query: string): Promise<Product[]> {
-    const { data, error } = await supabase!
-      .from('products')
-      .select('*')
-      .or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`);
-    if (error) throw error;
-    return (data || []).map(mapDbProduct);
+    const [productsRes, imagesMap] = await Promise.all([
+      supabase!.from('products').select('*').or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`),
+      getRepoProductImagesMap()
+    ]);
+    if (productsRes.error) throw productsRes.error;
+    return (productsRes.data || []).map(p => mapDbProduct(p, imagesMap[p.id]));
   }
 
   async getInventory(): Promise<InventoryEntry[]> {
