@@ -17,7 +17,7 @@ export const couponService = {
       .from('coupons')
       .select('*')
       .eq('code', cleanCode)
-      .eq('is_active', true)
+      .eq('active', true)
       .maybeSingle();
 
     if (error) throw error;
@@ -25,9 +25,9 @@ export const couponService = {
 
     return {
       code: data.code,
-      discountPercent: Number(data.discount_percent),
+      discountPercent: Number(data.discount || 0),
       description: data.description || '',
-      isActive: !!data.is_active,
+      isActive: !!data.active,
     };
   },
 
@@ -35,16 +35,16 @@ export const couponService = {
     const { data, error } = await supabase!
       .from('coupons')
       .select('*')
-      .eq('is_active', true);
+      .eq('active', true);
 
     if (error) throw error;
     if (!data) return [];
 
     return data.map((d: any) => ({
       code: d.code,
-      discountPercent: Number(d.discount_percent),
+      discountPercent: Number(d.discount || 0),
       description: d.description || '',
-      isActive: !!d.is_active,
+      isActive: !!d.active,
     }));
   },
 };

@@ -20,10 +20,11 @@ import { useDispatch, useSelector } from 'react-redux';
 import { addToCart } from '@/lib/redux/slices/cartSlice';
 import { addToWishlist, removeFromWishlist } from '@/lib/redux/slices/wishlistSlice';
 import { addToast } from '@/lib/redux/slices/uiSlice';
+import { repo, MockCoupon } from '@/lib/repositories';
 import { RootState } from '@/lib/redux/store';
 import { productService } from '@/services/productService';
 import { useAuth } from '@/lib/context/AuthContext';
-import { X } from 'lucide-react';
+import { X, Tag } from 'lucide-react';
 
 
 export default function ProductDetailsPage() {
@@ -37,7 +38,6 @@ export default function ProductDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [selectedColor, setSelectedColor] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
   const [sizeWarning, setSizeWarning] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -49,6 +49,8 @@ export default function ProductDetailsPage() {
   const cartItems = useSelector((state: RootState) => state.cart.items);
   
   const { user } = useAuth();
+  
+  const [applicableCoupons, setApplicableCoupons] = useState<MockCoupon[]>([]);
   
   // Reviews state
   const [reviews, setReviews] = useState<any[]>([]);
@@ -67,7 +69,6 @@ export default function ProductDetailsPage() {
   const [touchScale, setTouchScale] = useState(1);
   const [touchStartDist, setTouchStartDist] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   const loadReviews = async () => {
     if (!product) return;
@@ -100,7 +101,7 @@ export default function ProductDetailsPage() {
   };
 
   const openLightbox = (idx: number) => {
-    setLightboxIndex(idx);
+    setActiveImageIndex(idx);
     setLightboxOpen(true);
   };
 
@@ -151,11 +152,18 @@ export default function ProductDetailsPage() {
         const data = await productService.getProductBySlug(slug);
         if (active && data) {
           setProduct(data);
-          if (data.colors && data.colors.length > 0) {
-            setSelectedColor(data.colors[0]);
-          }
           const related = await productService.getRelatedProducts(slug);
           setRelatedProducts(related);
+          
+          const allCoupons = await repo.coupons.getAll();
+          const now = new Date();
+          const valid = allCoupons.filter(c => 
+            c.isActive && 
+            (!c.startDate || new Date(c.startDate) <= now) &&
+            (!c.endDate || new Date(c.endDate) > now) &&
+            (c.applicableProducts?.includes(data.id) || !c.applicableProducts || c.applicableProducts.length === 0)
+          );
+          setApplicableCoupons(valid);
         }
       } catch (err) {
         console.error('Error loading product details:', err);
@@ -215,7 +223,9 @@ export default function ProductDetailsPage() {
           brand: product.brand,
           price: product.price,
           discountedPrice: product.discountedPrice || product.price,
-          image: product.images && product.images.length > 0 ? product.images[0] : '',
+          image: product.imageColors && product.imageColors.length > 0 
+            ? product.imageColors[0].image_url 
+            : (product.images && product.images.length > 0 ? product.images[0] : ''),
           quantity: quantity,
           size: selectedSize || undefined,
           color: selectedColor || undefined,
@@ -247,7 +257,9 @@ export default function ProductDetailsPage() {
           brand: product.brand,
           price: product.price,
           discountedPrice: product.discountedPrice || product.price,
-          image: product.images && product.images.length > 0 ? product.images[0] : '',
+          image: product.imageColors && product.imageColors.length > 0 
+            ? product.imageColors[0].image_url 
+            : (product.images && product.images.length > 0 ? product.images[0] : ''),
           quantity: quantity,
           size: selectedSize || undefined,
           color: selectedColor || undefined,
@@ -302,14 +314,29 @@ export default function ProductDetailsPage() {
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
 
   const visibleImages = product?.imageColors && product.imageColors.length > 0
-    ? product.imageColors
-        .filter((img: any) => !selectedColor || img.color_name === selectedColor)
-        .map((img: any) => img.image_url)
-    : (product?.images || []);
+    ? product.imageColors.map((img: any) => ({ url: img.image_url, color: img.color_name }))
+    : (product?.images || []).map((img: string) => ({ url: img, color: product?.colors?.[0] || 'Default' }));
+
+  const selectedColor = visibleImages[activeImageIndex]?.color || '';
+
+  const handleImageChange = (newIndex: number | 'next' | 'prev') => {
+    let nextIndex = activeImageIndex;
+    if (newIndex === 'next') {
+      nextIndex = activeImageIndex === visibleImages.length - 1 ? 0 : activeImageIndex + 1;
+    } else if (newIndex === 'prev') {
+      nextIndex = activeImageIndex === 0 ? visibleImages.length - 1 : activeImageIndex - 1;
+    } else if (typeof newIndex === 'number') {
+      nextIndex = newIndex;
+    }
+    
+    setActiveImageIndex(nextIndex);
+  };
 
   const handleColorSelect = (colorName: string) => {
-    setSelectedColor(colorName);
-    setActiveImageIndex(0);
+    const firstIndex = visibleImages.findIndex((img: any) => img.color === colorName);
+    if (firstIndex !== -1) {
+      setActiveImageIndex(firstIndex);
+    }
   };
 
   return (
@@ -387,7 +414,7 @@ export default function ProductDetailsPage() {
                   onClick={() => openLightbox(activeImageIndex)}
                 >
                   <Image
-                    src={visibleImages[activeImageIndex] || visibleImages[0]}
+                    src={visibleImages[activeImageIndex]?.url || visibleImages[0]?.url}
                     alt={product.title}
                     fill
                     className="object-cover transition-transform duration-100"
@@ -407,13 +434,13 @@ export default function ProductDetailsPage() {
               {visibleImages && visibleImages.length > 1 && (
                 <>
                   <button
-                    onClick={() => setActiveImageIndex((idx) => idx === 0 ? visibleImages.length - 1 : idx - 1)}
+                    onClick={() => handleImageChange('prev')}
                     className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-lg transition-all"
                   >
                     <ChevronLeft size={20} />
                   </button>
                   <button
-                    onClick={() => setActiveImageIndex((idx) => idx === visibleImages.length - 1 ? 0 : idx + 1)}
+                    onClick={() => handleImageChange('next')}
                     className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-lg transition-all"
                   >
                     <ChevronRight size={20} />
@@ -425,17 +452,17 @@ export default function ProductDetailsPage() {
             {/* Thumbnails */}
             {visibleImages && visibleImages.length > 1 && (
               <div className="flex gap-3 overflow-x-auto pb-2">
-                {visibleImages.map((img: string, idx: number) => (
+                {visibleImages.map((img: { url: string, color: string }, idx: number) => (
                   <button
                     key={idx}
-                    onClick={() => setActiveImageIndex(idx)}
+                    onClick={() => handleImageChange(idx)}
                     className={`relative w-20 h-28 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all ${
                       activeImageIndex === idx ? 'border-black' : 'border-transparent hover:border-gray-300'
                     }`}
                   >
                     <Image
-                      src={img}
-                      alt={`${product.title} ${idx + 1}`}
+                      src={img.url}
+                      alt={`${product.title} ${img.color} ${idx + 1}`}
                       fill
                       className="object-cover"
                     />
@@ -482,6 +509,25 @@ export default function ProductDetailsPage() {
             <p className="text-sm text-[#6b5b4b] leading-relaxed mb-4 max-w-md">
               {product.description}
             </p>
+
+            {applicableCoupons.length > 0 && (
+              <div className="mb-6 p-4 border border-green-100 bg-green-50/50 rounded-2xl">
+                <h4 className="text-sm font-semibold text-green-800 mb-2 flex items-center gap-2">
+                  <Tag size={16} /> Available Offers
+                </h4>
+                <ul className="space-y-2 text-sm">
+                  {applicableCoupons.map(coupon => (
+                    <li key={coupon.code} className="text-green-800 flex flex-col gap-0.5 border-b border-green-100/50 pb-2 last:border-0 last:pb-0">
+                      <div>
+                        <span className="font-bold font-mono bg-white px-2 py-0.5 rounded border border-green-200 mr-2">{coupon.code}</span>
+                        <span className="font-semibold">{coupon.discountType === 'percentage' ? `${coupon.discountValue}% OFF` : `₹${coupon.discountValue} OFF`}</span>
+                      </div>
+                      <span className="text-xs text-green-700/80">{coupon.description}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Size Selector */}
             <div className="mb-5">
@@ -531,12 +577,56 @@ export default function ProductDetailsPage() {
               </div>
             </div>
 
-            {/* Color Selector */}
-            {product.colors && product.colors.length > 0 && (
-              <div className="mb-5">
-                <span className="text-sm font-medium text-[#1a1a1a] block mb-2">
-                  Color
-                </span>
+            {/* Premium Image-based Color Selector */}
+            {product.imageColors && product.imageColors.length > 0 ? (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm font-semibold text-[#1a1a1a]">Color:</span>
+                  <span className="text-sm text-[#6b5b4b] font-medium">{selectedColor || product.imageColors[0]?.color_name}</span>
+                </div>
+                <div className="flex gap-4 overflow-x-auto pb-4 pt-1 snap-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  {Array.from(new Map(product.imageColors.map((img: any) => [img.color_name, img])).values()).map((imgObj: any) => {
+                    const colorName = imgObj.color_name;
+                    const isSelected = selectedColor === colorName;
+                    
+                    return (
+                      <button
+                        key={colorName}
+                        onClick={() => handleColorSelect(colorName)}
+                        className={`group relative flex flex-col items-center gap-2 flex-shrink-0 snap-start transition-all duration-300 ${
+                          isSelected ? 'scale-100' : 'scale-95 hover:scale-100 opacity-80 hover:opacity-100'
+                        }`}
+                        title={colorName}
+                      >
+                        <div className={`relative w-[72px] h-[90px] sm:w-[80px] sm:h-[100px] rounded-lg overflow-hidden bg-[#f5f0eb] transition-all duration-300 ${
+                          isSelected 
+                            ? 'ring-2 ring-black ring-offset-2 shadow-md' 
+                            : 'ring-1 ring-gray-200 group-hover:ring-gray-400 group-hover:shadow-sm'
+                        }`}>
+                          <Image
+                            src={imgObj.image_url}
+                            alt={colorName}
+                            fill
+                            sizes="80px"
+                            className="object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        </div>
+                        <span className={`text-[10px] sm:text-xs font-medium max-w-[80px] truncate transition-colors ${
+                          isSelected ? 'text-black font-semibold' : 'text-gray-500 group-hover:text-gray-700'
+                        }`}>
+                          {colorName}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : product.colors && product.colors.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm font-semibold text-[#1a1a1a]">Color:</span>
+                  <span className="text-sm text-[#6b5b4b] font-medium">{selectedColor}</span>
+                </div>
                 <div className="flex gap-3">
                   {product.colors.map((color: string) => {
                     const isSelected = selectedColor === color;
@@ -547,7 +637,7 @@ export default function ProductDetailsPage() {
                         key={color}
                         onClick={() => handleColorSelect(color)}
                         className={`w-10 h-10 rounded-full transition-all relative flex items-center justify-center ${
-                          isSelected ? 'ring-2 ring-black ring-offset-2 scale-110' : 'hover:scale-105'
+                          isSelected ? 'ring-2 ring-black ring-offset-2 scale-110 shadow-md' : 'hover:scale-105 shadow-sm'
                         }`}
                         style={{ backgroundColor: hex, border: isWhite ? '1px solid #d1d5db' : 'none' }}
                         title={color}
@@ -775,7 +865,7 @@ export default function ProductDetailsPage() {
                         key={i} 
                         className="relative aspect-square rounded-lg overflow-hidden bg-gray-50 border border-gray-100 cursor-zoom-in"
                         onClick={() => {
-                          setLightboxIndex(0); // open review image in lightbox
+                          openLightbox(0); // open first product image in lightbox for now
                           // We can dynamically create a lightbox array if needed, but for now lightbox uses product images
                         }}
                       >
@@ -910,8 +1000,7 @@ export default function ProductDetailsPage() {
                               key={idx} 
                               className="relative w-20 h-28 rounded-lg overflow-hidden border border-gray-100 cursor-zoom-in"
                               onClick={() => {
-                                setLightboxIndex(0);
-                                // Set custom single-image lightbox if needed
+                                handleImageChange(idx);
                               }}
                             >
                               <img src={imgUrl} alt="Review attachment" className="w-full h-full object-cover" />
@@ -936,7 +1025,7 @@ export default function ProductDetailsPage() {
       {lightboxOpen && (
         <div className="fixed inset-0 bg-black/95 z-[100] flex flex-col justify-between p-4 sm:p-6 select-none">
           <div className="flex justify-between items-center text-white text-sm">
-            <span>{lightboxIndex + 1} / {product.images.length}</span>
+            <span>{activeImageIndex + 1} / {visibleImages.length}</span>
             <button 
               onClick={() => setLightboxOpen(false)}
               className="text-gray-400 hover:text-white p-1 hover:bg-white/10 rounded-full transition-all"
@@ -946,37 +1035,37 @@ export default function ProductDetailsPage() {
           </div>
           <div className="flex-1 flex items-center justify-center relative max-h-[80vh]">
             <button
-              onClick={() => setLightboxIndex((idx) => idx === 0 ? product.images.length - 1 : idx - 1)}
+              onClick={() => handleImageChange('prev')}
               className="absolute left-2 sm:left-6 z-10 bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-full transition-all"
             >
               <ChevronLeft size={24} />
             </button>
             <div className="relative w-full h-full max-w-4xl aspect-[3/4]">
               <Image
-                src={product.images[lightboxIndex]}
+                src={visibleImages[activeImageIndex]?.url}
                 alt={product.title}
                 fill
                 className="object-contain"
               />
             </div>
             <button
-              onClick={() => setLightboxIndex((idx) => idx === product.images.length - 1 ? 0 : idx + 1)}
+              onClick={() => handleImageChange('next')}
               className="absolute right-2 sm:right-6 z-10 bg-white/10 hover:bg-white/20 text-white p-2.5 rounded-full transition-all"
             >
               <ChevronRight size={24} />
             </button>
           </div>
           <div className="flex gap-2 justify-center overflow-x-auto py-2">
-            {product.images.map((img: string, idx: number) => (
+            {visibleImages.map((img: { url: string, color: string }, idx: number) => (
               <button
                 key={idx}
-                onClick={() => setLightboxIndex(idx)}
+                onClick={() => handleImageChange(idx)}
                 className={`relative w-12 h-16 rounded overflow-hidden flex-shrink-0 border-2 transition-all ${
-                  lightboxIndex === idx ? 'border-white' : 'border-transparent opacity-50 hover:opacity-100'
+                  activeImageIndex === idx ? 'border-white' : 'border-transparent opacity-50 hover:opacity-100'
                 }`}
               >
                 <Image
-                  src={img}
+                  src={img.url}
                   alt={`Thumbnail ${idx}`}
                   fill
                   className="object-cover"

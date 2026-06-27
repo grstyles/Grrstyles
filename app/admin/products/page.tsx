@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Product } from '@/lib/data/products';
-import { repo } from '@/lib/repositories';
+import { repo, MockCoupon } from '@/lib/repositories';
 import { COLLECTIONS } from '@/lib/config';
 import {
   Plus, X, Trash2, Tag, ShoppingBag, DollarSign, Upload,
@@ -69,21 +69,33 @@ export default function AdminProductsPage() {
   const [isTrending, setIsTrending] = useState(false);
   const [isFeatured, setIsFeatured] = useState(false);
   const [isDealOfDay, setIsDealOfDay] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState<MockCoupon[]>([]);
+  const [selectedCoupons, setSelectedCoupons] = useState<string[]>([]);
 
-  const loadProducts = async () => {
+  const loadProductsAndCoupons = async () => {
     setLoading(true);
     try {
-      const data = await repo.products.getAll();
-      setItems(data);
+      const [productsData, couponsData] = await Promise.all([
+        repo.products.getAll(),
+        repo.coupons.getAll()
+      ]);
+      setItems(productsData);
+      
+      const now = new Date();
+      setAvailableCoupons(couponsData.filter(c => 
+        c.isActive && 
+        (!c.startDate || new Date(c.startDate) <= now) &&
+        (!c.endDate || new Date(c.endDate) > now)
+      ));
     } catch (e) {
-      console.error('Failed to load products', e);
+      console.error('Failed to load data', e);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadProducts();
+    loadProductsAndCoupons();
   }, []);
 
   // Sync default sizes when category changes
@@ -221,6 +233,7 @@ export default function AdminProductsPage() {
     setIsTrending(false);
     setIsFeatured(false);
     setIsDealOfDay(false);
+    setSelectedCoupons([]);
   };
 
   const populateFormFromProduct = (product: Product) => {
@@ -251,6 +264,7 @@ export default function AdminProductsPage() {
     setIsTrending(!!product.bestSeller);
     setIsFeatured(!!product.metadata?.featured);
     setIsDealOfDay(!!product.metadata?.dealOfDay);
+    setSelectedCoupons(product.coupons || []);
     setFormOpen(true);
   };
 
@@ -297,6 +311,7 @@ export default function AdminProductsPage() {
         featured: isFeatured,
         tags,
       },
+      coupons: selectedCoupons,
       imageColors: imagesList.map((img, idx) => ({
         image_url: img,
         color_name: imageColors[idx] || color || 'Original',
@@ -332,11 +347,14 @@ export default function AdminProductsPage() {
     }
 
     const tempId = editingId || `p-${Date.now()}`;
+    console.log('[DEBUG Admin Flow] 1. imageColors React state before Save:', JSON.stringify(imageColors, null, 2));
     const productPayload = buildProductPayload(tempId);
+    console.log('[DEBUG Admin Flow] 2. buildProductPayload():', JSON.stringify(productPayload.imageColors, null, 2));
 
     setLoading(true);
     try {
       if (editingId) {
+        console.log('[DEBUG Admin Flow] 3. Payload sent to updateProduct():', JSON.stringify(productPayload.imageColors, null, 2));
         const updated = await repo.products.update(editingId, productPayload);
         if (updated) {
           setItems((prev) => prev.map((p) => (p.id === editingId ? { ...p, ...updated } : p)));
@@ -446,7 +464,7 @@ export default function AdminProductsPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={loadProducts}
+            onClick={loadProductsAndCoupons}
             className="p-2.5 border border-gray-200 hover:border-black rounded-xl text-gray-500 hover:text-black transition-colors"
             title="Refresh"
           >
@@ -626,6 +644,30 @@ export default function AdminProductsPage() {
                     placeholder="e.g. casual, summer, slim-fit"
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Applicable Coupons</label>
+                  <div className="border border-gray-200 rounded-xl p-3 bg-gray-50/50 max-h-40 overflow-y-auto space-y-2">
+                    {availableCoupons.length > 0 ? availableCoupons.map((c) => (
+                      <label key={c.code} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white p-1 rounded-md">
+                        <input
+                          type="checkbox"
+                          checked={selectedCoupons.includes(c.code)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedCoupons([...selectedCoupons, c.code]);
+                            else setSelectedCoupons(selectedCoupons.filter(code => code !== c.code));
+                          }}
+                          className="rounded border-gray-300 text-black focus:ring-black cursor-pointer"
+                        />
+                        <span className="font-semibold text-gray-800">{c.code}</span>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                          {c.discountType === 'percentage' ? `${c.discountValue}% OFF` : `₹${c.discountValue} OFF`}
+                        </span>
+                      </label>
+                    )) : (
+                      <p className="text-xs text-gray-400">No active coupons available.</p>
+                    )}
+                  </div>
                 </div>
               </div>
 

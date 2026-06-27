@@ -30,51 +30,13 @@ import {
 
 // ─── Supabase Product Repository ──────────────────────────────────────────────
 
-// Helpers for repository product images mapping
-async function getRepoProductImagesMap(): Promise<Record<string, any[]>> {
-  const imageMap: Record<string, any[]> = {};
-  try {
-    const { data, error } = await supabase!
-      .from('product_images')
-      .select('*')
-      .order('display_order', { ascending: true });
-    if (!error && data) {
-      data.forEach((row: any) => {
-        const pId = row.product_id;
-        if (!imageMap[pId]) imageMap[pId] = [];
-        imageMap[pId].push(row);
-      });
-    }
-  } catch (err) {
-    console.warn('Could not query product_images table in repo, using fallback:', err);
-  }
-  return imageMap;
-}
-
-async function getRepoProductImagesForId(productId: string): Promise<any[]> {
-  try {
-    const { data, error } = await supabase!
-      .from('product_images')
-      .select('*')
-      .eq('product_id', productId)
-      .order('display_order', { ascending: true });
-    if (!error && data) {
-      return data;
-    }
-  } catch (err) {
-    console.warn('Could not query product_images for ID in repo, using fallback:', err);
-  }
-  return [];
-}
+// Helpers removed as we use image_colors JSONB
 
 export class SupabaseProductRepository implements IProductRepository {
   async getAll(): Promise<Product[]> {
-    const [productsRes, imagesMap] = await Promise.all([
-      supabase!.from('products').select('*').order('created_at', { ascending: false }),
-      getRepoProductImagesMap()
-    ]);
+    const productsRes = await supabase!.from('products').select('*').order('created_at', { ascending: false });
     if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map(p => mapDbProduct(p, imagesMap[p.id]));
+    return (productsRes.data || []).map(p => mapDbProduct(p));
   }
 
   async getBySlug(slug: string): Promise<Product | null> {
@@ -85,49 +47,44 @@ export class SupabaseProductRepository implements IProductRepository {
       .maybeSingle();
     if (error) throw error;
     if (!data) return null;
-    const images = await getRepoProductImagesForId(data.id);
-    return mapDbProduct(data, images);
+    return mapDbProduct(data);
   }
 
   async getByCategory(category: string): Promise<Product[]> {
-    const [productsRes, imagesMap] = await Promise.all([
-      supabase!.from('products').select('*').ilike('category', category).order('created_at', { ascending: false }),
-      getRepoProductImagesMap()
-    ]);
+    const productsRes = await supabase!.from('products').select('*').ilike('category', category).order('created_at', { ascending: false });
     if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map(p => mapDbProduct(p, imagesMap[p.id]));
+    return (productsRes.data || []).map(p => mapDbProduct(p));
   }
 
   async getByCollection(collection: string): Promise<Product[]> {
-    const [productsRes, imagesMap] = await Promise.all([
-      supabase!.from('products').select('*').ilike('collection', collection).order('created_at', { ascending: false }),
-      getRepoProductImagesMap()
-    ]);
+    const productsRes = await supabase!.from('products').select('*').ilike('collection', collection).order('created_at', { ascending: false });
     if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map(p => mapDbProduct(p, imagesMap[p.id]));
+    return (productsRes.data || []).map(p => mapDbProduct(p));
   }
 
   async create(product: Product): Promise<Product | null> {
     console.log('Using Provider: Supabase');
     const mapped = {
-      sku: product.sku || `GR-${product.category.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+      sku: product.sku,
       name: product.name,
-      slug: product.slug ? normalizeSlug(product.slug) : normalizeSlug(product.name || product.title),
+      slug: product.slug || normalizeSlug(product.name),
       category: normalizeCategory(product.category),
       collection: product.collection ? normalizeCollection(product.collection) : '',
       images: product.images,
       color: product.color || '',
+      image_colors: (product as any).imageColors || null,
       sizes: product.sizes,
       stock: product.sizes?.reduce((sum: number, s: any) => sum + (s.stock || 0), 0) || 0,
       mrp: product.mrpPrice,
       selling_price: product.sellingPrice,
       description: product.description,
-      brand: product.brand || 'GR STYLES',
-      new_arrival: product.isNew || false,
-      trending: product.bestSeller || false,
-      deal_of_day: product.metadata?.dealOfDay || false,
       featured: product.metadata?.featured || false,
+      trending: product.bestSeller || false,
+      new_arrival: product.isNew || false,
+      deal_of_day: product.metadata?.dealOfDay || false,
+      brand: product.brand || 'GR STYLES',
     };
+
     const { data, error } = await supabase!
       .from('products')
       .insert(mapped)
@@ -135,22 +92,21 @@ export class SupabaseProductRepository implements IProductRepository {
       .single();
     if (error) throw error;
 
-    if (data && (product as any).imageColors) {
+    // product_images table removed, using image_colors JSONB
+
+    if (data && product.coupons && product.coupons.length > 0) {
       try {
-        const rows = (product as any).imageColors.map((ic: any, idx: number) => ({
+        const pcRows = product.coupons.map((c: string) => ({
           product_id: data.id,
-          image_url: ic.image_url,
-          color_name: ic.color_name,
-          display_order: idx
+          coupon_id: c
         }));
-        await supabase!.from('product_images').insert(rows);
+        await supabase!.from('product_coupons').insert(pcRows);
       } catch (err) {
-        console.warn('Failed to save product_images in repo on create:', err);
+        console.warn('Failed to save product_coupons in repo on create:', err);
       }
     }
 
-    const images = await getRepoProductImagesForId(data.id);
-    return data ? mapDbProduct(data, images) : null;
+    return data ? mapDbProduct(data) : null;
   }
 
   async update(id: string, updates: Partial<Product>): Promise<Product | null> {
@@ -174,57 +130,60 @@ export class SupabaseProductRepository implements IProductRepository {
     if (updates.brand) mapped.brand = updates.brand;
     if (updates.images) mapped.images = updates.images;
     if (updates.color !== undefined) mapped.color = updates.color;
+    if ((updates as any).imageColors) mapped.image_colors = (updates as any).imageColors;
+
+    console.log('[DEBUG SupabaseProvider Flow] 4. Payload sent to Supabase (update):', JSON.stringify(mapped.image_colors, null, 2));
 
     const { data, error } = await supabase!
       .from('products')
       .update(mapped)
-      .or(`id.eq.${id},product_id.eq.${id}`)
+      .eq('id', id)
       .select('*')
       .single();
     if (error) throw error;
+    
+    console.log('[DEBUG SupabaseProvider Flow] 5. Database row immediately after update:', JSON.stringify(data.image_colors, null, 2));
 
-    if (data && (updates as any).imageColors) {
+    // product_images table removed, using image_colors JSONB
+
+    if (data && updates.coupons !== undefined) {
       try {
-        await supabase!.from('product_images').delete().eq('product_id', data.id);
-        const rows = (updates as any).imageColors.map((ic: any, idx: number) => ({
-          product_id: data.id,
-          image_url: ic.image_url,
-          color_name: ic.color_name,
-          display_order: idx
-        }));
-        await supabase!.from('product_images').insert(rows);
+        await supabase!.from('product_coupons').delete().eq('product_id', data.id);
+        if (updates.coupons.length > 0) {
+          const pcRows = updates.coupons.map((c: string) => ({
+            product_id: data.id,
+            coupon_code: c
+          }));
+          await supabase!.from('product_coupons').insert(pcRows);
+        }
       } catch (err) {
-        console.warn('Failed to update product_images in repo:', err);
+        console.warn('Failed to update product_coupons in repo:', err);
       }
     }
 
-    const images = await getRepoProductImagesForId(data.id);
-    return data ? mapDbProduct(data, images) : null;
+    return data ? mapDbProduct(data) : null;
   }
 
   async delete(id: string): Promise<boolean> {
     const { error } = await supabase!
       .from('products')
       .delete()
-      .or(`id.eq.${id},product_id.eq.${id}`);
+      .eq('id', id);
     if (error) throw error;
 
     try {
-      await supabase!.from('product_images').delete().eq('product_id', id);
+      await supabase!.from('product_coupons').delete().eq('product_id', id);
     } catch (err) {
-      console.warn('Failed to delete product_images in repo on delete:', err);
+      console.warn('Failed to delete product references in repo on delete:', err);
     }
 
     return true;
   }
 
   async search(query: string): Promise<Product[]> {
-    const [productsRes, imagesMap] = await Promise.all([
-      supabase!.from('products').select('*').or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`),
-      getRepoProductImagesMap()
-    ]);
+    const productsRes = await supabase!.from('products').select('*').or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`);
     if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map(p => mapDbProduct(p, imagesMap[p.id]));
+    return (productsRes.data || []).map(p => mapDbProduct(p));
   }
 
   async getInventory(): Promise<InventoryEntry[]> {
@@ -246,7 +205,7 @@ export class SupabaseProductRepository implements IProductRepository {
     const { data, error } = await supabase!
       .from('products')
       .select('sizes')
-      .or(`id.eq.${productId},product_id.eq.${productId}`)
+      .eq('id', productId)
       .maybeSingle();
     if (error) throw error;
     if (!data) throw new Error('Product not found');
@@ -262,7 +221,7 @@ export class SupabaseProductRepository implements IProductRepository {
     const { error: updateError } = await supabase!
       .from('products')
       .update({ sizes: updated })
-      .or(`id.eq.${productId},product_id.eq.${productId}`);
+      .eq('id', productId);
     if (updateError) throw updateError;
     return true;
   }
@@ -358,29 +317,68 @@ export class SupabaseOrderRepository implements IOrderRepository {
 
 export class SupabaseCouponRepository implements ICouponRepository {
   async getAll(): Promise<MockCoupon[]> {
-    const { data, error } = await supabase!.from('coupons').select('*');
+    const { data, error } = await supabase!.from('coupons').select('*, product_coupons(product_id)');
     if (error || !data) return [];
     return data.map((c: any) => ({
       code: c.code,
-      discountPercent: Number(c.discount_percent),
+      discountType: c.discount_type || 'percentage',
+      discountValue: Number(c.discount || 0),
       description: c.description,
       isActive: c.active,
-      usageCount: 0,
+      minOrderValue: Number(c.min_order_value || 0),
+      startDate: c.start_date,
+      endDate: c.expiry_date,
+      usageLimit: c.usage_limit,
+      usageCount: c.used_count || 0,
+      applicableProducts: c.product_coupons?.map((pc: any) => pc.product_id) || [],
     }));
   }
 
-  async apply(code: string): Promise<{ valid: boolean; discount: number; message: string }> {
+  async apply(code: string, validationData?: { subtotal: number; productIds: string[] }): Promise<{ valid: boolean; discountValue: number; discountType: 'percentage' | 'flat'; message: string }> {
     const { data } = await supabase!
       .from('coupons')
-      .select('*')
+      .select('*, product_coupons(product_id)')
       .eq('code', code.toUpperCase().trim())
       .eq('active', true)
       .maybeSingle();
-    if (!data) return { valid: false, discount: 0, message: 'Invalid coupon code.' };
+      
+    if (!data) return { valid: false, discountValue: 0, discountType: 'percentage', message: 'Invalid coupon code.' };
+    
+    // Check dates
+    const now = new Date();
+    if (data.start_date && new Date(data.start_date) > now) {
+      return { valid: false, discountValue: 0, discountType: 'percentage', message: 'Coupon is not yet active.' };
+    }
+    if (data.expiry_date && new Date(data.expiry_date) < now) {
+      return { valid: false, discountValue: 0, discountType: 'percentage', message: 'Coupon has expired.' };
+    }
+    if (data.usage_limit && data.used_count >= data.usage_limit) {
+      return { valid: false, discountValue: 0, discountType: 'percentage', message: 'Coupon usage limit reached.' };
+    }
+
+    if (validationData) {
+      if (data.min_order_value && validationData.subtotal < data.min_order_value) {
+        return { valid: false, discountValue: 0, discountType: 'percentage', message: `Minimum order value of ₹${data.min_order_value} required.` };
+      }
+      
+      const applicableProducts = data.product_coupons?.map((pc: any) => pc.product_id) || [];
+      if (applicableProducts.length > 0) {
+        const hasApplicableProduct = validationData.productIds.some(id => applicableProducts.includes(id));
+        if (!hasApplicableProduct) {
+          return { valid: false, discountValue: 0, discountType: 'percentage', message: 'Coupon is not applicable to the items in your cart.' };
+        }
+      }
+    }
+    
+    const dType = data.discount_type || 'percentage';
+    const dVal = Number(data.discount || 0);
+    const msgType = dType === 'percentage' ? `${dVal}% off` : `₹${dVal} off`;
+    
     return {
       valid: true,
-      discount: Number(data.discount_percent),
-      message: `Coupon applied! ${data.discount_percent}% off – ${data.description}`,
+      discountValue: dVal,
+      discountType: dType,
+      message: `Coupon applied! ${msgType} – ${data.description}`,
     };
   }
 
@@ -388,15 +386,45 @@ export class SupabaseCouponRepository implements ICouponRepository {
     const { data, error } = await supabase!
       .from('coupons')
       .insert({
-        code: coupon.code,
-        discount_percent: coupon.discountPercent,
+        code: coupon.code.toUpperCase().trim(),
+        discount_type: coupon.discountType,
+        discount: coupon.discountValue,
         description: coupon.description,
         active: coupon.isActive,
+        min_order_value: coupon.minOrderValue || 0,
+        start_date: coupon.startDate || null,
+        expiry_date: coupon.endDate || null,
+        usage_limit: coupon.usageLimit || null,
+        used_count: 0
       })
       .select('*')
       .single();
-    if (error || !data) return null;
-    return { code: data.code, discountPercent: data.discount_percent, description: data.description, isActive: data.active, usageCount: 0 };
+      
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    
+    // Insert product_coupons if applicableProducts provided
+    if (coupon.applicableProducts && coupon.applicableProducts.length > 0) {
+      const pcRows = coupon.applicableProducts.map(pid => ({
+        coupon_code: data.code,
+        product_id: pid
+      }));
+      await supabase!.from('product_coupons').insert(pcRows);
+    }
+    
+    return { 
+      code: data.code, 
+      discountType: data.discount_type, 
+      discountValue: Number(data.discount || 0), 
+      description: data.description, 
+      isActive: data.active,
+      minOrderValue: Number(data.min_order_value),
+      startDate: data.start_date,
+      endDate: data.expiry_date,
+      usageLimit: data.usage_limit,
+      usageCount: 0,
+      applicableProducts: coupon.applicableProducts || []
+    };
   }
 
   async toggle(code: string, isActive: boolean): Promise<boolean> {

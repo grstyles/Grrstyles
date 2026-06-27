@@ -18,14 +18,16 @@ export interface CartItem {
 interface CartState {
   items: CartItem[];
   total: number;
-  discountPercent: number;
+  discountValue: number;
+  discountType: 'percentage' | 'flat';
   appliedPromo: string;
 }
 
 const initialState: CartState = {
   items: [],
   total: 0,
-  discountPercent: 0,
+  discountValue: 0,
+  discountType: 'percentage',
   appliedPromo: '',
 };
 
@@ -123,7 +125,8 @@ const cartSlice = createSlice({
 
       state.items = [];
       state.total = 0;
-      state.discountPercent = 0;
+      state.discountValue = 0;
+      state.discountType = 'percentage';
       state.appliedPromo = '';
 
       console.log('Cart state after update:', current(state));
@@ -132,7 +135,8 @@ const cartSlice = createSlice({
       state.items = state.items.filter((item) => item.selected === false);
       state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
       if (state.items.length === 0) {
-        state.discountPercent = 0;
+        state.discountValue = 0;
+        state.discountType = 'percentage';
         state.appliedPromo = '';
       }
     },
@@ -150,12 +154,14 @@ const cartSlice = createSlice({
 
       console.log('Cart state after update:', current(state));
     },
-    applyPromo: (state, action: PayloadAction<{ code: string; percent: number }>) => {
-      state.discountPercent = action.payload.percent;
+    applyPromo: (state, action: PayloadAction<{ code: string; discountValue: number; discountType: 'percentage' | 'flat' }>) => {
+      state.discountValue = action.payload.discountValue;
+      state.discountType = action.payload.discountType;
       state.appliedPromo = action.payload.code;
     },
     removePromo: (state) => {
-      state.discountPercent = 0;
+      state.discountValue = 0;
+      state.discountType = 'percentage';
       state.appliedPromo = '';
     },
   },

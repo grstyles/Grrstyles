@@ -125,18 +125,37 @@ export class SupabaseUserRepository implements IUserRepository {
     if (!user) return null;
 
     // Fetch details from profiles table
-    const { data: profile } = await supabase!
+    let { data: profile } = await supabase!
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .maybeSingle();
 
+    const fullName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
     const resolvedRole = (profile?.role || user.user_metadata?.role || 'customer') as 'customer' | 'admin';
+
+    if (!profile) {
+      // Auto-create profile for OAuth users to satisfy foreign key constraints
+      const { data: newProfile, error } = await supabase!
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: user.email || '',
+          full_name: fullName,
+          role: resolvedRole,
+        })
+        .select('*')
+        .maybeSingle();
+      
+      if (!error && newProfile) {
+        profile = newProfile;
+      }
+    }
 
     return {
       id: user.id,
       email: user.email || '',
-      fullName: profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+      fullName: profile?.full_name || fullName,
       role: resolvedRole,
       avatar: user.user_metadata?.avatar_url || '',
     };
@@ -160,7 +179,7 @@ export class SupabaseUserRepository implements IUserRepository {
     const { data, error } = await supabase!.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/checkout` : undefined,
+        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
       },
     });
     if (error) {

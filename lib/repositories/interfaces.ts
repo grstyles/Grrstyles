@@ -37,12 +37,16 @@ export interface MockOrder {
 
 export interface MockCoupon {
   code: string;
-  discountPercent: number;
+  discountType: 'percentage' | 'flat';
+  discountValue: number;
   description: string;
   isActive: boolean;
+  minOrderValue?: number;
+  startDate?: string;
+  endDate?: string;
+  usageLimit?: number;
   usageCount: number;
-  maxUsage?: number;
-  expiresAt?: string;
+  applicableProducts?: string[];
 }
 
 // ─── Product Repository ───────────────────────────────────────────────────────
@@ -130,7 +134,7 @@ export interface ICouponRepository {
   getAll(): Promise<MockCoupon[]>;
 
   /** Validate and apply a coupon code */
-  apply(code: string): Promise<{ valid: boolean; discount: number; message: string }>;
+  apply(code: string, validationData?: { subtotal: number; productIds: string[] }): Promise<{ valid: boolean; discountValue: number; discountType: 'percentage' | 'flat'; message: string }>;
 
   /** Create a new coupon */
   create(coupon: Omit<MockCoupon, 'usageCount'>): Promise<MockCoupon | null>;

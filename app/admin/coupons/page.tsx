@@ -13,8 +13,11 @@ export default function AdminCouponsPage() {
   const [formOpen, setFormOpen] = useState(false);
 
   const [code, setCode] = useState('');
-  const [discountPercent, setDiscountPercent] = useState('');
+  const [discountValue, setDiscountValue] = useState('');
+  const [discountType, setDiscountType] = useState<'percentage' | 'flat'>('percentage');
   const [description, setDescription] = useState('');
+  const [minOrderValue, setMinOrderValue] = useState('');
+  const [usageLimit, setUsageLimit] = useState('');
 
   const loadCoupons = async () => {
     setLoading(true);
@@ -35,34 +38,40 @@ export default function AdminCouponsPage() {
   const handleAddCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!code || !discountPercent || !description) {
-      dispatch(addToast({ message: 'All fields are required.', type: 'error' }));
+    if (!code || !discountValue || !description) {
+      dispatch(addToast({ message: 'Code, Discount, and Description are required.', type: 'error' }));
       return;
     }
 
-    const discount = parseInt(discountPercent);
-    if (isNaN(discount) || discount < 1 || discount > 100) {
-      dispatch(addToast({ message: 'Discount must be between 1–100%.', type: 'error' }));
+    const discount = parseInt(discountValue);
+    if (isNaN(discount) || discount < 1 || (discountType === 'percentage' && discount > 100)) {
+      dispatch(addToast({ message: 'Invalid discount value.', type: 'error' }));
       return;
     }
 
     const newCoupon = {
       code: code.toUpperCase().trim(),
-      discountPercent: discount,
+      discountValue: discount,
+      discountType,
       description,
       isActive: true,
+      minOrderValue: minOrderValue ? parseInt(minOrderValue) : undefined,
+      usageLimit: usageLimit ? parseInt(usageLimit) : undefined,
+      usageCount: 0
     };
 
-    const created = await repo.coupons.create(newCoupon);
-    if (!created) {
-      dispatch(addToast({ message: 'Coupon code already exists.', type: 'error' }));
-      return;
+    try {
+      const created = await repo.coupons.create(newCoupon);
+      if (!created) throw new Error('Failed to create coupon.');
+      
+      setCoupons((prev) => [created, ...prev]);
+      setFormOpen(false);
+      setCode(''); setDiscountValue(''); setDescription(''); setMinOrderValue(''); setUsageLimit('');
+      dispatch(addToast({ message: `✓ Coupon "${created.code}" created!`, type: 'success' }));
+    } catch (error: any) {
+      const msg = error?.message || 'Error creating coupon.';
+      dispatch(addToast({ message: msg, type: 'error' }));
     }
-
-    setCoupons((prev) => [created, ...prev]);
-    setFormOpen(false);
-    setCode(''); setDiscountPercent(''); setDescription('');
-    dispatch(addToast({ message: `✓ Coupon "${created.code}" created!`, type: 'success' }));
   };
 
   const handleToggleStatus = async (couponCode: string, currentActive: boolean) => {
@@ -130,23 +139,61 @@ export default function AdminCouponsPage() {
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm uppercase font-bold placeholder-gray-300"
               />
             </div>
+            
+            <div className="space-y-1.5 flex flex-col justify-end">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                Discount Type
+              </label>
+              <select
+                value={discountType}
+                onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'flat')}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+              >
+                <option value="percentage">Percentage (%)</option>
+                <option value="flat">Flat Amount (₹)</option>
+              </select>
+            </div>
+            
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                <Percent size={10} /> Discount %
+                {discountType === 'percentage' ? <Percent size={10} /> : '₹'} Discount Value *
               </label>
               <input
                 id="coupon-discount-input"
                 type="number"
                 required
                 min={1}
-                max={100}
-                value={discountPercent}
-                onChange={(e) => setDiscountPercent(e.target.value)}
+                max={discountType === 'percentage' ? 100 : 10000}
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
                 placeholder="20"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
               />
             </div>
+
             <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Min Order Value (Optional)</label>
+              <input
+                type="number"
+                value={minOrderValue}
+                onChange={(e) => setMinOrderValue(e.target.value)}
+                placeholder="1000"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+              />
+            </div>
+            
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Usage Limit (Optional)</label>
+              <input
+                type="number"
+                value={usageLimit}
+                onChange={(e) => setUsageLimit(e.target.value)}
+                placeholder="100"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+              />
+            </div>
+            
+            <div className="space-y-1.5 md:col-span-1">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Description *</label>
               <input
                 type="text"
@@ -190,6 +237,7 @@ export default function AdminCouponsPage() {
                 <tr className="bg-gray-50/50 border-b border-gray-100 text-[10px] font-bold tracking-widest text-gray-400 uppercase">
                   <th className="p-4 pl-6">Code</th>
                   <th className="p-4">Discount</th>
+                  <th className="p-4">Min Order</th>
                   <th className="p-4">Description</th>
                   <th className="p-4">Usage</th>
                   <th className="p-4">Status</th>
@@ -204,10 +252,16 @@ export default function AdminCouponsPage() {
                         {c.code}
                       </span>
                     </td>
-                    <td className="p-4 font-bold text-gray-900 text-sm">{c.discountPercent}% off</td>
+                    <td className="p-4 font-bold text-gray-900 text-sm">
+                      {c.discountType === 'percentage' ? `${c.discountValue}% off` : `₹${c.discountValue} off`}
+                    </td>
+                    <td className="p-4 font-medium text-gray-600">
+                      {c.minOrderValue ? `₹${c.minOrderValue}` : 'None'}
+                    </td>
                     <td className="p-4 text-gray-500 font-light">{c.description}</td>
                     <td className="p-4">
                       <span className="font-semibold text-gray-700">{c.usageCount} uses</span>
+                      {c.usageLimit && <span className="text-gray-400 ml-1">/ {c.usageLimit}</span>}
                     </td>
                     <td className="p-4">
                       {c.isActive ? (

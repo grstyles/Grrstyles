@@ -13,12 +13,13 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
   let colors = db.color ? [db.color] : [];
   let primaryColor = db.color || '';
 
-  if (imageRows && imageRows.length > 0) {
-    imageColors = imageRows.map((row: any) => ({
-      image_url: row.image_url,
-      color_name: row.color_name,
-      display_order: row.display_order
+  if (db.image_colors && db.image_colors.length > 0) {
+    imageColors = db.image_colors.map((ic: any) => ({
+      image_url: ic.image_url,
+      color_name: ic.color_name,
+      display_order: ic.display_order || 0
     }));
+    imageColors.sort((a, b) => a.display_order - b.display_order);
     images = imageColors.map(x => x.image_url);
     colors = Array.from(new Set(imageColors.map(x => x.color_name))).filter(Boolean);
     primaryColor = colors[0] || db.color || '';
@@ -67,52 +68,11 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
   };
 }
 
-// Helpers for product images mapping
-async function getProductImagesMap(): Promise<Record<string, any[]>> {
-  const imageMap: Record<string, any[]> = {};
-  try {
-    const { data, error } = await supabase!
-      .from('product_images')
-      .select('*')
-      .order('display_order', { ascending: true });
-    if (!error && data) {
-      data.forEach((row: any) => {
-        const pId = row.product_id;
-        if (!imageMap[pId]) imageMap[pId] = [];
-        imageMap[pId].push(row);
-      });
-    }
-  } catch (err) {
-    console.warn('Could not query product_images table, using fallback:', err);
-  }
-  return imageMap;
-}
-
-async function getProductImagesForId(productId: string): Promise<any[]> {
-  try {
-    const { data, error } = await supabase!
-      .from('product_images')
-      .select('*')
-      .eq('product_id', productId)
-      .order('display_order', { ascending: true });
-    if (!error && data) {
-      return data;
-    }
-  } catch (err) {
-    console.warn('Could not query product_images for ID, using fallback:', err);
-  }
-  return [];
-}
-
 export const productService = {
   async getProducts(): Promise<Product[]> {
-    const [productsRes, imagesMap] = await Promise.all([
-      supabase!.from('products').select('*').order('created_at', { ascending: false }),
-      getProductImagesMap()
-    ]);
-
+    const productsRes = await supabase!.from('products').select('*').order('created_at', { ascending: false });
     if (productsRes.error || !productsRes.data) throw productsRes.error || new Error('No data');
-    return productsRes.data.map(p => mapDbProduct(p, imagesMap[p.id]));
+    return productsRes.data.map(p => mapDbProduct(p));
   },
 
   async getProductBySlug(slug: string): Promise<Product | null> {
@@ -124,20 +84,15 @@ export const productService = {
 
     if (error) throw error;
     if (!data) return null;
-    const images = await getProductImagesForId(data.id);
-    return mapDbProduct(data, images);
+    return mapDbProduct(data);
   },
 
   async getProductsByCategory(categorySlug: string): Promise<Product[]> {
     const normalizedSlug = normalizeSlug(categorySlug);
     // Query all products and then filter dynamically via matchCategory
-    const [productsRes, imagesMap] = await Promise.all([
-      supabase!.from('products').select('*'),
-      getProductImagesMap()
-    ]);
-
+    const productsRes = await supabase!.from('products').select('*');
     if (productsRes.error || !productsRes.data) throw productsRes.error || new Error('No data');
-    return productsRes.data.map(p => mapDbProduct(p, imagesMap[p.id])).filter((p) => matchCategory(p, normalizedSlug));
+    return productsRes.data.map(p => mapDbProduct(p)).filter((p) => matchCategory(p, normalizedSlug));
   },
 
   async getProductsByCollection(collectionSlug: string): Promise<Product[]> {
@@ -166,14 +121,12 @@ export const productService = {
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
 
-    const imagesMap = await getProductImagesMap();
-
     if (!data || data.length === 0) {
       // Fallback to text query filtering on DB products
       const { data: allProds, error: allErr } = await supabase!.from('products').select('*');
       if (allErr) throw allErr;
       if (allProds) {
-        return allProds.map(p => mapDbProduct(p, imagesMap[p.id])).filter(p => {
+        return allProds.map(p => mapDbProduct(p)).filter(p => {
           if (slug === 'korean-collection') return p.name.toLowerCase().includes('korean') || p.description.toLowerCase().includes('korean');
           if (slug === 'festival-collection' || slug === 'festival-wear') return p.label === 'HOT' || p.discountPercent > 20 || p.label === 'NEW';
           if (slug === 'formal-collection' || slug === 'formal-wear') return p.name.toLowerCase().includes('formal') || p.description.toLowerCase().includes('formal') || p.name.toLowerCase().includes('office');
@@ -188,17 +141,14 @@ export const productService = {
       return [];
     }
 
-    return data.map(p => mapDbProduct(p, imagesMap[p.id]));
+    return data.map(p => mapDbProduct(p));
   },
 
   async getProductsByBrand(brandSlug: string): Promise<Product[]> {
     const cleanBrand = brandSlug.replace(/-/g, ' ').toLowerCase();
-    const [productsRes, imagesMap] = await Promise.all([
-      supabase!.from('products').select('*').ilike('brand', `%${cleanBrand}%`),
-      getProductImagesMap()
-    ]);
+    const productsRes = await supabase!.from('products').select('*').ilike('brand', `%${cleanBrand}%`);
     if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map(p => mapDbProduct(p, imagesMap[p.id]));
+    return (productsRes.data || []).map(p => mapDbProduct(p));
   },
 
   async getProductsByFestival(festivalSlug: string): Promise<Product[]> {
@@ -221,8 +171,7 @@ export const productService = {
       .limit(4);
 
     if (error) throw error;
-    const imagesMap = await getProductImagesMap();
-    return (data || []).map(p => mapDbProduct(p, imagesMap[p.id]));
+    return (data || []).map(p => mapDbProduct(p));
   },
 
   async createProduct(p: Product): Promise<Product | null> {
@@ -239,12 +188,14 @@ export const productService = {
       mrp: p.mrpPrice,
       selling_price: p.sellingPrice,
       description: p.description,
+      image_colors: (p as any).imageColors || null,
       featured: p.metadata?.featured || false,
       trending: p.bestSeller || false,
       new_arrival: p.isNew || false,
       deal_of_day: p.metadata?.dealOfDay || false,
       brand: p.brand || 'GR STYLES',
     };
+
     const { data, error } = await supabase!
       .from('products')
       .insert(mapped)
@@ -252,45 +203,31 @@ export const productService = {
       .single();
     if (error || !data) throw error || new Error('Product creation failed');
 
-    // Save to product_images
-    if ((p as any).imageColors) {
-      try {
-        const rows = (p as any).imageColors.map((ic: any, idx: number) => ({
-          product_id: data.id,
-          image_url: ic.image_url,
-          color_name: ic.color_name,
-          display_order: idx
-        }));
-        await supabase!.from('product_images').insert(rows);
-      } catch (err) {
-        console.warn('Failed to save product_images on creation:', err);
-      }
-    }
-
-    const images = await getProductImagesForId(data.id);
-    return mapDbProduct(data, images);
+    return mapDbProduct(data);
   },
 
   async deleteProduct(id: string): Promise<boolean> {
+    // 1. Delete dependent records first to satisfy foreign key constraints
+    try {
+      await supabase!.from('cart_items').delete().eq('product_id', id);
+      await supabase!.from('wishlist_items').delete().eq('product_id', id);
+      // Optional: If order_items exist and aren't CASCADE deleted, handle them here too, 
+      // but usually orders should be immutable. For safety:
+      await supabase!.from('order_items').delete().eq('product_id', id);
+    } catch (e) {
+      console.warn('Failed to delete dependent records, but continuing:', e);
+    }
+
     const { error } = await supabase!
       .from('products')
       .delete()
       .eq('id', id);
 
     if (error) {
-      const { error: err2 } = await supabase!
-        .from('products')
-        .delete()
-        .eq('product_id', id);
-      if (err2) throw err2;
+      throw error;
     }
     
-    // Also try deleting corresponding product_images (cascade handles it but good as secondary)
-    try {
-      await supabase!.from('product_images').delete().eq('product_id', id);
-    } catch (err) {
-      console.warn('Could not delete product_images on product deletion:', err);
-    }
+    // no longer using product_images
     
     return true;
   },
@@ -328,7 +265,7 @@ export const productService = {
       const { data: prod, error: prodErr } = await supabase!
         .from('products')
         .select('id, sizes')
-        .or(`id.eq.${item.id},product_id.eq.${item.id}`)
+        .eq('id', item.id)
         .maybeSingle();
 
       if (prodErr) throw prodErr;

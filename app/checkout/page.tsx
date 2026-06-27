@@ -105,10 +105,13 @@ export default function CheckoutPage() {
 
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [loading, setLoading] = useState(false);
-  const discountPercent = useSelector((state: RootState) => state.cart.discountPercent);
+  const discountValue = useSelector((state: RootState) => state.cart.discountValue);
+  const discountType = useSelector((state: RootState) => state.cart.discountType);
   const appliedPromo = useSelector((state: RootState) => state.cart.appliedPromo);
 
-  const discount = Math.round((total * discountPercent) / 100);
+  const discount = discountType === 'percentage' 
+    ? Math.round((total * discountValue) / 100) 
+    : discountValue;
   const tax = Math.round((total - discount) * 0.08);
   const shipping = 0;
   const finalTotal = total - discount + tax + shipping;
@@ -191,6 +194,16 @@ export default function CheckoutPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
+
+    if (appliedPromo) {
+      const productIds = cartItems.map((item) => item.id);
+      const valRes = await repo.coupons.apply(appliedPromo, { subtotal, productIds });
+      if (!valRes.valid) {
+        dispatch(addToast({ message: valRes.message, type: 'error' }));
+        setLoading(false);
+        return;
+      }
+    }
 
     if (selectedAddressId === 'new' && saveAddressToProfile && user) {
       try {

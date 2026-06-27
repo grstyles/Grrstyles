@@ -38,6 +38,8 @@ export interface Product {
   stockCount?: number;
   securePayment?: string;
   metadata?: ProductMetadata;
+  coupons?: string[];
+  imageColors?: { image_url: string; color_name: string; display_order: number }[];
 }
 
 export const productDatabase: Record<string, Product> = {

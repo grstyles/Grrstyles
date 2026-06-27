@@ -20,7 +20,8 @@ export default function CartPage() {
   const cartItems = useSelector((state: RootState) => state.cart.items);
   const selectedItems = cartItems.filter(item => item.selected !== false);
   const subtotal = selectedItems.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
-  const discountPercent = useSelector((state: RootState) => state.cart.discountPercent);
+  const discountValue = useSelector((state: RootState) => state.cart.discountValue);
+  const discountType = useSelector((state: RootState) => state.cart.discountType);
   const appliedCode = useSelector((state: RootState) => state.cart.appliedPromo);
 
   const [promoCode, setPromoCode] = useState('');
@@ -31,7 +32,9 @@ export default function CartPage() {
   // Tax logic: GST 12%
   const tax = Math.round(subtotal * 0.12);
   // Promo discount
-  const discount = Math.round((subtotal * discountPercent) / 100);
+  const discount = discountType === 'percentage' 
+    ? Math.round((subtotal * discountValue) / 100) 
+    : discountValue;
   // Final total
   const finalTotal = subtotal - discount + shipping + tax;
 
@@ -57,9 +60,10 @@ export default function CartPage() {
     }
 
     try {
-      const result = await repo.coupons.apply(code);
+      const productIds = cartItems.map(item => item.id);
+      const result = await repo.coupons.apply(code, { subtotal, productIds });
       if (result.valid) {
-        dispatch(applyPromo({ code, percent: result.discount }));
+        dispatch(applyPromo({ code, discountValue: result.discountValue, discountType: result.discountType }));
         setPromoError('');
         dispatch(addToast({ message: result.message, type: 'success' }));
       } else {

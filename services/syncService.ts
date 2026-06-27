@@ -98,7 +98,7 @@ export const syncService = {
       const { data: prod, error: prodError } = await supabase!
         .from('products')
         .select('id')
-        .or(`id.eq.${item.id},product_id.eq.${item.id}`)
+        .eq('id', item.id)
         .maybeSingle();
 
       if (prodError || !prod) {
@@ -106,20 +106,37 @@ export const syncService = {
         return;
       }
 
-      const { error } = await supabase!
+      const { data: existing } = await supabase!
         .from('cart_items')
-        .upsert({
-          cart_id: cartId,
-          product_id: prod.id,
-          size: item.size || 'One Size',
-          quantity: item.quantity,
-          custom_images: item.custom_images || [],
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'cart_id,product_id,size'
-        });
+        .select('id')
+        .eq('cart_id', cartId)
+        .eq('product_id', prod.id)
+        .eq('size', item.size || 'One Size')
+        .maybeSingle();
 
-      if (error) console.error('Error upserting cart item to DB:', error.message);
+      if (existing) {
+        const { error } = await supabase!
+          .from('cart_items')
+          .update({
+            quantity: item.quantity,
+            custom_images: item.custom_images || [],
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+        if (error) console.error('Error updating cart item in DB:', error.message);
+      } else {
+        const { error } = await supabase!
+          .from('cart_items')
+          .insert({
+            cart_id: cartId,
+            product_id: prod.id,
+            size: item.size || 'One Size',
+            quantity: item.quantity,
+            custom_images: item.custom_images || [],
+            updated_at: new Date().toISOString(),
+          });
+        if (error) console.error('Error inserting cart item to DB:', error.message);
+      }
     } catch (e) {
       console.error('Error syncing cart item:', e);
     }
@@ -134,7 +151,7 @@ export const syncService = {
       const { data: prod } = await supabase!
         .from('products')
         .select('id')
-        .or(`id.eq.${productId},product_id.eq.${productId}`)
+        .eq('id', productId)
         .maybeSingle();
 
       if (!prod) return;
@@ -179,13 +196,11 @@ export const syncService = {
 
       const { data, error } = await supabase!
         .from('wishlist_items')
-        .select(`
-          products (product_id, id)
-        `)
+        .select('product_id')
         .eq('wishlist_id', wishlistId);
 
       if (error || !data) throw error;
-      return data.map((item: any) => item.products?.product_id || item.products?.id).filter(Boolean);
+      return data.map((item: any) => item.product_id).filter(Boolean);
     } catch (e) {
       console.error('Error fetching wishlist from DB:', e);
       return [];
@@ -201,21 +216,28 @@ export const syncService = {
       const { data: prod } = await supabase!
         .from('products')
         .select('id')
-        .or(`id.eq.${productId},product_id.eq.${productId}`)
+        .eq('id', productId)
         .maybeSingle();
 
       if (!prod) return;
 
-      const { error } = await supabase!
+      const { data: existing } = await supabase!
         .from('wishlist_items')
-        .upsert({
-          wishlist_id: wishlistId,
-          product_id: prod.id,
-        }, {
-          onConflict: 'wishlist_id,product_id'
-        });
+        .select('id')
+        .eq('wishlist_id', wishlistId)
+        .eq('product_id', prod.id)
+        .maybeSingle();
 
-      if (error) console.error('Error adding to DB wishlist:', error.message);
+      if (!existing) {
+        const { error } = await supabase!
+          .from('wishlist_items')
+          .insert({
+            wishlist_id: wishlistId,
+            product_id: prod.id,
+          });
+
+        if (error) console.error('Error adding to DB wishlist:', error.message);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -230,7 +252,7 @@ export const syncService = {
       const { data: prod } = await supabase!
         .from('products')
         .select('id')
-        .or(`id.eq.${productId},product_id.eq.${productId}`)
+        .eq('id', productId)
         .maybeSingle();
 
       if (!prod) return;

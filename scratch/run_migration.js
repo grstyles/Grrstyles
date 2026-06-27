@@ -6,7 +6,7 @@ async function run() {
   console.log('--- GR STYLES SCHEMA MIGRATION RUNNER ---');
   
   // Read migration SQL
-  const migrationFile = path.join(__dirname, '..', 'supabase_images_migration.sql');
+  const migrationFile = path.join(__dirname, '..', 'coupons_migration.sql');
   if (!fs.existsSync(migrationFile)) {
     console.error('Migration SQL file not found at:', migrationFile);
     process.exit(1);
