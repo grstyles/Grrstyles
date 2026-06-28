@@ -30,6 +30,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Load session on mount
   useEffect(() => {
+    // Capture hash immediately on mount to detect OAuth redirect fallback
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    const isOAuthCallback = hash.includes('access_token') || hash.includes('error_description');
+
     const initSession = async () => {
       try {
         const currentUser = await authService.getCurrentUser();
@@ -49,6 +53,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (session?.user) {
             const currentUser = await authService.getCurrentUser();
             setUser(currentUser);
+            
+            // If we detected an OAuth callback hash on mount and this is a SIGNED_IN event,
+            // or if we are explicitly on the callback page, we should redirect the user.
+            // This fixes the issue where Supabase falls back to the Site URL (root) 
+            // if /auth/callback is not in the allowed Redirect URLs list.
+            if (event === 'SIGNED_IN' && isOAuthCallback) {
+              // Clean up the URL
+              if (typeof window !== 'undefined') {
+                window.history.replaceState(null, '', window.location.pathname + window.location.search);
+              }
+              if (currentUser?.role === 'admin') {
+                router.replace('/admin');
+              } else {
+                router.replace('/profile');
+              }
+            }
           } else {
             setUser(null);
           }
@@ -56,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
       return () => subscription.unsubscribe();
     }
-  }, []);
+  }, [router]);
 
   const login = async (email: string, password?: string) => {
     try {

@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useDispatch, useSelector } from 'react-redux';
 import { Minus, Plus, Trash2, ArrowLeft, Tag, ShoppingBag, ShieldCheck, Truck, Percent } from 'lucide-react';
 import { RootState } from '@/lib/redux/store';
-import { removeFromCart, updateQuantity, applyPromo, removePromo, toggleSelectItem, toggleSelectAllItems } from '@/lib/redux/slices/cartSlice';
+import { removeFromCart, updateQuantity, applyPromo, removePromo, toggleSelectItem, toggleSelectAllItems, setDirectCheckoutItem } from '@/lib/redux/slices/cartSlice';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { formatPrice } from '@/lib/utils/helpers';
 import { repo } from '@/lib/repositories';
@@ -15,6 +15,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export default function CartPage() {
   const dispatch = useDispatch();
+
+  useEffect(() => {
+    // Clear any Buy Now items when visiting the normal cart
+    dispatch(setDirectCheckoutItem(null));
+  }, [dispatch]);
+
   const router = useRouter();
   
   const cartItems = useSelector((state: RootState) => state.cart.items);

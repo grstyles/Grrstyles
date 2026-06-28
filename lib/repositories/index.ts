@@ -19,6 +19,7 @@ import {
   ICouponRepository,
   IStorageRepository,
   IAnalyticsRepository,
+  IBannerRepository,
 } from './interfaces';
 export type { IUserRepository, UserProfile, UserAddress } from './userRepository';
 import { IUserRepository, SupabaseUserRepository } from './userRepository';
@@ -29,6 +30,7 @@ import {
   SupabaseCouponRepository,
   SupabaseStorageRepository,
   SupabaseAnalyticsRepository,
+  SupabaseBannerRepository,
 } from './supabaseProvider';
 
 // ─── Repository Set ─────────────────────────────────────────────────────────────
@@ -40,6 +42,7 @@ interface RepositorySet {
   storage: IStorageRepository;
   analytics: IAnalyticsRepository;
   users: IUserRepository;
+  banners: IBannerRepository;
 }
 
 // ─── Factory Function ──────────────────────────────────────────────────────────
@@ -53,6 +56,7 @@ function createRepositories(): RepositorySet {
     storage: new SupabaseStorageRepository(),
     analytics: new SupabaseAnalyticsRepository(),
     users: new SupabaseUserRepository(),
+    banners: new SupabaseBannerRepository(),
   };
 }
 

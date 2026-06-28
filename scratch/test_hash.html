@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+    const supabaseUrl = 'http://localhost:54321' // mock
+    const supabaseKey = 'mock'
+    const supabase = createClient(supabaseUrl, supabaseKey)
+    
+    supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Event:', event)
+      console.log('Hash:', window.location.hash)
+    })
+  </script>
+</body>
+</html>

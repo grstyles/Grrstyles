@@ -1,6 +1,7 @@
 export interface ProductSize {
   size: string;
   stock: number;
+  type?: 'shirt' | 'pant';
 }
 
 export interface ProductMetadata {

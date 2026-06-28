@@ -52,6 +52,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const menuItems = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'Products', href: '/admin/products', icon: ShoppingBag },
+    { name: 'Banners', href: '/admin/banners', icon: LayoutDashboard }, // Assuming LayoutDashboard or another icon for Banners
     { name: 'Inventory', href: '/admin/inventory', icon: Package },
     { name: 'Orders', href: '/admin/orders', icon: ClipboardList },
     { name: 'Coupons', href: '/admin/coupons', icon: Tag },

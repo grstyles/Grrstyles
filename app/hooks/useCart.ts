@@ -2,7 +2,7 @@
 
 import { useDispatch, useSelector } from 'react-redux';
 import { useRouter } from 'next/navigation';
-import { addToCart } from '@/lib/redux/slices/cartSlice';
+import { addToCart, setDirectCheckoutItem } from '@/lib/redux/slices/cartSlice';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { RootState } from '@/lib/redux/store';
 

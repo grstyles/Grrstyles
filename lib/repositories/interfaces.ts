@@ -225,3 +225,31 @@ export interface FullAnalytics extends DashboardStats {
   monthlyPerformance: AnalyticsMonthlyData[];
   orderStatusBreakdown: AnalyticsOrderStatusCount[];
 }
+
+// ─── Banner Repository ────────────────────────────────────────────────────────
+
+export interface Banner {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  image_url: string;
+  mobile_image_url?: string | null;
+  link_url?: string | null;
+  button_text?: string | null;
+  is_active: boolean;
+  display_order: number;
+  start_date?: string | null;
+  end_date?: string | null;
+  target_page?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface IBannerRepository {
+  getAll(): Promise<Banner[]>;
+  getById(id: string): Promise<Banner | null>;
+  create(banner: Omit<Banner, 'id' | 'created_at' | 'updated_at'>): Promise<Banner | null>;
+  update(id: string, banner: Partial<Banner>): Promise<Banner | null>;
+  delete(id: string): Promise<boolean>;
+  getActive(): Promise<Banner[]>;
+}

@@ -5,76 +5,100 @@ import AutoScrollCarousel from '@/components/home/AutoScrollCarousel';
 import ProductSection from '@/components/ui/ProductSection';
 import { Product } from '@/lib/data/products';
 import { repo } from '@/lib/repositories';
+import { Banner } from '@/lib/repositories/interfaces';
 import { config } from '@/lib/config';
 import { matchCategory } from '@/lib/utils/categoryImageMap';
 
-export default function HomeClient({ initialProducts }: { initialProducts: Product[] }) {
+export default function HomeClient({ initialProducts, initialBanners }: { initialProducts: Product[], initialBanners?: Banner[] }) {
   const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [banners, setBanners] = useState<Banner[]>(initialBanners || []);
 
   useEffect(() => {
     if (config.demoMode) {
       repo.products.getAll().then((prods) => {
         setProducts(prods);
       });
+      repo.banners.getActive().then(setBanners);
     }
   }, []);
 
-  // Filter products for each approved homepage section using matchCategory
-  const trendingCollections = products.filter((p) => matchCategory(p, 'trending-collections')).slice(0, 4);
-  const dealOfTheDay = products.filter((p) => matchCategory(p, 'deal-of-the-day')).slice(0, 4);
-  const comboOffers = products.filter((p) => matchCategory(p, 'combo-offers')).slice(0, 4);
-  const festivalOffers = products.filter((p) => matchCategory(p, 'festival-offers')).slice(0, 4);
-  const weekendOffers = products.filter((p) => matchCategory(p, 'weekend-offers')).slice(0, 4);
+  // Filter products for each approved homepage section
+  const trendingCollections = products.filter((p) => p.trending).slice(0, 4);
+  const dealOfTheDay = products.filter((p) => p.dealOfDay).slice(0, 4);
+  const comboOffers = products.filter((p) => p.category === 'Combo Offer').slice(0, 4);
+  const newArrivals = products.filter((p) => p.newArrival).slice(0, 4);
+
+  // Dynamic Collections
+  const dynamicCollections = Array.from(new Set(products.map(p => p.collection).filter(Boolean))) as string[];
 
   return (
     <>
       {/* Hero Banner */}
-      <AutoScrollCarousel />
-
-      {/* Trending Collections */}
-      <ProductSection
-        title="Trending Collections"
-        subtitle="The hot curations and style outlines turning heads this season."
-        products={trendingCollections}
-        badge="HOT PICK"
-        viewAllHref="/collections/trending-collections"
-      />
+      <AutoScrollCarousel banners={banners} />
 
       {/* Deal Of The Day */}
-      <ProductSection
-        title="Deal Of The Day"
-        subtitle="Exclusive handpicked offers and time-limited deals."
-        products={dealOfTheDay}
-        badge="DEAL OF THE DAY"
-        viewAllHref="/collections/deal-of-the-day"
-      />
+      {dealOfTheDay.length > 0 && (
+        <ProductSection
+          title="Deal Of The Day"
+          subtitle="Exclusive handpicked offers and time-limited deals."
+          products={dealOfTheDay}
+          badge="DEAL OF THE DAY"
+          viewAllHref="/collections/deal-of-the-day"
+        />
+      )}
+
+      {/* Trending Collections */}
+      {trendingCollections.length > 0 && (
+        <ProductSection
+          title="Trending Collections"
+          subtitle="The hot curations and style outlines turning heads this season."
+          products={trendingCollections}
+          badge="HOT PICK"
+          viewAllHref="/collections/trending-collections"
+        />
+      )}
+
+      {/* New Arrivals */}
+      {newArrivals.length > 0 && (
+        <ProductSection
+          title="New Arrivals"
+          subtitle="Fresh drops and latest additions to our catalog."
+          products={newArrivals}
+          badge="NEW"
+          viewAllHref="/collections/new-arrivals"
+        />
+      )}
 
       {/* Combo Offers */}
-      <ProductSection
-        title="Combo Offers"
-        subtitle="Coordinated outfit sets and bundled savings."
-        products={comboOffers}
-        badge="COMBO"
-        viewAllHref="/collections/combo-offers"
-      />
+      {comboOffers.length > 0 && (
+        <ProductSection
+          title="Combo Offers"
+          subtitle="Coordinated outfit sets and bundled savings."
+          products={comboOffers}
+          badge="COMBO"
+          viewAllHref="/category/Combo%20Offer"
+        />
+      )}
 
-      {/* Festival Offers */}
-      <ProductSection
-        title="Festival Offers"
-        subtitle="Celebrate in style with special festive season discounts."
-        products={festivalOffers}
-        badge="FESTIVAL DEALS"
-        viewAllHref="/collections/festival-offers"
-      />
-
-      {/* Weekend Offers */}
-      <ProductSection
-        title="Weekend Offers"
-        subtitle="Relaxed lightweight weekend items with premium deals."
-        products={weekendOffers}
-        badge="WEEKEND DEALS"
-        viewAllHref="/collections/weekend-offers"
-      />
+      {/* Dynamic Collections generated from product data */}
+      {dynamicCollections.map((collectionName) => {
+        const collectionProducts = products.filter(p => p.collection === collectionName).slice(0, 4);
+        if (collectionProducts.length === 0) return null;
+        
+        // Generate a URL-friendly slug
+        const slug = collectionName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        
+        return (
+          <ProductSection
+            key={collectionName}
+            title={collectionName}
+            subtitle={`Explore our exclusive ${collectionName} curations.`}
+            products={collectionProducts}
+            badge="COLLECTION"
+            viewAllHref={`/collections/${slug}`}
+          />
+        );
+      })}
     </>
   );
 }

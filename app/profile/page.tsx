@@ -14,6 +14,11 @@ export default function ProfilePage() {
   const router = useRouter();
   const dispatch = useDispatch();
   const { user, requireAuth, logout } = useAuth();
+  
+  const [authChecked, setAuthChecked] = useState(false);
+  const [orders, setOrders] = useState<MockOrder[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+
   // Supabase addresses state
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [loadingAddresses, setLoadingAddresses] = useState(true);

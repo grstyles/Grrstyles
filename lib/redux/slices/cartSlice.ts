@@ -21,6 +21,7 @@ interface CartState {
   discountValue: number;
   discountType: 'percentage' | 'flat';
   appliedPromo: string;
+  directCheckoutItem: CartItem | null;
 }
 
 const initialState: CartState = {
@@ -29,6 +30,7 @@ const initialState: CartState = {
   discountValue: 0,
   discountType: 'percentage',
   appliedPromo: '',
+  directCheckoutItem: null,
 };
 
 const cartSlice = createSlice({
@@ -164,6 +166,9 @@ const cartSlice = createSlice({
       state.discountType = 'percentage';
       state.appliedPromo = '';
     },
+    setDirectCheckoutItem: (state, action: PayloadAction<CartItem | null>) => {
+      state.directCheckoutItem = action.payload;
+    },
   },
 });
 
@@ -178,6 +183,7 @@ export const {
   hydrateCart,
   applyPromo,
   removePromo,
+  setDirectCheckoutItem,
 } = cartSlice.actions;
 export default cartSlice.reducer;
 

@@ -25,9 +25,10 @@ const CATEGORIES = [
   'Trousers',
   'Denim Jeans',
   'Shoes',
+  'Combo Offer',
 ];
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const PANT_SIZES  = ['28', '30', '32', '34', '36', '38'];
+const PANT_SIZES  = ['28', '30', '32', '34', '36', '38', '40'];
 const SHOE_SIZES  = ['6', '7', '8', '9', '10', '11'];
 
 function getSizeOptions(cat: string) {
@@ -59,7 +60,7 @@ export default function AdminProductsPage() {
   const [sellingPrice, setSellingPrice] = useState('');
   const [description, setDescription] = useState('');
   const [label, setLabel] = useState('');
-  const [sizesInput, setSizesInput] = useState<{ size: string; stock: number }[]>([]);
+  const [sizesInput, setSizesInput] = useState<{ size: string; stock: number; type?: 'shirt' | 'pant' }[]>([]);
   const [imagesList, setImagesList] = useState<string[]>([]);
   const [imageColors, setImageColors] = useState<string[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -71,6 +72,9 @@ export default function AdminProductsPage() {
   const [isDealOfDay, setIsDealOfDay] = useState(false);
   const [availableCoupons, setAvailableCoupons] = useState<MockCoupon[]>([]);
   const [selectedCoupons, setSelectedCoupons] = useState<string[]>([]);
+
+  const dynamicCollections = Array.from(new Set(items.map(p => p.collection).filter(Boolean))) as string[];
+  const dynamicCategories = Array.from(new Set([...CATEGORIES, ...items.map(p => p.category).filter(Boolean)])) as string[];
 
   const loadProductsAndCoupons = async () => {
     setLoading(true);
@@ -98,15 +102,22 @@ export default function AdminProductsPage() {
     loadProductsAndCoupons();
   }, []);
 
-  // Sync default sizes when category changes
+  
+  // Initialize default sizes (always both Shirt and Pant)
   useEffect(() => {
-    const defaults = getSizeOptions(category).map((s) => ({ size: s, stock: 10 }));
-    setSizesInput(defaults);
-  }, [category]);
+    if (!editingId) {
+      const defaults = [
+        ...SHIRT_SIZES.map((s) => ({ size: s, stock: 10, type: 'shirt' as const })),
+        ...PANT_SIZES.map((s) => ({ size: s, stock: 10, type: 'pant' as const }))
+      ];
+      setSizesInput(defaults);
+    }
+  }, [editingId]);
 
-  const handleSizeStockChange = (size: string, val: number) => {
+
+  const handleSizeStockChange = (size: string, val: number, type?: 'shirt' | 'pant') => {
     setSizesInput((prev) =>
-      prev.map((item) => (item.size === size ? { ...item, stock: Math.max(0, val) } : item))
+      prev.map((item) => (item.size === size && item.type === type ? { ...item, stock: Math.max(0, val) } : item))
     );
   };
 
@@ -249,7 +260,27 @@ export default function AdminProductsPage() {
     setSellingPrice(String(product.sellingPrice || product.discountedPrice || ''));
     setDescription(product.description);
     setLabel(product.label || '');
-    setSizesInput(product.sizes?.length ? [...product.sizes] : getSizeOptions(product.category).map((s) => ({ size: s, stock: 10 })));
+    
+    const defaults = [
+      ...SHIRT_SIZES.map((s) => ({ size: s, stock: 0, type: 'shirt' as const })),
+      ...PANT_SIZES.map((s) => ({ size: s, stock: 0, type: 'pant' as const }))
+    ];
+    if (product.sizes?.length) {
+      const merged = defaults.map(d => {
+        // Find by size string. For legacy, we just match the string.
+        const existing = product.sizes!.find(s => s.size === d.size);
+        if (existing) {
+          return { ...d, stock: existing.stock };
+        }
+        return d;
+      });
+      // Also add any custom sizes the product might have that aren't in defaults
+      const customSizes = product.sizes!.filter(s => !defaults.some(d => d.size === s.size));
+      setSizesInput([...merged, ...customSizes]);
+    } else {
+      setSizesInput(defaults);
+    }
+
     setImagesList(product.images || []);
 
     const defaultColors = (product.images || []).map((_, idx) => {
@@ -543,27 +574,35 @@ export default function AdminProductsPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Category *</label>
-                  <select
+                  <input
+                    list="dynamic-categories"
+                    required
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
+                    placeholder="e.g. Shirts, T-Shirts"
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
-                  >
-                    {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-                  </select>
+                  />
+                  <datalist id="dynamic-categories">
+                    {dynamicCategories.map((c) => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Collection</label>
-                  <select
+                  <input
+                    list="dynamic-collections"
                     value={collection}
                     onChange={(e) => setCollection(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
-                  >
-                    <option value="">None</option>
-                    {COLLECTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                    placeholder="e.g. Summer Collection"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
+                  />
+                  <datalist id="dynamic-collections">
+                    {dynamicCollections.map((c) => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Color *</label>
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                    Primary Color *
+                  </label>
                   <input
                     id="form-product-color"
                     type="text"
@@ -572,6 +611,8 @@ export default function AdminProductsPage() {
                     onChange={(e) => handlePrimaryColorChange(e.target.value)}
                     placeholder="e.g. White"
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
+                    readOnly
+                    title="Automatically set from the first image color"
                   />
                 </div>
               </div>
@@ -698,21 +739,44 @@ export default function AdminProductsPage() {
             {/* Right: Sizes + Images */}
             <div className="space-y-5 bg-gray-50 p-4 rounded-2xl border border-gray-100">
               {/* Sizes */}
-              <div className="space-y-2">
+              <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Sizes & Stock</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {sizesInput.map((item) => (
-                    <div key={item.size} className="flex items-center justify-between bg-white border border-gray-100 px-3 py-2 rounded-xl">
-                      <span className="text-xs font-bold text-gray-700 min-w-[28px]">{item.size}</span>
-                      <input
-                        type="number"
-                        value={item.stock}
-                        min={0}
-                        onChange={(e) => handleSizeStockChange(item.size, parseInt(e.target.value) || 0)}
-                        className="w-12 text-center text-xs font-bold border-b border-gray-200 focus:border-black focus:outline-none bg-transparent"
-                      />
+                
+                <div className="mt-2 space-y-4">
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-700 mb-2">Shirt Sizes</h4>
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                      {sizesInput.filter(s => s.type === 'shirt').map((item) => (
+                        <div key={`shirt-${item.size}`} className="border rounded p-2 bg-gray-50">
+                          <span className="text-xs font-semibold">{item.size}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.stock}
+                            onChange={(e) => handleSizeStockChange(item.size, parseInt(e.target.value) || 0, 'shirt')}
+                            className="w-full mt-1 border-gray-300 rounded text-xs px-2 py-1"
+                          />
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-700 mb-2">Pant Sizes</h4>
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                      {sizesInput.filter(s => s.type === 'pant').map((item) => (
+                        <div key={`pant-${item.size}`} className="border rounded p-2 bg-gray-50">
+                          <span className="text-xs font-semibold">{item.size}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.stock}
+                            onChange={(e) => handleSizeStockChange(item.size, parseInt(e.target.value) || 0, 'pant')}
+                            className="w-full mt-1 border-gray-300 rounded text-xs px-2 py-1"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -770,17 +834,18 @@ export default function AdminProductsPage() {
                   </button>
                 </div>
 
-                {/* Dynamic color inputs for images beyond the first */}
+                {/* Dynamic color inputs for all images */}
                 {imagesList.map((img, idx) => {
-                  if (idx === 0) return null;
                   const labelText = `${getOrdinalText(idx)} Product Color`;
                   return (
                     <div key={idx} className="space-y-1 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
                       <div className="flex items-center gap-2 mb-1">
-                        <div className="relative w-8 h-10 border rounded overflow-hidden">
+                        <div className="relative w-8 h-10 border rounded overflow-hidden flex-shrink-0">
                           <img src={img} alt={`Thumbnail ${idx}`} className="object-cover w-full h-full" />
                         </div>
-                        <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">{labelText} *</span>
+                        <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider leading-tight">
+                          {idx === 0 ? 'Primary Image Color *' : `${getOrdinalText(idx)} Image Color *`}
+                        </span>
                       </div>
                       <input
                         type="text"

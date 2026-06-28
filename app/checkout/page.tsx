@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/lib/redux/store';
 import { formatPrice } from '@/lib/utils/helpers';
-import { clearSelectedItems } from '@/lib/redux/slices/cartSlice';
+import { clearSelectedItems, setDirectCheckoutItem } from '@/lib/redux/slices/cartSlice';
 import { repo, UserAddress } from '@/lib/repositories';
 import { RAZORPAY_KEY_ID } from '@/lib/config';
 import { addToast } from '@/lib/redux/slices/uiSlice';
@@ -17,8 +17,9 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { user, requireAuth } = useAuth();
   const [authChecked, setAuthChecked] = useState(false);
+  const directCheckoutItem = useSelector((state: RootState) => state.cart.directCheckoutItem);
   const cartItemsAll = useSelector((state: RootState) => state.cart.items);
-  const cartItems = cartItemsAll.filter((item) => item.selected !== false);
+  const cartItems = directCheckoutItem ? [directCheckoutItem] : cartItemsAll.filter((item) => item.selected !== false);
   const total = cartItems.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
   const [formData, setFormData] = useState({
     firstName: '',
@@ -36,6 +37,8 @@ export default function CheckoutPage() {
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState('new');
   const [saveAddressToProfile, setSaveAddressToProfile] = useState(false);
+
+
 
   useEffect(() => {
     if (authChecked && user) {
@@ -178,7 +181,11 @@ export default function CheckoutPage() {
       });
 
       if (orderNumber) {
-        dispatch(clearSelectedItems());
+        if (directCheckoutItem) {
+          dispatch(setDirectCheckoutItem(null));
+        } else {
+          dispatch(clearSelectedItems());
+        }
         dispatch(addToast({ message: `Order ${orderNumber} placed successfully!`, type: 'success' }));
         router.push('/order-success');
       } else {

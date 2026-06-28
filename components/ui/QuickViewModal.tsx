@@ -139,7 +139,8 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
 
     setTimeout(() => {
       dispatch(
-        addToCart({
+        setDirectCheckoutItem({
+          selected: true,
           id: product.id,
           slug: product.slug,
           title: product.title,
@@ -153,16 +154,9 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
         })
       );
 
-      dispatch(
-        addToast({
-          message: `${product.title} added to cart! 🛒`,
-          type: "success",
-        })
-      );
-
       setIsBuying(false);
       onClose();
-      router.push("/cart");
+      router.push("/checkout");
     }, 600);
   };
 

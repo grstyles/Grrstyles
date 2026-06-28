@@ -13,28 +13,8 @@ export default function AuthCallbackPage() {
       router.replace('/');
       return;
     }
-
-    const processAuth = async () => {
-      // Wait for Supabase to process the URL hash and establish the session
-      const { data: { session }, error } = await supabase!.auth.getSession();
-      
-      if (error || !session) {
-        console.error('Error in auth callback:', error);
-        router.replace('/login');
-        return;
-      }
-
-      // getCurrentUser will automatically create the profile if it doesn't exist
-      const user = await authService.getCurrentUser();
-      
-      if (user?.role === 'admin') {
-        router.replace('/admin');
-      } else {
-        router.replace('/profile');
-      }
-    };
-
-    processAuth();
+    // AuthContext will handle the session parsing and redirect
+    // We just show the loading spinner here.
   }, [router]);
 
   return (

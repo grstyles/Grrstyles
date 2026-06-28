@@ -66,6 +66,8 @@ import { IS_PRODUCTION } from '@/lib/config';
 import QuickViewWrapper from "@/components/ui/QuickViewWrapper";
 import AuthModal from "@/components/ui/AuthModal";
 
+import BottomNavigation from "@/components/layout/BottomNavigation";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -82,6 +84,7 @@ export default function RootLayout({
           <Navbar />
           <main className="min-h-screen">{children}</main>
           <Footer />
+          <BottomNavigation />
           <QuickViewWrapper />
           <AuthModal />
         </Providers>

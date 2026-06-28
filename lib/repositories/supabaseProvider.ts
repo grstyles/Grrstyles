@@ -20,6 +20,8 @@ import {
   ICouponRepository,
   IStorageRepository,
   IAnalyticsRepository,
+  IBannerRepository,
+  Banner,
   InventoryEntry,
   CreateOrderInput,
   DashboardStats,
@@ -435,6 +437,100 @@ export class SupabaseCouponRepository implements ICouponRepository {
   async delete(code: string): Promise<boolean> {
     const { error } = await supabase!.from('coupons').delete().eq('code', code);
     return !error;
+  }
+}
+
+// ─── Supabase Banner Repository ──────────────────────────────────────────────
+
+export class SupabaseBannerRepository implements IBannerRepository {
+  // Helper to map DB row to TS Banner
+  private mapToBanner(dbRow: any): Banner {
+    return {
+      ...dbRow,
+      link_url: dbRow.link,
+      is_active: dbRow.active,
+      display_order: dbRow.sort_order,
+      // Optional mapping if needed, e.g. updated_at
+    };
+  }
+
+  // Helper to map TS Banner to DB row
+  private mapToDbRow(banner: Partial<Banner>): any {
+    const row = { ...banner } as any;
+    if (row.link_url !== undefined) { row.link = row.link_url; delete row.link_url; }
+    if (row.is_active !== undefined) { row.active = row.is_active; delete row.is_active; }
+    if (row.display_order !== undefined) { row.sort_order = row.display_order; delete row.display_order; }
+    return row;
+  }
+
+  async getAll(): Promise<Banner[]> {
+    const { data, error } = await supabase!.from('banners').select('*').order('sort_order', { ascending: true });
+    if (error) {
+      console.error('Error fetching banners:', error);
+      return [];
+    }
+    return data.map(this.mapToBanner);
+  }
+
+  async getActive(): Promise<Banner[]> {
+    const now = new Date().toISOString();
+    const { data, error } = await supabase!.from('banners')
+      .select('*')
+      .eq('active', true)
+      .order('sort_order', { ascending: true });
+      
+    if (error) {
+      console.error("Banner Query Error", {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+        error
+      });
+      return [];
+    }
+    
+    // Filter active date bounds
+    return data.filter((b: any) => {
+      if (b.start_date && new Date(b.start_date).toISOString() > now) return false;
+      if (b.end_date && new Date(b.end_date).toISOString() < now) return false;
+      return true;
+    }).map(this.mapToBanner);
+  }
+
+  async getById(id: string): Promise<Banner | null> {
+    const { data, error } = await supabase!.from('banners').select('*').eq('id', id).single();
+    if (error) return null;
+    return this.mapToBanner(data);
+  }
+
+  async create(banner: Omit<Banner, 'id' | 'created_at' | 'updated_at'>): Promise<Banner | null> {
+    const dbRow = this.mapToDbRow(banner);
+    const { data, error } = await supabase!.from('banners').insert([dbRow]).select('*').single();
+    if (error) {
+      console.error('Error creating banner:', error);
+      return null;
+    }
+    return this.mapToBanner(data);
+  }
+
+  async update(id: string, banner: Partial<Banner>): Promise<Banner | null> {
+    const dbRow = this.mapToDbRow(banner);
+    const { data, error } = await supabase!.from('banners').update(dbRow).eq('id', id).select('*').single();
+    if (error) {
+      console.error('Error updating banner:', error);
+      return null;
+    }
+    return this.mapToBanner(data);
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const { error } = await supabase!.from('banners').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting banner:', error);
+      return false;
+    }
+    return true;
   }
 }
 

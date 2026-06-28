@@ -17,7 +17,7 @@ import {
   Shield
 } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
-import { addToCart } from '@/lib/redux/slices/cartSlice';
+import { addToCart, setDirectCheckoutItem } from '@/lib/redux/slices/cartSlice';
 import { addToWishlist, removeFromWishlist } from '@/lib/redux/slices/wishlistSlice';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { repo, MockCoupon } from '@/lib/repositories';
@@ -38,6 +38,15 @@ export default function ProductDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedShirtSize, setSelectedShirtSize] = useState<string | null>(null);
+  const [selectedPantSize, setSelectedPantSize] = useState<string | null>(null);
+  const shirtSizes = product?.sizes?.filter((s: any) => s.type === 'shirt' && s.stock > 0) || [];
+  const pantSizes = product?.sizes?.filter((s: any) => s.type === 'pant' && s.stock > 0) || [];
+  const genericSizes = product?.sizes?.filter((s: any) => (!s.type || (s.type !== 'shirt' && s.type !== 'pant')) && s.stock > 0) || [];
+
+  const hasShirt = shirtSizes.length > 0;
+  const hasPant = pantSizes.length > 0;
+  const hasGeneric = !hasShirt && !hasPant && genericSizes.length > 0;
   const [quantity, setQuantity] = useState(1);
   const [sizeWarning, setSizeWarning] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -205,11 +214,30 @@ export default function ProductDetailsPage() {
   };
 
   const handleAddToCart = () => {
-    const sizeRequired = product?.sizes && product.sizes.length > 0 && !(product.sizes.length === 1 && product.sizes[0].size.toLowerCase() === 'one size');
-    if (sizeRequired && !selectedSize) {
-      setSizeWarning(true);
-      dispatch(addToast({ message: "Please select a size first", type: "error" }));
-      return;
+    if (hasShirt && hasPant) {
+      if (!selectedShirtSize || !selectedPantSize) {
+        setSizeWarning(true);
+        dispatch(addToast({ message: "Please select both Shirt and Pant sizes", type: "error" }));
+        return;
+      }
+    } else if (hasShirt) {
+      if (!selectedShirtSize) {
+        setSizeWarning(true);
+        dispatch(addToast({ message: "Please select a Shirt size", type: "error" }));
+        return;
+      }
+    } else if (hasPant) {
+      if (!selectedPantSize) {
+        setSizeWarning(true);
+        dispatch(addToast({ message: "Please select a Pant size", type: "error" }));
+        return;
+      }
+    } else if (hasGeneric) {
+      if (!selectedSize) {
+        setSizeWarning(true);
+        dispatch(addToast({ message: "Please select a size", type: "error" }));
+        return;
+      }
     }
     setSizeWarning(false);
     setIsAdding(true);
@@ -224,10 +252,10 @@ export default function ProductDetailsPage() {
           price: product.price,
           discountedPrice: product.discountedPrice || product.price,
           image: product.imageColors && product.imageColors.length > 0 
-            ? product.imageColors[0].image_url 
+            ? (product.imageColors.find((c: any) => c.color_name === selectedColor)?.image_url || product.imageColors[0].image_url) 
             : (product.images && product.images.length > 0 ? product.images[0] : ''),
           quantity: quantity,
-          size: selectedSize || undefined,
+          size: (hasShirt && hasPant) ? `Shirt: ${selectedShirtSize} / Pant: ${selectedPantSize}` : (hasShirt ? selectedShirtSize : (hasPant ? selectedPantSize : selectedSize)) || undefined,
           color: selectedColor || undefined,
         }),
       );
@@ -239,18 +267,38 @@ export default function ProductDetailsPage() {
   };
 
   const handleBuyNow = () => {
-    const sizeRequired = product?.sizes && product.sizes.length > 0 && !(product.sizes.length === 1 && product.sizes[0].size.toLowerCase() === 'one size');
-    if (sizeRequired && !selectedSize) {
-      setSizeWarning(true);
-      dispatch(addToast({ message: "Please select a size first", type: "error" }));
-      return;
+    if (hasShirt && hasPant) {
+      if (!selectedShirtSize || !selectedPantSize) {
+        setSizeWarning(true);
+        dispatch(addToast({ message: "Please select both Shirt and Pant sizes", type: "error" }));
+        return;
+      }
+    } else if (hasShirt) {
+      if (!selectedShirtSize) {
+        setSizeWarning(true);
+        dispatch(addToast({ message: "Please select a Shirt size", type: "error" }));
+        return;
+      }
+    } else if (hasPant) {
+      if (!selectedPantSize) {
+        setSizeWarning(true);
+        dispatch(addToast({ message: "Please select a Pant size", type: "error" }));
+        return;
+      }
+    } else if (hasGeneric) {
+      if (!selectedSize) {
+        setSizeWarning(true);
+        dispatch(addToast({ message: "Please select a size", type: "error" }));
+        return;
+      }
     }
     setSizeWarning(false);
     setIsBuying(true);
 
     setTimeout(() => {
       dispatch(
-        addToCart({
+        setDirectCheckoutItem({
+          selected: true,
           id: product.id,
           slug: product.slug,
           title: product.title,
@@ -261,13 +309,13 @@ export default function ProductDetailsPage() {
             ? product.imageColors[0].image_url 
             : (product.images && product.images.length > 0 ? product.images[0] : ''),
           quantity: quantity,
-          size: selectedSize || undefined,
+          size: (hasShirt && hasPant) ? `Shirt: ${selectedShirtSize} / Pant: ${selectedPantSize}` : (hasShirt ? selectedShirtSize : (hasPant ? selectedPantSize : selectedSize)) || undefined,
           color: selectedColor || undefined,
         }),
       );
-      dispatch(addToast({ message: `${product.title} added to cart! 🛒`, type: "success" }));
+      
       setIsBuying(false);
-      router.push('/cart');
+      router.push('/checkout');
     }, 600);
   };
 
@@ -529,52 +577,89 @@ export default function ProductDetailsPage() {
               </div>
             )}
 
+            
             {/* Size Selector */}
             <div className="mb-5">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-[#1a1a1a]">
-                  Size
+                  {(hasShirt && hasPant) ? 'Sizes' : 'Size'}
                   {sizeWarning && <span className="text-red-500 text-xs ml-2">* Required</span>}
                 </span>
               </div>
-              <div className={`flex flex-wrap gap-2 p-1.5 rounded-xl border transition-all ${
-                sizeWarning ? 'border-red-500 bg-red-50/20 shadow-[0_0_8px_rgba(239,68,68,0.2)] animate-pulse' : 'border-transparent'
-              }`}>
-                {product.sizes && product.sizes.length > 0 ? (
-                  product.sizes.map((sizeObj: any) => {
-                    const size = sizeObj.size;
-                    const isSelected = selectedSize === size;
-                    const isOutOfStock = sizeObj.stock === 0;
-                    return (
-                      <button
-                        key={size}
-                        disabled={isOutOfStock}
-                        onClick={() => {
-                          setSelectedSize(size);
-                          setSizeWarning(false);
-                        }}
-                        className={`w-14 h-14 border text-sm font-medium rounded-xl transition-all flex items-center justify-center relative ${
-                          isSelected 
-                            ? 'border-black bg-black text-white shadow-md' 
-                            : isOutOfStock
-                              ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50'
-                              : 'border-gray-200 bg-white text-[#1a1a1a] hover:border-black'
-                        }`}
-                        title={isOutOfStock ? `${size} (Out of Stock)` : `${size} (${sizeObj.stock} remaining)`}
-                      >
-                        {size}
-                        {isOutOfStock && (
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })
-                ) : (
-                  <p className="text-sm text-gray-400">No sizes available</p>
-                )}
-              </div>
+              
+              <div className="space-y-4">
+                  {hasShirt && (
+                    <div>
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">{hasPant ? 'Shirt Size' : 'Select Size'}</span>
+                      <div className={`flex flex-wrap gap-2 p-1.5 rounded-xl border transition-all ${sizeWarning && !selectedShirtSize ? 'border-red-500 bg-red-50/20 shadow-[0_0_8px_rgba(239,68,68,0.2)] animate-pulse' : 'border-transparent'}`}>
+                        {shirtSizes.map((sizeObj: any) => {
+                          const size = sizeObj.size;
+                          const isSelected = selectedShirtSize === size;
+                          const isOutOfStock = sizeObj.stock === 0;
+                          return (
+                            <button
+                              key={'shirt-'+size}
+                              disabled={isOutOfStock}
+                              onClick={() => { setSelectedShirtSize(size); setSizeWarning(false); }}
+                              className={`w-14 h-14 border text-sm font-medium rounded-xl transition-all flex items-center justify-center relative ${isSelected ? 'border-black bg-black text-white shadow-md' : isOutOfStock ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50' : 'border-gray-200 bg-white text-[#1a1a1a] hover:border-black'}`}
+                            >
+                              {size}
+                              {isOutOfStock && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" /></div>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {hasPant && (
+                    <div>
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">{hasShirt ? 'Pant Size' : 'Select Size'}</span>
+                      <div className={`flex flex-wrap gap-2 p-1.5 rounded-xl border transition-all ${sizeWarning && !selectedPantSize ? 'border-red-500 bg-red-50/20 shadow-[0_0_8px_rgba(239,68,68,0.2)] animate-pulse' : 'border-transparent'}`}>
+                        {pantSizes.map((sizeObj: any) => {
+                          const size = sizeObj.size;
+                          const isSelected = selectedPantSize === size;
+                          const isOutOfStock = sizeObj.stock === 0;
+                          return (
+                            <button
+                              key={'pant-'+size}
+                              disabled={isOutOfStock}
+                              onClick={() => { setSelectedPantSize(size); setSizeWarning(false); }}
+                              className={`w-14 h-14 border text-sm font-medium rounded-xl transition-all flex items-center justify-center relative ${isSelected ? 'border-black bg-black text-white shadow-md' : isOutOfStock ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50' : 'border-gray-200 bg-white text-[#1a1a1a] hover:border-black'}`}
+                            >
+                              {size}
+                              {isOutOfStock && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" /></div>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {hasGeneric && (
+                    <div>
+                      <div className={`flex flex-wrap gap-2 p-1.5 rounded-xl border transition-all ${sizeWarning && !selectedSize ? 'border-red-500 bg-red-50/20 shadow-[0_0_8px_rgba(239,68,68,0.2)] animate-pulse' : 'border-transparent'}`}>
+                        {genericSizes.map((sizeObj: any) => {
+                          const size = sizeObj.size;
+                          const isSelected = selectedSize === size;
+                          const isOutOfStock = sizeObj.stock === 0;
+                          return (
+                            <button
+                              key={size}
+                              disabled={isOutOfStock}
+                              onClick={() => { setSelectedSize(size); setSizeWarning(false); }}
+                              className={`w-14 h-14 border text-sm font-medium rounded-xl transition-all flex items-center justify-center relative ${isSelected ? 'border-black bg-black text-white shadow-md' : isOutOfStock ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50' : 'border-gray-200 bg-white text-[#1a1a1a] hover:border-black'}`}
+                            >
+                              {size}
+                              {isOutOfStock && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" /></div>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {(!hasShirt && !hasPant && !hasGeneric) && (
+                    <p className="text-sm text-gray-400">No sizes available</p>
+                  )}
+                </div>
             </div>
 
             {/* Premium Image-based Color Selector */}
