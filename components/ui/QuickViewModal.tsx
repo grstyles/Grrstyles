@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/navigation";
 import { addToWishlist, removeFromWishlist } from "@/lib/redux/slices/wishlistSlice";
-import { addToCart } from "@/lib/redux/slices/cartSlice";
+import { addToCart, setDirectCheckoutItem } from "@/lib/redux/slices/cartSlice";
 import { addToast } from "@/lib/redux/slices/uiSlice";
 import { RootState } from "@/lib/redux/store";
 import { useState } from "react";
@@ -36,7 +36,10 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
 
   const price = product.discountedPrice ?? product.price;
   const original = product.discountedPrice ? product.price : null;
-  const image = product.images?.[0] ?? "/placeholder.png";
+  
+  const image = selectedColor && product.imageColors && product.imageColors.length > 0
+    ? (product.imageColors.find((c: any) => c.color_name === selectedColor)?.image_url || product.images?.[0] || "/placeholder.png")
+    : (product.images?.[0] ?? "/placeholder.png");
 
   const toggleWishlist = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -94,6 +97,7 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
           quantity,
           size: selectedSize || undefined,
           color: selectedColor || undefined,
+          sku: product.sku || undefined,
         })
       );
 
@@ -148,9 +152,10 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
           price: product.price,
           discountedPrice: price,
           image,
-          quantity,
+          quantity: quantity,
           size: selectedSize || undefined,
           color: selectedColor || undefined,
+          sku: product.sku || undefined,
         })
       );
 

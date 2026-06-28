@@ -41,6 +41,21 @@ export class SupabaseProductRepository implements IProductRepository {
     return (productsRes.data || []).map(p => mapDbProduct(p));
   }
 
+  async getById(id: string): Promise<Product | null> {
+    const { data, error } = await supabase!
+      .from('products')
+      .select('*, product_coupons(coupon_code), image_colors(image_url, color_name, display_order)')
+      .eq('id', id)
+      .maybeSingle();
+      
+    if (error) {
+      console.warn(`Error fetching product by id ${id}:`, error);
+      return null;
+    }
+    if (!data) return null;
+    return mapDbProduct(data);
+  }
+
   async getBySlug(slug: string): Promise<Product | null> {
     const { data, error } = await supabase!
       .from('products')
@@ -248,8 +263,22 @@ export class SupabaseOrderRepository implements IOrderRepository {
       totalAmount: Number(d.total_amount),
       status: d.status as MockOrder['status'],
       paymentStatus: d.payment_status as MockOrder['paymentStatus'],
-      paymentMethod: 'Prepaid',
+      paymentMethod: d.payment_method || 'Prepaid',
       date: new Date(d.created_at).toISOString().split('T')[0],
+      razorpay_order_id: d.razorpay_order_id,
+      razorpay_payment_id: d.razorpay_payment_id,
+      payment_signature: d.payment_signature,
+      gateway: d.gateway,
+      transaction_time: d.transaction_time,
+      invoice_number: d.invoice_number,
+      payment_verified: d.payment_verified,
+      gateway_response: d.gateway_response,
+      tracking_id: d.tracking_id,
+      tracking_url: d.tracking_url,
+      courier_partner: d.courier_partner,
+      dispatch_date: d.dispatch_date,
+      expected_delivery_date: d.expected_delivery_date,
+      delivered_date: d.delivered_date,
     }));
   }
 
@@ -269,47 +298,73 @@ export class SupabaseOrderRepository implements IOrderRepository {
       totalAmount: Number(data.total_amount),
       status: data.status,
       paymentStatus: data.payment_status,
-      paymentMethod: 'Prepaid',
+      paymentMethod: data.payment_method || 'Prepaid',
       date: new Date(data.created_at).toISOString().split('T')[0],
+      items: data.items,
+      shippingAddress: data.shipping_address,
+      razorpay_order_id: data.razorpay_order_id,
+      razorpay_payment_id: data.razorpay_payment_id,
+      payment_signature: data.payment_signature,
+      gateway: data.gateway,
+      transaction_time: data.transaction_time,
+      invoice_number: data.invoice_number,
+      payment_verified: data.payment_verified,
+      gateway_response: data.gateway_response,
+      tracking_id: data.tracking_id,
+      tracking_url: data.tracking_url,
+      courier_partner: data.courier_partner,
+      dispatch_date: data.dispatch_date,
+      expected_delivery_date: data.expected_delivery_date,
+      delivered_date: data.delivered_date,
     };
   }
 
   async create(input: CreateOrderInput): Promise<string | null> {
-    const orderNumber = `GR-2026-${Math.floor(100000 + Math.random() * 900000)}`;
-    const { data, error } = await supabase!
-      .from('orders')
-      .insert({
-        order_number: orderNumber,
-        customer_name: input.customerName,
-        customer_email: input.email,
-        customer_phone: input.phone,
-        shipping_address: input.shippingAddress,
-        total_amount: input.totalAmount,
-        status: 'Pending',
-        payment_status: input.paymentStatus || 'Pending',
-        items: input.items.map(item => ({
-          productId: item.productId,
-          productName: item.productName,
-          size: item.size,
-          quantity: item.quantity,
-          price: item.price,
-          custom_images: (item as any).custom_images || []
-        }))
-      })
-      .select('*')
-      .single();
-    if (error || !data) return null;
+    try {
+      const res = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(input)
+      });
+      if (!res.ok) {
+        console.error('Failed to create order securely', await res.text());
+        return null;
+      }
+      const data = await res.json();
+      const orderNumber = data.orderNumber;
+      if (!orderNumber) return null;
 
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('gr_last_order_number', orderNumber);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('gr_last_order_number', orderNumber);
+      }
+      return orderNumber;
+    } catch (err) {
+      console.error('Network error creating order securely', err);
+      return null;
     }
-    return orderNumber;
   }
 
   async updateStatus(id: string, status: MockOrder['status']): Promise<boolean> {
     const { error } = await supabase!
       .from('orders')
       .update({ status })
+      .eq('id', id);
+    return !error;
+  }
+
+  async updateShipping(id: string, shippingData: Partial<MockOrder>): Promise<boolean> {
+    const { error } = await supabase!
+      .from('orders')
+      .update({
+        tracking_id: shippingData.tracking_id,
+        tracking_url: shippingData.tracking_url,
+        courier_partner: shippingData.courier_partner,
+        dispatch_date: shippingData.dispatch_date,
+        expected_delivery_date: shippingData.expected_delivery_date,
+        delivered_date: shippingData.delivered_date,
+      })
       .eq('id', id);
     return !error;
   }
@@ -538,10 +593,31 @@ export class SupabaseBannerRepository implements IBannerRepository {
 
 export class SupabaseStorageRepository implements IStorageRepository {
   async uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections'): Promise<string | null> {
-    const ext = file.name.split('.').pop();
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_SIZE) {
+      console.error('File size exceeds 5MB limit');
+      return null;
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      console.error('Invalid file type:', file.type);
+      return null;
+    }
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const allowedExts = ['jpg', 'jpeg', 'png', 'webp'];
+    if (!ext || !allowedExts.includes(ext)) {
+      console.error('Invalid file extension:', ext);
+      return null;
+    }
+
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
     const { error } = await supabase!.storage.from(bucket).upload(path, file);
-    if (error) return null;
+    if (error) {
+      console.error('Supabase upload error:', error);
+      return null;
+    }
     const { data } = supabase!.storage.from(bucket).getPublicUrl(path);
     return data.publicUrl;
   }

@@ -11,6 +11,7 @@ import {
   ClipboardList,
   BarChart3,
   Settings,
+  CreditCard,
   Menu,
   X,
   ArrowLeft,
@@ -56,6 +57,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Inventory', href: '/admin/inventory', icon: Package },
     { name: 'Orders', href: '/admin/orders', icon: ClipboardList },
     { name: 'Coupons', href: '/admin/coupons', icon: Tag },
+    { name: 'Payments', href: '/admin/payments', icon: CreditCard },
     { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
     { name: 'Settings', href: '/admin/settings', icon: Settings },
   ];

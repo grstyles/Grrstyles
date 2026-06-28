@@ -23,10 +23,10 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
   }, []);
 
   // Filter products for each approved homepage section
-  const trendingCollections = products.filter((p) => p.trending).slice(0, 4);
-  const dealOfTheDay = products.filter((p) => p.dealOfDay).slice(0, 4);
+  const trendingCollections = products.filter((p) => p.bestSeller || p.metadata?.featured).slice(0, 4);
+  const dealOfTheDay = products.filter((p) => p.metadata?.dealOfDay).slice(0, 4);
   const comboOffers = products.filter((p) => p.category === 'Combo Offer').slice(0, 4);
-  const newArrivals = products.filter((p) => p.newArrival).slice(0, 4);
+  const newArrivals = products.filter((p) => p.isNew).slice(0, 4);
 
   // Dynamic Collections
   const dynamicCollections = Array.from(new Set(products.map(p => p.collection).filter(Boolean))) as string[];

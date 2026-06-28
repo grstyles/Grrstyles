@@ -72,6 +72,7 @@ export default function PremiumProductCard({ product }: PremiumProductCardProps)
         quantity: 1,
         size: defaultSize,
         color: defaultColor,
+        sku: product.sku,
       })
     );
     dispatch(addToast({ message: `${product.title} added to cart! 🛒`, type: 'success' }));

@@ -257,6 +257,7 @@ export default function ProductDetailsPage() {
           quantity: quantity,
           size: (hasShirt && hasPant) ? `Shirt: ${selectedShirtSize} / Pant: ${selectedPantSize}` : (hasShirt ? selectedShirtSize : (hasPant ? selectedPantSize : selectedSize)) || undefined,
           color: selectedColor || undefined,
+          sku: product.sku || undefined,
         }),
       );
       dispatch(addToast({ message: `${product.title} added to cart! 🛒`, type: "success" }));
@@ -306,11 +307,12 @@ export default function ProductDetailsPage() {
           price: product.price,
           discountedPrice: product.discountedPrice || product.price,
           image: product.imageColors && product.imageColors.length > 0 
-            ? product.imageColors[0].image_url 
+            ? (product.imageColors.find((c: any) => c.color_name === selectedColor)?.image_url || product.imageColors[0].image_url) 
             : (product.images && product.images.length > 0 ? product.images[0] : ''),
           quantity: quantity,
           size: (hasShirt && hasPant) ? `Shirt: ${selectedShirtSize} / Pant: ${selectedPantSize}` : (hasShirt ? selectedShirtSize : (hasPant ? selectedPantSize : selectedSize)) || undefined,
           color: selectedColor || undefined,
+          sku: product.sku || undefined,
         }),
       );
       

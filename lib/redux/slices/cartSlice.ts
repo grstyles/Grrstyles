@@ -13,6 +13,7 @@ export interface CartItem {
   color?: string;
   selected?: boolean;
   custom_images?: { image_url: string; color_name: string }[];
+  sku?: string;
 }
 
 interface CartState {

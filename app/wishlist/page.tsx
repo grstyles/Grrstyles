@@ -25,6 +25,7 @@ export default function WishlistPage() {
         discountedPrice: item.discountedPrice,
         image: item.image,
         quantity: 1,
+        sku: item.sku,
       })
     );
     dispatch(addToast({ message: 'Added to cart!', type: 'success' }));

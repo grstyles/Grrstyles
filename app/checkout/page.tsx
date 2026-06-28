@@ -11,6 +11,7 @@ import { repo, UserAddress } from '@/lib/repositories';
 import { RAZORPAY_KEY_ID } from '@/lib/config';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useAuth } from '@/lib/context/AuthContext';
+import { Package, CheckCircle, CreditCard, Smartphone } from 'lucide-react';
 
 export default function CheckoutPage() {
   const dispatch = useDispatch();
@@ -170,13 +171,19 @@ export default function CheckoutPage() {
         totalAmount: orderPayload.totalAmount,
         discountAmount: orderPayload.discountAmount,
         couponCode: orderPayload.couponCode || undefined,
+        razorpay_order_id: orderPayload.razorpay_order_id,
+        razorpay_payment_id: orderPayload.razorpay_payment_id,
+        payment_signature: orderPayload.payment_signature,
         items: cartItems.map((item) => ({
           productId: item.id,
           productName: item.title,
           size: item.size || 'One Size',
           quantity: item.quantity,
           price: item.discountedPrice,
-          custom_images: item.custom_images || []
+          color: item.color,
+          image: item.image,
+          slug: item.slug,
+          sku: item.sku
         })),
       });
 
@@ -204,7 +211,7 @@ export default function CheckoutPage() {
 
     if (appliedPromo) {
       const productIds = cartItems.map((item) => item.id);
-      const valRes = await repo.coupons.apply(appliedPromo, { subtotal, productIds });
+      const valRes = await repo.coupons.apply(appliedPromo, { subtotal: total, productIds });
       if (!valRes.valid) {
         dispatch(addToast({ message: valRes.message, type: 'error' }));
         setLoading(false);
@@ -266,49 +273,98 @@ export default function CheckoutPage() {
         return;
       }
 
-      const options = {
-        key: RAZORPAY_KEY_ID,
-        amount: Math.round(finalTotal * 100), // in paise
-        currency: 'INR',
-        name: 'GR STYLES',
-        description: 'Menswear Fashion Checkout',
-        image: '/images/image5.jpeg',
-        handler: async function (response: any) {
-          // Success callback: update payment status and place order
-          const successPayload = {
-            ...orderPayload,
-            paymentStatus: 'Paid',
-            status: 'Confirmed',
-            razorpayPaymentId: response.razorpay_payment_id,
-            razorpayOrderId: response.razorpay_order_id,
-            razorpaySignature: response.razorpay_signature,
-          };
-          await handlePlaceOrder(successPayload);
-        },
-        prefill: {
-          name: `${formData.firstName} ${formData.lastName}`,
-          email: formData.email,
-          contact: formData.phone,
-        },
-        notes: {
-          address: addressString,
-        },
-        theme: {
-          color: '#000000',
-        },
-        modal: {
-          ondismiss: function () {
-            dispatch(addToast({ message: 'Payment cancelled.', type: 'info' }));
-            setLoading(false);
-          }
-        }
-      };
-
       try {
+        const createOrderRes = await fetch('/api/razorpay/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: cartItems.map(i => ({ productId: i.id, quantity: i.quantity })),
+            couponCode: appliedPromo || null,
+          }),
+        });
+
+        const rzpOrder = await createOrderRes.json();
+        
+        if (!createOrderRes.ok) {
+          throw new Error(rzpOrder.error || 'Failed to initialize payment');
+        }
+
+        const options = {
+          key: RAZORPAY_KEY_ID,
+          amount: rzpOrder.amount, // from server
+          currency: rzpOrder.currency, // from server
+          name: 'GR STYLES',
+          description: 'Menswear Fashion Checkout',
+          image: '/images/image5.jpeg',
+          order_id: rzpOrder.id, // from server
+          handler: async function (response: any) {
+            try {
+              // Verify payment on server
+              const verifyRes = await fetch('/api/razorpay/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                }),
+              });
+
+              const verifyData = await verifyRes.json();
+              if (!verifyRes.ok) {
+                throw new Error(verifyData.error || 'Payment verification failed');
+              }
+
+              // Success callback: update payment status and place order
+              const successPayload = {
+                ...orderPayload,
+                paymentStatus: 'Paid',
+                status: 'Confirmed',
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                payment_signature: response.razorpay_signature,
+                gateway: 'razorpay',
+                transaction_time: new Date().toISOString()
+              };
+              
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem('gr_last_payment_id', response.razorpay_payment_id);
+                sessionStorage.setItem('gr_last_amount', finalTotal.toString());
+              }
+              
+              await handlePlaceOrder(successPayload);
+            } catch (err: any) {
+              dispatch(addToast({ message: err.message || 'Payment Verification Failed.', type: 'error' }));
+              router.push('/payment-failed');
+            }
+          },
+          prefill: {
+            name: `${formData.firstName} ${formData.lastName}`,
+            email: formData.email,
+            contact: formData.phone,
+          },
+          notes: {
+            address: addressString,
+          },
+          theme: {
+            color: '#000000',
+          },
+          modal: {
+            ondismiss: function () {
+              dispatch(addToast({ message: 'Payment cancelled.', type: 'info' }));
+              setLoading(false);
+            }
+          }
+        };
+
         const rzp = new (window as any).Razorpay(options);
+        rzp.on('payment.failed', function (response: any) {
+          dispatch(addToast({ message: 'Payment cancelled or failed.', type: 'error' }));
+          router.push('/payment-failed');
+        });
         rzp.open();
       } catch (err: any) {
-        dispatch(addToast({ message: 'Could not open payment window.', type: 'error' }));
+        dispatch(addToast({ message: err.message || 'Failed to initialize payment.', type: 'error' }));
         setLoading(false);
       }
     }
@@ -476,50 +532,65 @@ export default function CheckoutPage() {
               {/* Payment Method */}
               <section className="border-b border-gray-200 pb-8">
                 <h2 className="text-2xl font-bold mb-6">Payment Method</h2>
-                <div className="space-y-3">
-                  <label className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-black">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* UPI Option */}
+                  <label 
+                    className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
+                      paymentMethod === 'upi' 
+                        ? 'border-2 border-green-500 bg-green-50 shadow-md scale-[1.02]' 
+                        : 'border border-gray-200 hover:border-green-300 hover:bg-gray-50 hover:shadow-sm'
+                    }`}
+                  >
                     <input
                       type="radio"
                       name="payment"
                       value="upi"
                       checked={paymentMethod === 'upi'}
                       onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="accent-black"
+                      className="hidden"
                     />
-                    <span className="font-semibold">UPI (Google Pay / PhonePe / Paytm)</span>
+                    <div className="flex items-center gap-4 w-full">
+                      <div className={`p-3 rounded-full ${paymentMethod === 'upi' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                        <Smartphone size={24} />
+                      </div>
+                      <div className="flex-1">
+                        <span className={`block font-bold ${paymentMethod === 'upi' ? 'text-green-800' : 'text-gray-800'}`}>UPI</span>
+                        <span className="block text-sm text-gray-500 mt-0.5">Google Pay / PhonePe / Paytm</span>
+                      </div>
+                      {paymentMethod === 'upi' && (
+                        <CheckCircle size={24} className="text-green-500 absolute top-5 right-5" />
+                      )}
+                    </div>
                   </label>
-                  <label className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-black">
+
+                  {/* Credit/Debit Card Option */}
+                  <label 
+                    className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
+                      paymentMethod === 'card' 
+                        ? 'border-2 border-blue-500 bg-blue-50 shadow-md scale-[1.02]' 
+                        : 'border border-gray-200 hover:border-blue-300 hover:bg-gray-50 hover:shadow-sm'
+                    }`}
+                  >
                     <input
                       type="radio"
                       name="payment"
                       value="card"
                       checked={paymentMethod === 'card'}
                       onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="accent-black"
+                      className="hidden"
                     />
-                    <span className="font-semibold">Credit/Debit Card</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-black">
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="netbanking"
-                      checked={paymentMethod === 'netbanking'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="accent-black"
-                    />
-                    <span className="font-semibold">Net Banking</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-black">
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="cod"
-                      checked={paymentMethod === 'cod'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="accent-black"
-                    />
-                    <span className="font-semibold">Cash On Delivery (COD)</span>
+                    <div className="flex items-center gap-4 w-full">
+                      <div className={`p-3 rounded-full ${paymentMethod === 'card' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                        <CreditCard size={24} />
+                      </div>
+                      <div className="flex-1">
+                        <span className={`block font-bold ${paymentMethod === 'card' ? 'text-blue-800' : 'text-gray-800'}`}>Credit / Debit Card</span>
+                        <span className="block text-sm text-gray-500 mt-0.5">Visa, MasterCard, RuPay</span>
+                      </div>
+                      {paymentMethod === 'card' && (
+                        <CheckCircle size={24} className="text-blue-500 absolute top-5 right-5" />
+                      )}
+                    </div>
                   </label>
                 </div>
               </section>
@@ -543,14 +614,21 @@ export default function CheckoutPage() {
               {cartItems.map((item) => {
                 const uniqueKey = `${item.id}-${item.size || ''}-${item.color || ''}`;
                 return (
-                  <div key={uniqueKey} className="flex justify-between text-sm pb-3 border-b border-gray-200 items-start">
-                    <div>
-                      <p className="font-medium text-gray-800">{item.title}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
+                  <div key={uniqueKey} className="flex gap-4 text-sm pb-3 border-b border-gray-200 items-start group">
+                    {item.image ? (
+                      <img src={item.image} alt={item.title} className="w-12 h-12 object-cover rounded-lg border border-gray-100 shrink-0 group-hover:scale-105 transition-transform" />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200 shrink-0">
+                        <Package size={16} className="text-gray-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-0.5">
+                      <p className="font-medium text-gray-800 leading-tight">{item.title}</p>
+                      <p className="text-[11px] text-gray-400">
                         Qty: {item.quantity} {item.size ? `| Size: ${item.size}` : ''} {item.color ? `| Color: ${item.color}` : ''}
                       </p>
                     </div>
-                    <span className="font-semibold text-gray-800">{formatPrice(item.discountedPrice * item.quantity)}</span>
+                    <span className="font-semibold text-gray-800 shrink-0">{formatPrice(item.discountedPrice * item.quantity)}</span>
                   </div>
                 );
               })}

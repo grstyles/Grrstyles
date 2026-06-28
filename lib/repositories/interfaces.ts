@@ -15,6 +15,10 @@ export interface MockOrderItem {
   size: string;
   quantity: number;
   price: number;
+  color?: string;
+  image?: string;
+  slug?: string;
+  sku?: string;
 }
 
 export interface MockOrder {
@@ -33,6 +37,20 @@ export interface MockOrder {
   discountAmount?: number;
   date: string;
   items?: MockOrderItem[];
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
+  payment_signature?: string;
+  gateway?: string;
+  transaction_time?: string;
+  invoice_number?: string;
+  payment_verified?: boolean;
+  gateway_response?: any;
+  tracking_id?: string;
+  tracking_url?: string;
+  courier_partner?: string;
+  dispatch_date?: string;
+  expected_delivery_date?: string;
+  delivered_date?: string;
 }
 
 export interface MockCoupon {
@@ -54,6 +72,9 @@ export interface MockCoupon {
 export interface IProductRepository {
   /** Return all products */
   getAll(): Promise<Product[]>;
+
+  /** Return single product by ID */
+  getById(id: string): Promise<Product | null>;
 
   /** Return single product by URL slug */
   getBySlug(slug: string): Promise<Product | null>;
@@ -105,6 +126,9 @@ export interface IOrderRepository {
 
   /** Update order status */
   updateStatus(id: string, status: MockOrder['status']): Promise<boolean>;
+
+  /** Update shipping information */
+  updateShipping(id: string, shippingData: Partial<MockOrder>): Promise<boolean>;
 }
 
 export interface CreateOrderInput {
@@ -124,7 +148,17 @@ export interface CreateOrderInput {
     size: string;
     quantity: number;
     price: number;
+    color?: string;
+    image?: string;
+    slug?: string;
+    sku?: string;
   }[];
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
+  payment_signature?: string;
+  gateway?: string;
+  transaction_time?: string;
+  invoice_number?: string;
 }
 
 // ─── Coupon Repository ────────────────────────────────────────────────────────

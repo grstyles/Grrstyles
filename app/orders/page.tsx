@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/context/AuthContext';
 import { repo, MockOrder, MockOrderItem } from '@/lib/repositories';
 import { formatPrice } from '@/lib/utils/helpers';
 import { ClipboardList, ChevronDown, ChevronUp, Package, Clock, Truck, CheckCircle2, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { OrderStatusBadge } from '@/components/ui/OrderStatusBadge';
 
 export default function OrdersPage() {
   const router = useRouter();
@@ -160,14 +161,7 @@ export default function OrdersPage() {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full ${
-                          order.status === 'Delivered' ? 'bg-green-50 text-green-600' :
-                          order.status === 'Cancelled' ? 'bg-red-50 text-red-500' :
-                          order.status === 'Shipped' ? 'bg-blue-50 text-blue-600' :
-                          'bg-amber-50 text-amber-600'
-                        }`}>
-                          {order.status}
-                        </span>
+                        <OrderStatusBadge status={order.status} className="scale-90" />
                         {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
                       </div>
                     </div>
@@ -224,20 +218,51 @@ export default function OrdersPage() {
                         </div>
                       </div>
 
+                      {/* Tracking Information */}
+                      {order.tracking_id && (
+                        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-gray-800 uppercase">Tracking ID: {order.tracking_id}</p>
+                            <p className="text-[10px] text-gray-500 font-medium">Courier: {order.courier_partner || 'Not Specified'}</p>
+                          </div>
+                          {order.tracking_url && (
+                            <a 
+                              href={order.tracking_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-gray-800 transition-colors shrink-0"
+                            >
+                              Track Shipment
+                            </a>
+                          )}
+                        </div>
+                      )}
+
                       {/* Items lists */}
                       <div className="space-y-3">
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Ordered Products</h4>
                         <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-50">
                           {order.items && order.items.length > 0 ? (
                             order.items.map((item: MockOrderItem, i: number) => (
-                              <div key={i} className="flex justify-between items-center p-4 text-xs">
-                                <div className="space-y-0.5">
-                                  <p className="font-bold text-gray-800">{item.productName}</p>
-                                  <p className="text-[10px] text-gray-400 font-light font-mono">
-                                    Size: {item.size} · Qty: {item.quantity}
-                                  </p>
-                                </div>
-                                <span className="font-bold text-gray-900">{formatPrice(item.price * item.quantity)}</span>
+                              <div key={i} className="flex items-center justify-between p-4 text-xs group hover:bg-gray-50/50 transition-colors">
+                                <Link href={`/product/${item.slug || item.productId}`} className="flex items-center gap-4 flex-1">
+                                  {item.image ? (
+                                    <img src={item.image} alt={item.productName} className="w-12 h-12 object-cover rounded-lg border border-gray-100 group-hover:scale-105 transition-transform" />
+                                  ) : (
+                                    <div className="w-12 h-12 flex items-center justify-center text-gray-300 bg-gray-50 rounded-lg border border-gray-100">
+                                      <Package size={16} />
+                                    </div>
+                                  )}
+                                  <div className="space-y-0.5">
+                                    <p className="font-bold text-gray-800 group-hover:underline">{item.productName}</p>
+                                    <p className="text-[10px] text-gray-400 font-medium">
+                                      {item.color && <span className="mr-2">Color: {item.color}</span>}
+                                      <span className="mr-2">Size: {item.size}</span>
+                                      <span>Qty: {item.quantity}</span>
+                                    </p>
+                                  </div>
+                                </Link>
+                                <span className="font-bold text-gray-900 shrink-0">{formatPrice(item.price * item.quantity)}</span>
                               </div>
                             ))
                           ) : (
@@ -263,8 +288,11 @@ export default function OrdersPage() {
                             <span>Total</span>
                             <span>{formatPrice(order.totalAmount)}</span>
                           </div>
-                          <div className="text-[10px] font-light text-gray-400 pt-1 text-right italic font-mono">
-                            Payment: {order.paymentMethod} ({order.paymentStatus})
+                          <div className="text-[10px] font-light text-gray-400 pt-1 text-right italic font-mono space-y-0.5">
+                            <p>Payment: {order.paymentMethod === 'razorpay' ? 'Razorpay' : order.paymentMethod} ({order.paymentStatus})</p>
+                            {order.gateway === 'razorpay' && order.razorpay_payment_id && (
+                              <p className="text-[9px]">ID: {order.razorpay_payment_id}</p>
+                            )}
                           </div>
                         </div>
                       </div>

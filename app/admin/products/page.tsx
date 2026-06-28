@@ -102,6 +102,21 @@ export default function AdminProductsPage() {
     loadProductsAndCoupons();
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const editId = urlParams.get('edit');
+      if (editId && items.length > 0) {
+        const prod = items.find(p => p.id === editId);
+        if (prod) {
+          handleEdit(prod);
+          // Remove query param without refreshing
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    }
+  }, [items]);
+
   
   // Initialize default sizes (always both Shirt and Pant)
   useEffect(() => {

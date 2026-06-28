@@ -7,17 +7,30 @@ import { motion } from 'framer-motion';
 
 export default function OrderSuccessPage() {
   const [orderId, setOrderId] = useState('');
+  const [paymentId, setPaymentId] = useState('');
+  const [amount, setAmount] = useState('');
 
   useEffect(() => {
     // Check if we have a cached order number from checkout, otherwise fallback to random
     const cachedOrder = sessionStorage.getItem('gr_last_order_number');
     if (cachedOrder) {
       setOrderId(cachedOrder);
-      // Clean up cache
       sessionStorage.removeItem('gr_last_order_number');
     } else {
       const num = Math.floor(100000 + Math.random() * 900000);
       setOrderId(`GR-2026-${num}`);
+    }
+
+    const cachedPayment = sessionStorage.getItem('gr_last_payment_id');
+    if (cachedPayment) {
+      setPaymentId(cachedPayment);
+      sessionStorage.removeItem('gr_last_payment_id');
+    }
+
+    const cachedAmount = sessionStorage.getItem('gr_last_amount');
+    if (cachedAmount) {
+      setAmount(cachedAmount);
+      sessionStorage.removeItem('gr_last_amount');
     }
   }, []);
 
@@ -43,10 +56,24 @@ export default function OrderSuccessPage() {
           Thank you for shopping with GR STYLES. Your order has been placed successfully.
         </p>
 
-        {/* Order ID box */}
-        <div className="bg-[#fcfbf9] border border-gray-100 rounded-2xl p-4 mb-8">
-          <p className="text-xs text-[#6b5b4b] uppercase font-bold tracking-wider mb-1">Order Identifier</p>
-          <p className="text-lg font-serif font-semibold text-gray-900 tracking-wide">{orderId}</p>
+        {/* Order Details box */}
+        <div className="bg-[#fcfbf9] border border-gray-100 rounded-2xl p-4 mb-8 text-left space-y-3">
+          <div>
+            <p className="text-[10px] text-[#6b5b4b] uppercase font-bold tracking-wider mb-1">Order ID</p>
+            <p className="text-sm font-semibold text-gray-900 tracking-wide">{orderId}</p>
+          </div>
+          {paymentId && (
+            <div>
+              <p className="text-[10px] text-[#6b5b4b] uppercase font-bold tracking-wider mb-1">Payment ID</p>
+              <p className="text-sm font-mono text-gray-600 tracking-wide">{paymentId}</p>
+            </div>
+          )}
+          {amount && (
+            <div>
+              <p className="text-[10px] text-[#6b5b4b] uppercase font-bold tracking-wider mb-1">Amount Paid</p>
+              <p className="text-sm font-semibold text-green-600 tracking-wide">₹{amount}</p>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4 text-left border-t border-gray-100 pt-6 mb-8 text-xs text-[#6b5b4b]">
@@ -75,10 +102,10 @@ export default function OrderSuccessPage() {
             Continue Shopping
           </Link>
           <Link
-            href="/lookbook"
+            href="/orders"
             className="block w-full py-3.5 border border-gray-200 hover:border-black text-gray-700 hover:text-black rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors text-center"
           >
-            Explore Lookbook
+            View Orders
           </Link>
         </div>
       </motion.div>

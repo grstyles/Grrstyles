@@ -74,6 +74,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         quantity: 1,
         size: defaultSize,
         color: defaultColor,
+        sku: product.sku,
       })
     );
 
