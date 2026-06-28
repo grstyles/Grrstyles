@@ -115,7 +115,7 @@ export default function Navbar() {
                 <Search className="w-[18px] h-[18px] sm:w-5 sm:h-5 md:w-5 md:h-5" />
               </button>
 
-              <Link href="/wishlist" className="relative p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-800">
+              <Link href="/wishlist" className="hidden md:flex relative p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-800">
                 <Heart className="w-[18px] h-[18px] sm:w-5 sm:h-5 md:w-5 md:h-5" />
                 {wishlistItems.length > 0 && (
                   <span className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 bg-red-500 text-white text-[9px] rounded-full w-3.5 h-3.5 sm:w-5 sm:h-5 flex items-center justify-center font-semibold">
@@ -126,7 +126,7 @@ export default function Navbar() {
 
               <Link 
                 href="/cart" 
-                className={`relative p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-all duration-300 block ${
+                className={`hidden md:block relative p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-all duration-300 ${
                   wiggleCart ? 'animate-cart-wiggle scale-110 text-black bg-gray-50' : 'text-gray-800'
                 }`}
               >
