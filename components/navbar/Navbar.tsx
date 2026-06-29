@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Menu, X, Search, Heart, ShoppingBag, User } from 'lucide-react';
 import Link from 'next/link';
 import { useDispatch, useSelector } from 'react-redux';
@@ -19,6 +19,30 @@ export default function Navbar() {
   const { user, requireAuth } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+  const [isVisible, setIsVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      if (currentScrollY <= 10) {
+        setIsVisible(true);
+      } else if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
+        setIsVisible(false);
+      } else if (currentScrollY < lastScrollY.current) {
+        setIsVisible(true);
+      }
+      
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     dispatch(closeMobileMenu());
@@ -59,7 +83,11 @@ export default function Navbar() {
   return (
     <>
       {/* Desktop/Tablet Navbar */}
-      <nav className="sticky top-14 md:top-0 z-40 bg-white border-b border-gray-200">
+      <nav 
+        className={`sticky top-14 md:top-0 z-40 bg-white border-b border-gray-200 transition-transform duration-300 ease-in-out ${
+          isVisible ? 'translate-y-0' : '-translate-y-[150%]'
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-10">
           <div className="flex items-center justify-between h-16 md:h-20 relative">
             

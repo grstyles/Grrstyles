@@ -11,41 +11,56 @@ export function useDraggableScroll<T extends HTMLElement>() {
     let startX: number;
     let scrollLeft: number;
 
-    const onMouseDown = (e: MouseEvent) => {
+    const onPointerDown = (e: PointerEvent) => {
+      // Only apply drag logic for mouse, let touch use native scrolling
+      if (e.pointerType !== 'mouse') return;
+      
       isDown = true;
-      el.classList.add('cursor-grabbing');
+      el.style.cursor = 'grabbing';
+      el.style.userSelect = 'none';
       startX = e.pageX - el.offsetLeft;
       scrollLeft = el.scrollLeft;
     };
 
-    const onMouseLeave = () => {
+    const onPointerLeave = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return;
       isDown = false;
-      el.classList.remove('cursor-grabbing');
+      el.style.cursor = 'grab';
+      el.style.userSelect = 'auto';
     };
 
-    const onMouseUp = () => {
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return;
       isDown = false;
-      el.classList.remove('cursor-grabbing');
+      el.style.cursor = 'grab';
+      el.style.userSelect = 'auto';
     };
 
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDown) return;
+    const onPointerMove = (e: PointerEvent) => {
+      if (!isDown || e.pointerType !== 'mouse') return;
       e.preventDefault();
       const x = e.pageX - el.offsetLeft;
-      const walk = (x - startX) * 2; // Scroll-fast multiplier
+      const walk = (x - startX) * 2.5; 
       el.scrollLeft = scrollLeft - walk;
     };
 
-    el.addEventListener('mousedown', onMouseDown);
-    el.addEventListener('mouseleave', onMouseLeave);
-    el.addEventListener('mouseup', onMouseUp);
-    el.addEventListener('mousemove', onMouseMove);
+    // Ensure native smooth scrolling for touch devices
+    el.style.overflowX = 'auto';
+    el.style.WebkitOverflowScrolling = 'touch';
+    // Remove scrollbar for cleaner look if not already done by CSS
+    el.style.scrollbarWidth = 'none'; 
+    el.style.cursor = 'grab';
+
+    el.addEventListener('pointerdown', onPointerDown);
+    el.addEventListener('pointerleave', onPointerLeave);
+    el.addEventListener('pointerup', onPointerUp);
+    el.addEventListener('pointermove', onPointerMove);
 
     return () => {
-      el.removeEventListener('mousedown', onMouseDown);
-      el.removeEventListener('mouseleave', onMouseLeave);
-      el.removeEventListener('mouseup', onMouseUp);
-      el.removeEventListener('mousemove', onMouseMove);
+      el.removeEventListener('pointerdown', onPointerDown);
+      el.removeEventListener('pointerleave', onPointerLeave);
+      el.removeEventListener('pointerup', onPointerUp);
+      el.removeEventListener('pointermove', onPointerMove);
     };
   }, []);
 
