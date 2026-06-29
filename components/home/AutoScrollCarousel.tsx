@@ -273,7 +273,7 @@ export default function HeroCarousel({ banners }: { banners?: Banner[] }) {
       {/* Optional: Slide counter */}
       <div className="absolute bottom-6 md:bottom-8 right-4 md:right-8 z-20 text-white/60 text-xs md:text-sm font-mono">
         {String(currentSlide + 1).padStart(2, "0")} /{" "}
-        {String(slides.length).padStart(2, "0")}
+        {String(activeSlides.length).padStart(2, "0")}
       </div>
     </section>
   );

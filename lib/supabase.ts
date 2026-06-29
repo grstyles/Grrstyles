@@ -4,7 +4,11 @@ import { config } from './config';
 export const isSupabaseConfigured = (): boolean => config.isSupabaseConfigured;
 
 const rawSupabase = config.isSupabaseConfigured
-  ? createClient(config.supabaseUrl, config.supabaseKey)
+  ? createClient(config.supabaseUrl, config.supabaseKey, {
+      global: {
+        fetch: (url, options) => fetch(url, { ...options, cache: 'no-store' })
+      }
+    })
   : null;
 
 // Proxy wrapper to prevent "Cannot read properties of null (reading 'from')"

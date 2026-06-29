@@ -31,10 +31,12 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
   // Dynamic Collections
   const dynamicCollections = Array.from(new Set(products.map(p => p.collection).filter(Boolean))) as string[];
 
+  const homeBanners = banners.filter(b => !b.target_page || b.target_page === 'home');
+
   return (
     <>
       {/* Hero Banner */}
-      <AutoScrollCarousel banners={banners} />
+      <AutoScrollCarousel banners={homeBanners} />
 
       {/* Deal Of The Day */}
       {dealOfTheDay.length > 0 && (

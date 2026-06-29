@@ -3,17 +3,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { repo } from '@/lib/repositories';
 import { Banner } from '@/lib/repositories/interfaces';
-import { Plus, X, Trash2, Edit2, Upload, MoveUp, MoveDown, Save } from 'lucide-react';
+import { Plus, X, Trash2, Upload, MoveUp, MoveDown, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useDispatch } from 'react-redux';
-import Image from 'next/image';
 
 export default function AdminBannersPage() {
   const dispatch = useDispatch();
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Form State
   const [title, setTitle] = useState('');
@@ -26,6 +26,7 @@ export default function AdminBannersPage() {
   const [isActive, setIsActive] = useState(true);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
   
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingMobile, setUploadingMobile] = useState(false);
@@ -37,6 +38,11 @@ export default function AdminBannersPage() {
     try {
       const data = await repo.banners.getAll();
       setBanners(data || []);
+      if (!isCreating && data && data.length > 0) {
+         setCurrentIndex(prev => Math.min(prev, data.length - 1));
+      } else if (data && data.length === 0) {
+         setIsCreating(true);
+      }
     } catch (e) {
       console.error('Failed to load banners:', e);
     } finally {
@@ -48,45 +54,66 @@ export default function AdminBannersPage() {
     loadBanners();
   }, []);
 
-  const resetForm = () => {
-    setTitle('');
-    setSubtitle('');
-    setImageUrl('');
-    setMobileImageUrl('');
-    setLinkUrl('');
-    setTargetPage('');
-    setButtonText('');
-    setIsActive(true);
-    setStartDate('');
-    setEndDate('');
-    setEditingId(null);
-    setFormOpen(false);
-  };
-
-  const handleEdit = (b: Banner) => {
-    setTitle(b.title || '');
-    setSubtitle(b.subtitle || '');
-    setImageUrl(b.image_url || '');
-    setMobileImageUrl(b.mobile_image_url || '');
-    setLinkUrl(b.link_url || '');
-    setTargetPage(b.target_page || '');
-    setButtonText(b.button_text || '');
-    setIsActive(b.is_active !== false);
-    setStartDate(b.start_date ? new Date(b.start_date).toISOString().slice(0, 16) : '');
-    setEndDate(b.end_date ? new Date(b.end_date).toISOString().slice(0, 16) : '');
-    setEditingId(b.id);
-    setFormOpen(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this banner?')) return;
-    try {
-      await repo.banners.delete(id);
-      dispatch(addToast({ message: 'Banner deleted successfully!', type: 'success' }));
-      loadBanners();
-    } catch (e) {
-      dispatch(addToast({ message: 'Failed to delete banner', type: 'error' }));
+  // Sync form with current banner
+  useEffect(() => {
+    if (isCreating) {
+      setTitle('');
+      setSubtitle('');
+      setImageUrl('');
+      setMobileImageUrl('');
+      setLinkUrl('');
+      setTargetPage('');
+      setButtonText('');
+      setIsActive(true);
+      setStartDate('');
+      setEndDate('');
+      setEditingId(null);
+    } else if (banners.length > 0 && banners[currentIndex]) {
+      const b = banners[currentIndex];
+      setTitle(b.title || '');
+      setSubtitle(b.subtitle || '');
+      setImageUrl(b.image_url || '');
+      setMobileImageUrl(b.mobile_image_url || '');
+      setLinkUrl(b.link_url || '');
+      setTargetPage(b.target_page || '');
+      setButtonText(b.button_text || '');
+      setIsActive(b.is_active !== false);
+      setStartDate(b.start_date ? new Date(b.start_date).toISOString().slice(0, 16) : '');
+      setEndDate(b.end_date ? new Date(b.end_date).toISOString().slice(0, 16) : '');
+      setEditingId(b.id);
     }
+  }, [currentIndex, isCreating, banners]);
+
+  // Swipe Support
+  const [touchStart, setTouchStart] = useState(0);
+  const [touchEnd, setTouchEnd] = useState(0);
+
+  const handleNext = () => {
+    if (banners.length > 1 && !isCreating) {
+      setCurrentIndex((prev) => (prev + 1) % banners.length);
+    }
+  };
+
+  const handlePrev = () => {
+    if (banners.length > 1 && !isCreating) {
+      setCurrentIndex((prev) => (prev - 1 + banners.length) % banners.length);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStart === 0 || touchEnd === 0) return;
+    if (touchStart - touchEnd > 50) handleNext();
+    if (touchEnd - touchStart > 50) handlePrev();
+    setTouchStart(0);
+    setTouchEnd(0);
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'desktop' | 'mobile') => {
@@ -142,11 +169,27 @@ export default function AdminBannersPage() {
         await repo.banners.create(payload);
         dispatch(addToast({ message: 'Banner created!', type: 'success' }));
       }
+      setIsCreating(false);
       loadBanners();
-      resetForm();
     } catch (err) {
       console.error(err);
       dispatch(addToast({ message: 'Failed to save banner.', type: 'error' }));
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this banner?')) return;
+    try {
+      await repo.banners.delete(id);
+      dispatch(addToast({ message: 'Banner deleted successfully!', type: 'success' }));
+      if (banners.length <= 1) {
+         setIsCreating(true);
+      } else if (currentIndex >= banners.length - 1) {
+         setCurrentIndex(banners.length - 2);
+      }
+      loadBanners();
+    } catch (e) {
+      dispatch(addToast({ message: 'Failed to delete banner', type: 'error' }));
     }
   };
 
@@ -170,12 +213,11 @@ export default function AdminBannersPage() {
       await repo.banners.update(currentBanner.id, { display_order: currentBanner.display_order });
       await repo.banners.update(targetBanner.id, { display_order: targetBanner.display_order });
       
-      // Update local state and re-sort
-      newBanners.sort((a, b) => a.display_order - b.display_order);
-      setBanners(newBanners);
+      loadBanners(); 
+      setCurrentIndex(targetIndex);
     } catch (err) {
       dispatch(addToast({ message: 'Failed to reorder banners.', type: 'error' }));
-      loadBanners(); // Reload original state
+      loadBanners(); 
     }
   };
 
@@ -194,9 +236,9 @@ export default function AdminBannersPage() {
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Banners CMS</h1>
           <p className="text-sm text-gray-500 mt-1">Manage homepage and promotional banners.</p>
         </div>
-        {!formOpen && (
+        {!isCreating && (
           <button
-            onClick={() => setFormOpen(true)}
+            onClick={() => setIsCreating(true)}
             className="flex items-center gap-2 bg-black text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors shadow-sm"
           >
             <Plus size={16} /> Add Banner
@@ -204,19 +246,114 @@ export default function AdminBannersPage() {
         )}
       </div>
 
-      {formOpen && (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {/* Left Column: Carousel Preview */}
+        <div className="space-y-4">
+          <div 
+            className="relative w-full aspect-[16/9] bg-gray-100 rounded-2xl overflow-hidden group select-none shadow-sm border border-gray-200"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            {isCreating ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 p-6 text-center">
+                {imageUrl ? (
+                  <img src={imageUrl} alt="Preview" className="w-full h-full object-cover absolute inset-0" />
+                ) : (
+                  <>
+                    <Upload size={32} className="mb-3 opacity-50" />
+                    <p className="font-medium text-gray-500">New Banner Preview</p>
+                    <p className="text-xs text-gray-400 mt-1">Upload a desktop image to see preview</p>
+                  </>
+                )}
+              </div>
+            ) : banners.length > 0 ? (
+              <>
+                <img src={banners[currentIndex].image_url} alt={banners[currentIndex].title} className="w-full h-full object-cover" draggable={false} />
+                
+                {/* Banner Content Overlay */}
+                <div className="absolute inset-0 bg-black/20 flex flex-col justify-center items-center text-center p-4">
+                  <h2 className="text-2xl font-serif font-bold text-white uppercase tracking-wider shadow-black drop-shadow-md">{banners[currentIndex].title}</h2>
+                  {banners[currentIndex].subtitle && <p className="text-sm text-white/90 drop-shadow-md mt-2 tracking-widest">{banners[currentIndex].subtitle}</p>}
+                </div>
+
+                {!banners[currentIndex].is_active && (
+                  <div className="absolute top-4 left-4 bg-black text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest">
+                    Inactive
+                  </div>
+                )}
+                {banners[currentIndex].target_page && banners[currentIndex].target_page !== '' && (
+                  <div className="absolute top-4 left-4 bg-white text-black px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
+                    {banners[currentIndex].target_page === '/shop' ? 'Shop Page' : banners[currentIndex].target_page}
+                  </div>
+                )}
+                
+                {/* Arrows */}
+                {banners.length > 1 && (
+                  <>
+                    <button 
+                      onClick={handlePrev} 
+                      className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-black/40 hover:bg-black/70 text-white rounded-full transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <button 
+                      onClick={handleNext} 
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-black/40 hover:bg-black/70 text-white rounded-full transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  </>
+                )}
+
+                {/* Counter */}
+                {banners.length > 1 && (
+                  <div className="absolute bottom-4 right-4 bg-black/60 text-white px-3 py-1.5 rounded-full font-mono text-[10px] backdrop-blur-md font-bold tracking-widest">
+                    {String(currentIndex + 1).padStart(2, '0')} / {String(banners.length).padStart(2, '0')}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                No banners found
+              </div>
+            )}
+          </div>
+
+          {/* Thumbnails */}
+          {!isCreating && banners.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+              {banners.map((b, i) => (
+                <button 
+                  key={b.id} 
+                  onClick={() => setCurrentIndex(i)} 
+                  className={`shrink-0 w-24 h-14 rounded-lg overflow-hidden border-2 transition-all relative ${
+                    i === currentIndex ? 'border-black opacity-100 shadow-md scale-105' : 'border-transparent opacity-60 hover:opacity-100 hover:scale-105'
+                  }`}
+                >
+                  <img src={b.image_url} alt={b.title} className="w-full h-full object-cover" />
+                  {!b.is_active && <div className="absolute inset-0 bg-white/50 backdrop-grayscale" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: Editor Form */}
         <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
           <div className="flex justify-between items-center border-b border-gray-100 pb-3">
             <h3 className="text-sm font-bold text-gray-700 uppercase tracking-widest">
-              {editingId ? 'Edit Banner' : 'New Banner'}
+              {isCreating ? 'New Banner' : 'Edit Banner'}
             </h3>
-            <button type="button" onClick={resetForm} className="p-1 hover:bg-gray-100 rounded-full text-gray-400">
-              <X size={16} />
-            </button>
+            {isCreating && banners.length > 0 && (
+              <button type="button" onClick={() => setIsCreating(false)} className="p-1 hover:bg-gray-100 rounded-full text-gray-400">
+                <X size={16} />
+              </button>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Title *</label>
                 <input
@@ -235,6 +372,9 @@ export default function AdminBannersPage() {
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Button Text</label>
                 <input
@@ -244,49 +384,53 @@ export default function AdminBannersPage() {
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
                 />
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Link URL</label>
-                  <input
-                    type="text"
-                    value={linkUrl} onChange={e => setLinkUrl(e.target.value)}
-                    placeholder="e.g. /collections/summer"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Target Page</label>
-                  <select
-                    value={targetPage} onChange={e => setTargetPage(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
-                  >
-                    <option value="">Home Page</option>
-                    <option value="/shop">Shop Page</option>
-                  </select>
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Link URL</label>
+                <input
+                  type="text"
+                  value={linkUrl} onChange={e => setLinkUrl(e.target.value)}
+                  placeholder="e.g. /collections/summer"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+                />
               </div>
+            </div>
+            
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Target Page</label>
+              <select
+                value={targetPage} onChange={e => setTargetPage(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+              >
+                <option value="">Home Page</option>
+                <option value="/shop">Shop Page</option>
+                <option value="men">Men</option>
+                <option value="new-in">New In</option>
+                <option value="collections">Collections</option>
+                <option value="sale">Sale</option>
+              </select>
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Start Date</label>
-                  <input
-                    type="datetime-local"
-                    value={startDate} onChange={e => setStartDate(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">End Date</label>
-                  <input
-                    type="datetime-local"
-                    value={endDate} onChange={e => setEndDate(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
-                  />
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Start Date</label>
+                <input
+                  type="datetime-local"
+                  value={startDate} onChange={e => setStartDate(e.target.value)}
+                  className="w-full px-3 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-xs"
+                />
               </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">End Date</label>
+                <input
+                  type="datetime-local"
+                  value={endDate} onChange={e => setEndDate(e.target.value)}
+                  className="w-full px-3 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-xs"
+                />
+              </div>
+            </div>
 
-              <div className="flex items-center gap-2 pt-2">
+            <div className="flex justify-between items-center pt-2">
+              <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   id="isActive"
@@ -294,17 +438,40 @@ export default function AdminBannersPage() {
                   onChange={(e) => setIsActive(e.target.checked)}
                   className="w-4 h-4 text-black focus:ring-black border-gray-300 rounded"
                 />
-                <label htmlFor="isActive" className="text-sm font-medium text-gray-700">Active (Visible on site)</label>
+                <label htmlFor="isActive" className="text-sm font-medium text-gray-700">Active</label>
               </div>
-            </div>
 
-            {/* Images */}
-            <div className="space-y-6">
-              {/* Desktop Image */}
+              {!isCreating && banners.length > 1 && (
+                <div className="flex items-center gap-1 bg-gray-50 rounded-lg p-1 border border-gray-100">
+                  <button 
+                    type="button"
+                    onClick={() => handleMove(currentIndex, 'up')} 
+                    disabled={currentIndex === 0}
+                    className="p-1.5 text-gray-500 hover:text-black hover:bg-gray-200 rounded disabled:opacity-30 transition-colors"
+                    title="Move Up"
+                  >
+                    <MoveUp size={14} />
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => handleMove(currentIndex, 'down')}
+                    disabled={currentIndex === banners.length - 1} 
+                    className="p-1.5 text-gray-500 hover:text-black hover:bg-gray-200 rounded disabled:opacity-30 transition-colors"
+                    title="Move Down"
+                  >
+                    <MoveDown size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Desktop Image *</label>
                 {imageUrl ? (
-                  <div className="relative h-40 w-full rounded-xl overflow-hidden border border-gray-200 group">
+                  <div className="relative h-28 w-full rounded-xl overflow-hidden border border-gray-200 group">
                     <img src={imageUrl} alt="Desktop Preview" className="object-cover w-full h-full" />
                     <button
                       type="button"
@@ -317,14 +484,14 @@ export default function AdminBannersPage() {
                 ) : (
                   <div 
                     onClick={() => imageInputRef.current?.click()}
-                    className="h-40 w-full border-2 border-dashed border-gray-300 hover:border-black rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-black transition-colors cursor-pointer bg-gray-50 hover:bg-gray-100"
+                    className="h-28 w-full border-2 border-dashed border-gray-300 hover:border-black rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-black transition-colors cursor-pointer bg-gray-50 hover:bg-gray-100"
                   >
                     {uploadingImage ? (
-                      <div className="w-6 h-6 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <>
-                        <Upload size={24} className="mb-2" />
-                        <span className="text-xs font-semibold">Upload Desktop Image (16:9)</span>
+                        <Upload size={18} className="mb-2" />
+                        <span className="text-[10px] font-semibold uppercase tracking-wider">Desktop (16:9)</span>
                       </>
                     )}
                   </div>
@@ -332,31 +499,30 @@ export default function AdminBannersPage() {
                 <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleUpload(e, 'desktop')} />
               </div>
 
-              {/* Mobile Image */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mobile Image (Optional)</label>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mobile Image</label>
                 {mobileImageUrl ? (
-                  <div className="relative h-40 w-full max-w-[200px] rounded-xl overflow-hidden border border-gray-200 group mx-auto">
+                  <div className="relative h-28 w-24 mx-auto rounded-xl overflow-hidden border border-gray-200 group">
                     <img src={mobileImageUrl} alt="Mobile Preview" className="object-cover w-full h-full" />
                     <button
                       type="button"
                       onClick={() => setMobileImageUrl('')}
-                      className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                      className="absolute top-2 right-2 p-1 bg-black/60 hover:bg-black text-white rounded-full transition-colors opacity-0 group-hover:opacity-100"
                     >
-                      <X size={14} />
+                      <X size={12} />
                     </button>
                   </div>
                 ) : (
                   <div 
                     onClick={() => mobileInputRef.current?.click()}
-                    className="h-40 w-full max-w-[200px] mx-auto border-2 border-dashed border-gray-300 hover:border-black rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-black transition-colors cursor-pointer bg-gray-50 hover:bg-gray-100"
+                    className="h-28 w-24 mx-auto border-2 border-dashed border-gray-300 hover:border-black rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-black transition-colors cursor-pointer bg-gray-50 hover:bg-gray-100 text-center px-2"
                   >
                     {uploadingMobile ? (
-                      <div className="w-6 h-6 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <>
-                        <Upload size={20} className="mb-2" />
-                        <span className="text-xs font-semibold">Upload Mobile (3:4)</span>
+                        <Upload size={18} className="mb-2" />
+                        <span className="text-[10px] font-semibold uppercase tracking-wider">Mobile (3:4)</span>
                       </>
                     )}
                   </div>
@@ -366,92 +532,32 @@ export default function AdminBannersPage() {
             </div>
           </div>
           
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={resetForm} className="px-5 py-2.5 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
-              Cancel
-            </button>
-            <button type="submit" className="flex items-center gap-2 bg-black text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors">
-              <Save size={16} /> {editingId ? 'Update Banner' : 'Create Banner'}
-            </button>
+          <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+            {!isCreating && banners.length > 0 ? (
+              <button 
+                type="button" 
+                onClick={() => handleDelete(banners[currentIndex].id)} 
+                className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-semibold"
+              >
+                <Trash2 size={16} />
+                <span className="hidden sm:inline">Delete</span>
+              </button>
+            ) : (
+              <div></div>
+            )}
+            
+            <div className="flex gap-3">
+              {isCreating && banners.length > 0 && (
+                <button type="button" onClick={() => setIsCreating(false)} className="px-5 py-2.5 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
+                  Cancel
+                </button>
+              )}
+              <button type="submit" className="flex items-center gap-2 bg-black text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors">
+                <Save size={16} /> {isCreating ? 'Create' : 'Update'}
+              </button>
+            </div>
           </div>
         </form>
-      )}
-
-      {/* Banner List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {banners.map((banner, index) => (
-          <div key={banner.id} className={`bg-white border rounded-2xl overflow-hidden shadow-sm flex flex-col ${!banner.is_active ? 'opacity-60 grayscale-[0.5]' : 'border-gray-200'}`}>
-            {/* Image Preview */}
-            <div className="relative h-48 w-full bg-gray-100">
-              <img src={banner.image_url} alt={banner.title} className="object-cover w-full h-full" />
-              {!banner.is_active && (
-                <div className="absolute inset-0 bg-white/40 flex items-center justify-center">
-                  <span className="bg-black/80 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest backdrop-blur-sm">Inactive</span>
-                </div>
-              )}
-              {banner.target_page && banner.target_page !== '' && (
-                 <div className="absolute top-2 left-2 bg-black text-white text-[10px] font-bold px-2 py-1 rounded uppercase">
-                   {banner.target_page === '/shop' ? 'Shop Page' : banner.target_page}
-                 </div>
-              )}
-            </div>
-            
-            {/* Details */}
-            <div className="p-4 flex-1 flex flex-col">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <h3 className="font-bold text-gray-900">{banner.title}</h3>
-                  {banner.subtitle && <p className="text-sm text-gray-500">{banner.subtitle}</p>}
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                   <button 
-                     onClick={() => handleMove(index, 'up')} 
-                     disabled={index === 0}
-                     className="p-1 text-gray-400 hover:text-black disabled:opacity-30 transition-colors"
-                   >
-                     <MoveUp size={16} />
-                   </button>
-                   <button 
-                     onClick={() => handleMove(index, 'down')}
-                     disabled={index === banners.length - 1} 
-                     className="p-1 text-gray-400 hover:text-black disabled:opacity-30 transition-colors"
-                   >
-                     <MoveDown size={16} />
-                   </button>
-                </div>
-              </div>
-              
-              <div className="mt-auto pt-4 border-t border-gray-100 flex justify-between items-center">
-                <div className="text-xs text-gray-500">
-                  {banner.start_date || banner.end_date ? (
-                    <span className="flex items-center gap-1">
-                      🗓️ 
-                      {banner.start_date ? new Date(banner.start_date).toLocaleDateString() : 'Now'} 
-                      {' - '} 
-                      {banner.end_date ? new Date(banner.end_date).toLocaleDateString() : 'Forever'}
-                    </span>
-                  ) : (
-                    <span>No date restrictions</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => handleEdit(banner)} className="p-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded-lg transition-colors">
-                    <Edit2 size={16} />
-                  </button>
-                  <button onClick={() => handleDelete(banner.id)} className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {banners.length === 0 && !loading && (
-          <div className="col-span-full py-12 text-center text-gray-500 border-2 border-dashed border-gray-200 rounded-2xl">
-            No banners found. Create one to get started!
-          </div>
-        )}
       </div>
     </div>
   );
