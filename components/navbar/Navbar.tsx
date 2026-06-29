@@ -112,13 +112,22 @@ export default function Navbar() {
             {/* Logo */}
             <Link 
               href="/" 
-              className="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 md:left-auto flex-shrink-0 flex items-center justify-center z-50"
+              className="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 md:left-auto flex items-center gap-1.5 sm:gap-2 flex-shrink-0"
             >
-              <img
-                src="/images/image5.jpeg"
-                alt="GR Styles Logo"
-                className="w-[180px] sm:w-[200px] md:w-[220px] h-auto"
-              />
+              {/* Icon/Logo Image */}
+              <div className="relative w-9 h-9 sm:w-[46px] sm:h-[46px] md:w-[54px] md:h-[54px]">
+                <img
+                  src="/images/image5.jpeg"
+                  alt="GR Styles Logo"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              
+              {/* Text Section */}
+              <div className="flex flex-col justify-center">
+                <div className="text-[13.5px] sm:text-[17px] md:text-[20px] font-serif font-bold tracking-wider leading-tight whitespace-nowrap">GR STYLES</div>
+                <div className="text-[7px] sm:text-[8.5px] md:text-[11.5px] text-gray-600 tracking-widest whitespace-nowrap">WEAR YOUR CONFIDENCE</div>
+              </div>
             </Link>
 
             {/* Desktop Nav Links */}
