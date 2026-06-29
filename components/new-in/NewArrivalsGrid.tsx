@@ -11,9 +11,12 @@ if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger);
 }
 
+import { useDraggableScroll } from "@/hooks/useDraggableScroll";
+
 export default function NewArrivalsGrid() {
   const [activeCategory, setActiveCategory] = useState("All");
   const gridRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useDraggableScroll<HTMLDivElement>();
 
   const categories = [
     "All",
@@ -67,7 +70,7 @@ export default function NewArrivalsGrid() {
 
         {/* Sticky Filter Bar */}
         <div className={styles.filterBar}>
-          <div className={styles.categories}>
+          <div className={styles.categories} ref={scrollRef}>
             {categories.map((cat) => (
               <button
                 key={cat}

@@ -1,6 +1,7 @@
 "use client";
 import React, { useRef, useEffect } from "react";
 import { gsap } from "gsap";
+import { useDraggableScroll } from "@/hooks/useDraggableScroll";
 
 interface CategoryTabsProps {
   activeCategory: string;
@@ -25,7 +26,7 @@ export default function CategoryTabs({
   activeCategory,
   setActiveCategory,
 }: CategoryTabsProps) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useDraggableScroll<HTMLDivElement>();
   const activeTabRef = useRef<HTMLButtonElement>(null);
 
   // Scroll active tab into view

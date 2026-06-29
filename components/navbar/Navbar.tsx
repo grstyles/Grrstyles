@@ -5,10 +5,10 @@ import { Menu, X, Search, Heart, ShoppingBag, User } from 'lucide-react';
 import Link from 'next/link';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/lib/redux/store';
-import { toggleMobileMenu } from '@/lib/redux/slices/uiSlice';
+import { toggleMobileMenu, closeMobileMenu } from '@/lib/redux/slices/uiSlice';
 import SearchDropdown from './SearchDropdown';
 import { useAuth } from '@/lib/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 export default function Navbar() {
   const dispatch = useDispatch();
@@ -18,6 +18,11 @@ export default function Navbar() {
   
   const { user, requireAuth } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    dispatch(closeMobileMenu());
+  }, [pathname, dispatch]);
 
   const handleUserClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -163,6 +168,7 @@ export default function Navbar() {
                 key={link.name}
                 href={link.href}
                 className="block py-3 text-sm font-semibold tracking-widest uppercase hover:text-gray-600"
+                onClick={() => dispatch(toggleMobileMenu())}
               >
                 {link.name}
               </Link>
