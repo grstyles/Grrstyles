@@ -22,6 +22,7 @@ export default function Navbar() {
 
   const [isVisible, setIsVisible] = useState(true);
   const lastScrollY = useRef(0);
+  const scrollThreshold = 10;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -29,15 +30,21 @@ export default function Navbar() {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
       
-      if (currentScrollY <= 10) {
+      if (currentScrollY <= 60) {
+        // Always show near the top (accounting for TopBar height)
         setIsVisible(true);
-      } else if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
-        setIsVisible(false);
-      } else if (currentScrollY < lastScrollY.current) {
-        setIsVisible(true);
+      } else {
+        const diff = currentScrollY - lastScrollY.current;
+        if (diff > scrollThreshold) {
+          // Scrolled down enough
+          setIsVisible(false);
+          lastScrollY.current = currentScrollY;
+        } else if (diff < -scrollThreshold) {
+          // Scrolled up enough
+          setIsVisible(true);
+          lastScrollY.current = currentScrollY;
+        }
       }
-      
-      lastScrollY.current = currentScrollY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -84,8 +91,8 @@ export default function Navbar() {
     <>
       {/* Desktop/Tablet Navbar */}
       <nav 
-        className={`sticky top-14 md:top-0 z-40 bg-white border-b border-gray-200 transition-transform duration-300 ease-in-out ${
-          isVisible ? 'translate-y-0' : '-translate-y-[150%]'
+        className={`sticky top-0 z-40 w-full bg-white border-b border-gray-200 transition-transform duration-300 ease-in-out ${
+          isVisible ? 'translate-y-0' : '-translate-y-full'
         }`}
       >
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-10">
