@@ -79,12 +79,43 @@ export class SupabaseProductRepository implements IProductRepository {
     return (productsRes.data || []).map(p => mapDbProduct(p));
   }
 
+  private async generateUniqueSlug(baseName: string, currentId?: string): Promise<string> {
+    const baseSlug = baseName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+    
+    let candidate = baseSlug;
+    let counter = 1;
+
+    while (true) {
+      const { data, error } = await supabase!
+        .from('products')
+        .select('id')
+        .eq('slug', candidate)
+        .maybeSingle();
+      
+      if (error) throw error;
+      
+      // If no product found, or the product found is the one we're currently editing
+      if (!data || (currentId && data.id === currentId)) {
+        return candidate;
+      }
+      
+      candidate = `${baseSlug}-${counter}`;
+      counter++;
+    }
+  }
+
   async create(product: Product): Promise<Product | null> {
     console.log('Using Provider: Supabase');
+    
+    const finalSlug = await this.generateUniqueSlug(product.slug || product.name);
+
     const mapped = {
       sku: product.sku,
       name: product.name,
-      slug: product.slug || normalizeSlug(product.name),
+      slug: finalSlug,
       category: normalizeCategory(product.category),
       collection: product.collection ? normalizeCollection(product.collection) : '',
       images: product.images,
@@ -107,7 +138,13 @@ export class SupabaseProductRepository implements IProductRepository {
       .insert(mapped)
       .select('*')
       .single();
-    if (error) throw error;
+      
+    if (error) {
+      if (error.code === '23505' && error.message.includes('slug')) {
+        throw new Error('A product with this slug already exists. Please try a different name.');
+      }
+      throw error;
+    }
 
     // product_images table removed, using image_colors JSONB
 
@@ -129,8 +166,13 @@ export class SupabaseProductRepository implements IProductRepository {
   async update(id: string, updates: Partial<Product>): Promise<Product | null> {
     const mapped: any = {};
     if (updates.name) mapped.name = updates.name;
-    if (updates.slug) mapped.slug = normalizeSlug(updates.slug);
-    else if (updates.name) mapped.slug = normalizeSlug(updates.name);
+    
+    if (updates.slug) {
+      mapped.slug = await this.generateUniqueSlug(updates.slug, id);
+    } else if (updates.name) {
+      mapped.slug = await this.generateUniqueSlug(updates.name, id);
+    }
+    
     if (updates.category) mapped.category = normalizeCategory(updates.category);
     if (updates.collection !== undefined) mapped.collection = updates.collection ? normalizeCollection(updates.collection) : '';
     if (updates.sellingPrice) mapped.selling_price = updates.sellingPrice;

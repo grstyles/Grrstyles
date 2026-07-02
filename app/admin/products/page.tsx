@@ -27,8 +27,8 @@ const CATEGORIES = [
   'Shoes',
   'Combo Offer',
 ];
-const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const PANT_SIZES  = ['28', '30', '32', '34', '36', '38', '40'];
+const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
+const PANT_SIZES  = ['28', '30', '32', '34', '36', '38', '40', '42'];
 const SHOE_SIZES  = ['6', '7', '8', '9', '10', '11'];
 
 function getSizeOptions(cat: string) {
@@ -758,40 +758,52 @@ export default function AdminProductsPage() {
                 <label className="text-xs font-bold text-gray-500 uppercase">Sizes & Stock</label>
                 
                 <div className="mt-2 space-y-4">
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-700 mb-2">Shirt Sizes</h4>
-                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                      {sizesInput.filter(s => s.type === 'shirt').map((item) => (
-                        <div key={`shirt-${item.size}`} className="border rounded p-2 bg-gray-50">
-                          <span className="text-xs font-semibold">{item.size}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.stock}
-                            onChange={(e) => handleSizeStockChange(item.size, parseInt(e.target.value) || 0, 'shirt')}
-                            className="w-full mt-1 border-gray-300 rounded text-xs px-2 py-1"
-                          />
-                        </div>
-                      ))}
+                  {(!['Trousers', 'Denim Jeans', 'Formal Pant', 'Shoes'].includes(category) || category === 'Combo Offer') && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2">Shirt Sizes</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {sizesInput.filter(s => s.type === 'shirt').map((item) => (
+                          <div key={`shirt-${item.size}`} className="flex items-center gap-3">
+                            <span className="text-xs font-semibold w-8">{item.size}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.stock === 0 ? '' : item.stock}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                handleSizeStockChange(item.size, val === '' ? 0 : parseInt(val, 10), 'shirt');
+                              }}
+                              className="w-20 border border-gray-300 rounded text-xs px-2 py-1 focus:border-black focus:outline-none"
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-700 mb-2">Pant Sizes</h4>
-                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                      {sizesInput.filter(s => s.type === 'pant').map((item) => (
-                        <div key={`pant-${item.size}`} className="border rounded p-2 bg-gray-50">
-                          <span className="text-xs font-semibold">{item.size}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.stock}
-                            onChange={(e) => handleSizeStockChange(item.size, parseInt(e.target.value) || 0, 'pant')}
-                            className="w-full mt-1 border-gray-300 rounded text-xs px-2 py-1"
-                          />
-                        </div>
-                      ))}
+                  )}
+                  {(['Trousers', 'Denim Jeans', 'Formal Pant', 'Combo Offer'].includes(category)) && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2">Pant Sizes</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {sizesInput.filter(s => s.type === 'pant').map((item) => (
+                          <div key={`pant-${item.size}`} className="flex items-center gap-3">
+                            <span className="text-xs font-semibold w-8">{item.size}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.stock === 0 ? '' : item.stock}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                handleSizeStockChange(item.size, val === '' ? 0 : parseInt(val, 10), 'pant');
+                              }}
+                              className="w-20 border border-gray-300 rounded text-xs px-2 py-1 focus:border-black focus:outline-none"
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 

@@ -16,15 +16,17 @@ export async function POST(req: Request) {
       const { razorpay_order_id, razorpay_payment_id, payment_signature } = input;
       const key_secret = process.env.RAZORPAY_KEY_SECRET;
       
-      if (key_secret && razorpay_order_id && razorpay_payment_id && payment_signature) {
-        const generated_signature = crypto
-          .createHmac('sha256', key_secret)
-          .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-          .digest('hex');
-          
-        if (generated_signature !== payment_signature) {
-          return NextResponse.json({ error: 'Invalid payment signature' }, { status: 400 });
-        }
+      if (!key_secret || !razorpay_order_id || !razorpay_payment_id || !payment_signature) {
+        return NextResponse.json({ error: 'Missing payment verification details or server configuration' }, { status: 400 });
+      }
+      
+      const generated_signature = crypto
+        .createHmac('sha256', key_secret)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest('hex');
+        
+      if (generated_signature !== payment_signature) {
+        return NextResponse.json({ error: 'Invalid payment signature' }, { status: 400 });
       }
     }
 
@@ -37,6 +39,7 @@ export async function POST(req: Request) {
         customer_name: input.customerName,
         customer_email: input.email,
         customer_phone: input.phone,
+        alternate_phone: input.alternate_phone,
         shipping_address: input.shippingAddress,
         total_amount: input.totalAmount,
         status: input.status || 'Pending',
@@ -65,6 +68,43 @@ export async function POST(req: Request) {
       .single();
 
     if (error) throw error;
+    
+    // Reduce inventory after successful payment/order creation
+    try {
+      for (const item of input.items) {
+        if (item.productId && item.size && item.quantity) {
+          // Fetch current stock
+          const { data: currentProduct, error: fetchError } = await supabase
+            .from('products')
+            .select('sizes')
+            .eq('id', item.productId)
+            .maybeSingle();
+            
+          if (!fetchError && currentProduct) {
+            const sizes = currentProduct.sizes || [];
+            let updated = false;
+            
+            const newSizes = sizes.map((s: any) => {
+              if (s.size === item.size) {
+                updated = true;
+                return { ...s, stock: Math.max(0, s.stock - item.quantity) };
+              }
+              return s;
+            });
+            
+            if (updated) {
+              await supabase
+                .from('products')
+                .update({ sizes: newSizes })
+                .eq('id', item.productId);
+            }
+          }
+        }
+      }
+    } catch (invErr) {
+      console.error('Failed to reduce inventory:', invErr);
+      // We don't throw here to avoid failing the order response, but in a real system we might use a transaction.
+    }
     
     return NextResponse.json({ orderNumber });
   } catch (err: any) {

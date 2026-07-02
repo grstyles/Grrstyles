@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   LogOut,
   Shield,
+  Megaphone,
 } from 'lucide-react';
 import { authService, UserProfile } from '@/services/authService';
 import { addToast } from '@/lib/redux/slices/uiSlice';
@@ -59,6 +60,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Coupons', href: '/admin/coupons', icon: Tag },
     { name: 'Payments', href: '/admin/payments', icon: CreditCard },
     { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+    { name: 'Marketing', href: '/admin/marketing', icon: Megaphone },
     { name: 'Settings', href: '/admin/settings', icon: Settings },
   ];
 

@@ -13,8 +13,8 @@ export async function POST(req: Request) {
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!key_secret) {
-      console.warn("Razorpay credentials missing. Bypassing signature verification for development.");
-      return NextResponse.json({ success: true, message: 'Mock verification successful' });
+      console.error("Razorpay secret missing.");
+      return NextResponse.json({ error: 'Razorpay is not configured properly.' }, { status: 500 });
     }
 
     const generated_signature = crypto

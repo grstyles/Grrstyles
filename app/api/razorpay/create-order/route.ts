@@ -43,8 +43,8 @@ export async function POST(req: Request) {
     
     const finalAmount = calculatedSubtotal - calculatedDiscount + tax + shipping;
 
-    if (finalAmount <= 0) {
-      return NextResponse.json({ error: 'Invalid calculated amount' }, { status: 400 });
+    if (finalAmount < 1) {
+      return NextResponse.json({ error: 'Minimum order amount must be at least ₹1' }, { status: 400 });
     }
 
     const currency = 'INR';
@@ -54,15 +54,8 @@ export async function POST(req: Request) {
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!key_id || !key_secret) {
-      console.warn("Razorpay credentials missing. Using mock response for development.");
-      // Fallback for development if keys aren't set
-      return NextResponse.json({
-        id: `order_mock_${crypto.randomBytes(8).toString('hex')}`,
-        amount: Math.round(amount * 100),
-        currency,
-        receipt,
-        status: 'created'
-      });
+      console.error("Razorpay credentials missing.");
+      return NextResponse.json({ error: 'Razorpay is not configured properly on the server.' }, { status: 500 });
     }
 
     const razorpay = new Razorpay({

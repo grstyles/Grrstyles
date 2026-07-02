@@ -27,6 +27,7 @@ export default function CheckoutPage() {
     lastName: '',
     email: '',
     phone: '',
+    alternatePhone: '',
     address: '',
     city: '',
     state: '',
@@ -78,6 +79,7 @@ export default function CheckoutPage() {
       lastName,
       email: addr.email || user?.email || '',
       phone: addr.phone,
+      alternatePhone: '',
       address: addr.addressLine1 + (addr.addressLine2 ? `, ${addr.addressLine2}` : ''),
       city: addr.city,
       state: addr.state,
@@ -95,6 +97,7 @@ export default function CheckoutPage() {
         lastName: '',
         email: user?.email || '',
         phone: '',
+        alternatePhone: '',
         address: '',
         city: '',
         state: '',
@@ -164,6 +167,7 @@ export default function CheckoutPage() {
         customerName: orderPayload.customerName,
         email: orderPayload.email,
         phone: orderPayload.phone,
+        alternate_phone: orderPayload.alternatePhone,
         shippingAddress: orderPayload.shippingAddress,
         paymentMethod: orderPayload.paymentMethod,
         paymentStatus: orderPayload.paymentStatus || 'Pending',
@@ -245,6 +249,7 @@ export default function CheckoutPage() {
       customerName: `${formData.firstName} ${formData.lastName}`,
       email: formData.email,
       phone: formData.phone,
+      alternatePhone: formData.alternatePhone,
       shippingAddress: {
         address: formData.address,
         city: formData.city,
@@ -461,7 +466,15 @@ export default function CheckoutPage() {
                     value={formData.phone}
                     onChange={handleChange}
                     required
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-2"
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-1"
+                  />
+                  <input
+                    type="tel"
+                    name="alternatePhone"
+                    placeholder="Alternate Phone (Optional)"
+                    value={formData.alternatePhone}
+                    onChange={handleChange}
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-1"
                   />
                   <input
                     type="text"

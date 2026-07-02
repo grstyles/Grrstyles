@@ -5,13 +5,71 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useDispatch, useSelector } from 'react-redux';
-import { Minus, Plus, Trash2, ArrowLeft, Tag, ShoppingBag, ShieldCheck, Truck, Percent } from 'lucide-react';
+import { Minus, Plus, Trash2, ArrowLeft, Tag, ShoppingBag, ShieldCheck, Truck, Percent, Gift, Sparkles, CheckCircle2 } from 'lucide-react';
 import { RootState } from '@/lib/redux/store';
 import { removeFromCart, updateQuantity, applyPromo, removePromo, toggleSelectItem, toggleSelectAllItems, setDirectCheckoutItem } from '@/lib/redux/slices/cartSlice';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { formatPrice } from '@/lib/utils/helpers';
 import { repo } from '@/lib/repositories';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Reward } from '@/lib/redux/slices/cartSlice';
+
+function RewardsProgressBar({ subtotal, unlockedRewards }: { subtotal: number, unlockedRewards: Reward[] }) {
+  const tiers = [2000, 5000, 10000];
+  const maxTier = 10000;
+  const progress = Math.min((subtotal / maxTier) * 100, 100);
+  
+  const nextTier = tiers.find(t => t > subtotal) || maxTier;
+  const amountNeeded = nextTier - subtotal;
+
+  return (
+    <div className="bg-gradient-to-r from-[#1a1a1a] to-[#2c2c2c] rounded-2xl p-5 sm:p-6 mb-6 text-white shadow-xl relative overflow-hidden">
+      <div className="absolute right-0 top-0 opacity-10 pointer-events-none">
+        <Gift size={120} className="transform rotate-12 translate-x-4 -translate-y-4" />
+      </div>
+      <h3 className="text-lg font-serif font-bold mb-1 flex items-center gap-2">
+        <Sparkles size={18} className="text-yellow-400" />
+        GR Rewards
+      </h3>
+      <p className="text-sm text-gray-300 mb-4">
+        {amountNeeded > 0 
+          ? `Add ${formatPrice(amountNeeded)} more to unlock your next premium reward.`
+          : 'You have unlocked all premium rewards for this order!'}
+      </p>
+      
+      <div className="w-full bg-gray-700 rounded-full h-2.5 mb-4 relative">
+        <div className="bg-yellow-400 h-2.5 rounded-full transition-all duration-1000 ease-out" style={{ width: `${progress}%` }}></div>
+        {tiers.map((tier) => (
+          <div 
+            key={tier} 
+            className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-[#1a1a1a] flex items-center justify-center transition-colors duration-500"
+            style={{ 
+              left: `${(tier/maxTier)*100}%`,
+              transform: 'translate(-50%, -50%)',
+              backgroundColor: subtotal >= tier ? '#facc15' : '#4b5563'
+            }}
+          >
+            {subtotal >= tier && <CheckCircle2 size={10} className="text-black" />}
+          </div>
+        ))}
+      </div>
+      
+      {unlockedRewards.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-gray-700/50">
+          <p className="text-xs text-gray-400 uppercase tracking-widest mb-2 font-semibold">Unlocked Rewards</p>
+          <div className="flex flex-wrap gap-2">
+            {unlockedRewards.map(reward => (
+              <span key={reward.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-xs font-medium border border-white/5 shadow-sm">
+                <Gift size={12} className="text-yellow-400" />
+                {reward.title}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CartPage() {
   const dispatch = useDispatch();
@@ -29,6 +87,7 @@ export default function CartPage() {
   const discountValue = useSelector((state: RootState) => state.cart.discountValue);
   const discountType = useSelector((state: RootState) => state.cart.discountType);
   const appliedCode = useSelector((state: RootState) => state.cart.appliedPromo);
+  const unlockedRewards = useSelector((state: RootState) => state.cart.unlockedRewards);
 
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
@@ -172,6 +231,9 @@ export default function CartPage() {
           
           {/* Cart Items List */}
           <div className="lg:col-span-2 space-y-4">
+            
+            <RewardsProgressBar subtotal={subtotal} unlockedRewards={unlockedRewards} />
+
             <AnimatePresence mode="popLayout">
               {cartItems.map((item) => {
                 const uniqueKey = `${item.id}-${item.size || ''}-${item.color || ''}`;

@@ -309,7 +309,8 @@ export default function AdminOrderDetailsPage() {
               <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Mail size={16} /> Customer Info</h3>
               <p className="font-bold text-gray-900 text-lg">{order.customerName}</p>
               <p className="text-gray-600">{order.email}</p>
-              {order.phone && <p className="text-gray-600">{order.phone}</p>}
+              {order.phone && <p className="text-gray-600">Phone: {order.phone}</p>}
+              {order.alternate_phone && <p className="text-gray-600">Alt Phone: {order.alternate_phone}</p>}
             </div>
 
             <div className="border-t border-gray-100 pt-6">

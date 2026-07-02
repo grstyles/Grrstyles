@@ -1,22 +1,20 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import PremiumCategoryCarousel from "@/components/ui/PremiumCategoryCarousel";
-
-const homeCategories = [
-  "Shirts",
-  "T-Shirts",
-  "Trousers",
-  "Jackets",
-  "Hoodies",
-  "Jeans",
-  "Sweatshirts"
-];
+import { repo } from "@/lib/repositories";
+import { CategoryCarouselItem } from "@/lib/repositories/categoryCarouselRepository";
 
 export default function CategoriesSection() {
+  const [categories, setCategories] = useState<CategoryCarouselItem[]>([]);
+
+  useEffect(() => {
+    repo.categoryCarousel.getActive().then(setCategories);
+  }, []);
+
   return (
     <PremiumCategoryCarousel 
-      categories={homeCategories}
+      categories={categories}
       title="Shop by Category"
       subtitle="Discover premium essentials crafted for modern men."
     />

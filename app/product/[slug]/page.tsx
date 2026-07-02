@@ -40,8 +40,12 @@ export default function ProductDetailsPage() {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedShirtSize, setSelectedShirtSize] = useState<string | null>(null);
   const [selectedPantSize, setSelectedPantSize] = useState<string | null>(null);
-  const shirtSizes = product?.sizes?.filter((s: any) => s.type === 'shirt' && s.stock > 0) || [];
-  const pantSizes = product?.sizes?.filter((s: any) => s.type === 'pant' && s.stock > 0) || [];
+  const isCombo = product?.category === 'Combo Offer';
+  const isPantCategory = ['Trousers', 'Denim Jeans', 'Formal Pant'].includes(product?.category || '') || isCombo;
+  const isShirtCategory = !['Trousers', 'Denim Jeans', 'Formal Pant', 'Shoes'].includes(product?.category || '') || isCombo;
+
+  const shirtSizes = product?.sizes?.filter((s: any) => s.type === 'shirt' && s.stock > 0 && isShirtCategory) || [];
+  const pantSizes = product?.sizes?.filter((s: any) => s.type === 'pant' && s.stock > 0 && isPantCategory) || [];
   const genericSizes = product?.sizes?.filter((s: any) => (!s.type || (s.type !== 'shirt' && s.type !== 'pant')) && s.stock > 0) || [];
 
   const hasShirt = shirtSizes.length > 0;

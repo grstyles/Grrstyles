@@ -23,6 +23,7 @@ import {
 } from './interfaces';
 export type { IUserRepository, UserProfile, UserAddress } from './userRepository';
 import { IUserRepository, SupabaseUserRepository } from './userRepository';
+import { ICategoryCarouselRepository, SupabaseCategoryCarouselRepository } from './categoryCarouselRepository';
 
 import {
   SupabaseProductRepository,
@@ -43,6 +44,7 @@ interface RepositorySet {
   analytics: IAnalyticsRepository;
   users: IUserRepository;
   banners: IBannerRepository;
+  categoryCarousel: ICategoryCarouselRepository;
 }
 
 // ─── Factory Function ──────────────────────────────────────────────────────────
@@ -57,6 +59,7 @@ function createRepositories(): RepositorySet {
     analytics: new SupabaseAnalyticsRepository(),
     users: new SupabaseUserRepository(),
     banners: new SupabaseBannerRepository(),
+    categoryCarousel: new SupabaseCategoryCarouselRepository(),
   };
 }
 

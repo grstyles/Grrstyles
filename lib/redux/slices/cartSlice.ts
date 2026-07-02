@@ -16,6 +16,13 @@ export interface CartItem {
   sku?: string;
 }
 
+export interface Reward {
+  id: string;
+  type: 'GIFT' | 'COUPON' | 'CASHBACK' | 'SHIPPING';
+  title: string;
+  threshold: number;
+}
+
 interface CartState {
   items: CartItem[];
   total: number;
@@ -23,6 +30,7 @@ interface CartState {
   discountType: 'percentage' | 'flat';
   appliedPromo: string;
   directCheckoutItem: CartItem | null;
+  unlockedRewards: Reward[];
 }
 
 const initialState: CartState = {
@@ -32,6 +40,17 @@ const initialState: CartState = {
   discountType: 'percentage',
   appliedPromo: '',
   directCheckoutItem: null,
+  unlockedRewards: [],
+};
+
+const REWARD_TIERS: Reward[] = [
+  { id: 'r1', type: 'COUPON', title: '10% Extra Discount Coupon', threshold: 2000 },
+  { id: 'r2', type: 'GIFT', title: 'Free GR Premium Socks', threshold: 5000 },
+  { id: 'r3', type: 'GIFT', title: 'Premium Gift Box', threshold: 10000 },
+];
+
+const calculateRewards = (total: number) => {
+  return REWARD_TIERS.filter(r => total >= r.threshold).sort((a, b) => b.threshold - a.threshold);
 };
 
 const cartSlice = createSlice({
@@ -59,7 +78,8 @@ const cartSlice = createSlice({
         });
       }
 
-      state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+      state.total = state.items.reduce((sum, item) => sum + (item.selected ? item.discountedPrice * item.quantity : 0), 0);
+      state.unlockedRewards = calculateRewards(state.total);
       console.log('Cart state after update:', current(state));
     },
     removeFromCart: (state, action: PayloadAction<{ id: string; size?: string; color?: string }>) => {
@@ -76,7 +96,8 @@ const cartSlice = createSlice({
           )
       );
 
-      state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+      state.total = state.items.reduce((sum, item) => sum + (item.selected ? item.discountedPrice * item.quantity : 0), 0);
+      state.unlockedRewards = calculateRewards(state.total);
       console.log('Cart state after update:', current(state));
     },
     updateQuantity: (
@@ -96,7 +117,8 @@ const cartSlice = createSlice({
 
       if (item) {
         item.quantity = action.payload.quantity;
-        state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+        state.total = state.items.reduce((sum, item) => sum + (item.selected ? item.discountedPrice * item.quantity : 0), 0);
+        state.unlockedRewards = calculateRewards(state.total);
       }
 
       console.log('Cart state after update:', current(state));

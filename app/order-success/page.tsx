@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ShoppingBag, CheckCircle, ShieldCheck, Truck } from 'lucide-react';
 import { motion } from 'framer-motion';
+import ScratchCard from '@/components/ui/ScratchCard';
+import confetti from 'canvas-confetti';
 
 export default function OrderSuccessPage() {
   const [orderId, setOrderId] = useState('');
@@ -55,6 +57,17 @@ export default function OrderSuccessPage() {
         <p className="text-sm text-[#6b5b4b] mb-6">
           Thank you for shopping with GR STYLES. Your order has been placed successfully.
         </p>
+
+        {/* Scratch Card Section */}
+        <div className="mb-10">
+          <h3 className="text-sm font-semibold uppercase tracking-widest text-[#1a1a1a] mb-4 border-b border-gray-100 pb-2">A Gift For You</h3>
+          <ScratchCard 
+            rewardText="₹500 CASHBACK" 
+            onReveal={() => {
+              confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+            }} 
+          />
+        </div>
 
         {/* Order Details box */}
         <div className="bg-[#fcfbf9] border border-gray-100 rounded-2xl p-4 mb-8 text-left space-y-3">
