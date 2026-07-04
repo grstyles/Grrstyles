@@ -49,7 +49,7 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
       const mergedCart = [...dbCart];
 
       for (const localItem of cartItems) {
-        const dbIdx = mergedCart.findIndex((db) => db.id === localItem.id && db.size === localItem.size);
+        const dbIdx = mergedCart.findIndex((db) => db.id === localItem.id && db.size === localItem.size && db.shirtSize === localItem.shirtSize && db.pantSize === localItem.pantSize && db.shoeSize === localItem.shoeSize);
         if (dbIdx !== -1) {
           mergedCart[dbIdx].quantity = Math.max(mergedCart[dbIdx].quantity, localItem.quantity);
         } else {
@@ -114,7 +114,7 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
         // Upsert new or changed quantities
         for (const item of cartItems) {
           const prevItem = prevCart.find(
-            (p) => p.id === item.id && p.size === item.size
+            (p) => p.id === item.id && p.size === item.size && p.shirtSize === item.shirtSize && p.pantSize === item.pantSize && p.shoeSize === item.shoeSize
           );
           if (!prevItem || prevItem.quantity !== item.quantity) {
             await syncService.syncCartItem(userId, item);
@@ -124,10 +124,10 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
         // Delete removed items
         for (const prevItem of prevCart) {
           const stillExists = cartItems.some(
-            (item) => item.id === prevItem.id && item.size === prevItem.size
+            (item) => item.id === prevItem.id && item.size === prevItem.size && item.shirtSize === prevItem.shirtSize && item.pantSize === prevItem.pantSize && item.shoeSize === prevItem.shoeSize
           );
           if (!stillExists) {
-            await syncService.removeCartItem(userId, prevItem.id, prevItem.size);
+            await syncService.removeCartItem(userId, prevItem.id, prevItem.size, prevItem.shirtSize, prevItem.pantSize, prevItem.shoeSize);
           }
         }
       }

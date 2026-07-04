@@ -16,6 +16,9 @@ export interface MockOrderItem {
   quantity: number;
   price: number;
   color?: string;
+  shirtSize?: string;
+  pantSize?: string;
+  shoeSize?: string;
   image?: string;
   slug?: string;
   sku?: string;

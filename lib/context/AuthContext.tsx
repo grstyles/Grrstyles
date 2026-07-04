@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // If Supabase is configured, listen to auth state changes
     if (isSupabaseConfigured()) {
       const { data: { subscription } } = supabase!.auth.onAuthStateChange(
-        async (event, session) => {
+        async (event: any, session: any) => {
           if (session?.user) {
             const currentUser = await authService.getCurrentUser();
             setUser(currentUser);

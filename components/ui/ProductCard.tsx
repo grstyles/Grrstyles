@@ -46,11 +46,12 @@ export default function ProductCard({ product }: ProductCardProps) {
     e.preventDefault();
     e.stopPropagation();
 
-    // Check if size is required (has sizes and is not just 'One Size')
-    const needsSize =
-      product.sizes &&
-      product.sizes.length > 0 &&
-      !(product.sizes.length === 1 && product.sizes[0].size.toLowerCase() === 'one size');
+    // Check if size is required based on new stock objects
+    const hasShirtStock = Object.keys(product.shirtStock || {}).length > 0;
+    const hasPantStock = Object.keys(product.pantStock || {}).length > 0;
+    const hasShoeStock = Object.keys(product.shoeStock || {}).length > 0;
+    
+    const needsSize = hasShirtStock || hasPantStock || hasShoeStock;
 
     if (needsSize) {
       dispatch(addToast({ message: 'Please select a size first', type: 'info' }));
@@ -59,7 +60,6 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
 
     // Add to cart directly
-    const defaultSize = product.sizes?.[0]?.size || '';
     const defaultColor = product.colors?.[0] || '';
 
     dispatch(
@@ -72,7 +72,6 @@ export default function ProductCard({ product }: ProductCardProps) {
         discountedPrice: product.discountedPrice ?? product.price,
         image: product.images?.[0] ?? '',
         quantity: 1,
-        size: defaultSize,
         color: defaultColor,
         sku: product.sku,
       })

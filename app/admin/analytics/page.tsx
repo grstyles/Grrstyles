@@ -40,8 +40,8 @@ export default function AdminAnalyticsPage() {
     ? analytics.monthlyPerformance
     : [{ month: 'Current', revenue: analytics.totalRevenue, orders: analytics.totalOrders }];
 
-  const maxRevenue = Math.max(...revenueData.map((d) => d.revenue), 1);
-  const maxOrders = Math.max(...revenueData.map((d) => d.orders), 1);
+  const maxRevenue = Math.max(...(revenueData ?? []).map((d: any) => d.revenue), 1);
+  const maxOrders = Math.max(...(revenueData ?? []).map((d: any) => d.orders), 1);
 
   const kpiCards = [
     {
@@ -142,7 +142,7 @@ export default function AdminAnalyticsPage() {
         </div>
 
         <div className="flex items-end gap-3 h-48 pt-4">
-          {revenueData.map((d, i) => {
+          {(revenueData ?? []).map((d: any, i: number) => {
             const val = activeTab === 'revenue' ? d.revenue : d.orders;
             const maxVal = activeTab === 'revenue' ? maxRevenue : maxOrders;
             const heightPct = (val / maxVal) * 100;
@@ -175,7 +175,7 @@ export default function AdminAnalyticsPage() {
             Sales by Category
           </h3>
           <div className="space-y-4">
-            {analytics.topCategories.length > 0 ? analytics.topCategories.map((cat) => (
+            {analytics.topCategories.length > 0 ? (analytics.topCategories ?? []).map((cat: any) => (
               <div key={cat.name} className="space-y-1.5">
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-semibold text-gray-700 uppercase tracking-wide">{cat.name}</span>
@@ -200,7 +200,7 @@ export default function AdminAnalyticsPage() {
             Top Selling Products
           </h3>
           <div className="space-y-3">
-            {analytics.topProducts.length > 0 ? analytics.topProducts.map((product, i) => (
+            {analytics.topProducts.length > 0 ? (analytics.topProducts ?? []).map((product: any, i: number) => (
               <div key={product.sku} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
                 <div className="w-7 h-7 rounded-xl bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 flex-shrink-0">
                   {i + 1}
@@ -225,7 +225,7 @@ export default function AdminAnalyticsPage() {
         <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
           <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Recent Orders</h3>
           <div className="space-y-3">
-            {analytics.recentOrders.map((order) => (
+            {(analytics.recentOrders ?? []).map((order: any) => (
               <div key={order.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                 <div>
                   <p className="text-xs font-semibold text-gray-800">{order.orderNumber}</p>
@@ -243,7 +243,7 @@ export default function AdminAnalyticsPage() {
         <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm space-y-4">
           <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Low Stock Products</h3>
           <div className="space-y-3">
-            {analytics.lowStockProducts.slice(0, 8).map((item, i) => (
+            {(analytics.lowStockProducts ?? []).slice(0, 8).map((item: any, i: number) => (
               <div key={`${item.productId}-${item.size}-${i}`} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                 <div>
                   <p className="text-xs font-semibold text-gray-800">{item.name}</p>

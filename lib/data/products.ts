@@ -1,8 +1,4 @@
-export interface ProductSize {
-  size: string;
-  stock: number;
-  type?: 'shirt' | 'pant';
-}
+
 
 export interface ProductMetadata {
   dealOfDay?: boolean;
@@ -24,7 +20,10 @@ export interface Product {
   sellingPrice: number;
   label: string;
   description: string;
-  sizes: ProductSize[];
+   shirtStock?: Record<string, number>;
+  pantStock?: Record<string, number>;
+  shoeStock?: Record<string, number>;
+  overallStock?: number;
   title: string;
   brand: string;
   price: number;
@@ -64,13 +63,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['White', 'Black', 'Grey'],
     label: '',
     description: 'Classic oxford button-down shirt cut from premium cotton for an elegant structure.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.3,
     reviews: 16,
     inStock: true,
@@ -99,13 +98,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: '',
     description: 'Sharp formal dress shirt, perfect for boardroom meetings and formal gatherings.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.4,
     reviews: 20,
     inStock: true,
@@ -134,13 +133,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Beige', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Minimalist relaxed fit Korean style casual shirt with lightweight texture.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.5,
     reviews: 24,
     inStock: true,
@@ -169,13 +168,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: '',
     description: 'Versatile casual sky blue shirt for weekend ease and smart-casual layers.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.6,
     reviews: 28,
     inStock: true,
@@ -204,13 +203,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Green', 'Black', 'Grey'],
     label: 'BEST SELLER',
     description: 'Breathable linen blend shirt for warm summer days and beachside styling.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.7,
     reviews: 32,
     inStock: true,
@@ -239,13 +238,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Smart striped pattern office shirt for a polished daily presence.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.8,
     reviews: 36,
     inStock: true,
@@ -274,13 +273,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Beige', 'Black', 'Grey'],
     label: '',
     description: 'Relaxed weekend printed resort shirt for vacation and warm evenings.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.9,
     reviews: 40,
     inStock: true,
@@ -309,13 +308,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: '',
     description: 'Heavyweight cotton oversized tee with a modern drop shoulder and boxy fit.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 5.0,
     reviews: 44,
     inStock: true,
@@ -344,13 +343,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['White', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Ultra-soft premium crew neck tee for everyday comfort and layering.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.2,
     reviews: 48,
     inStock: true,
@@ -379,13 +378,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: 'BEST SELLER',
     description: 'Classic fit basic t-shirt made of high-quality Indian cotton.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.3,
     reviews: 52,
     inStock: true,
@@ -414,13 +413,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Beige', 'Black', 'Grey'],
     label: '',
     description: 'Soft neutral relaxed fit tee for clean minimalist looks.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.4,
     reviews: 56,
     inStock: true,
@@ -449,13 +448,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Green', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Olive streetwear aesthetic t-shirt with premium ribbed collar.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.5,
     reviews: 60,
     inStock: true,
@@ -484,13 +483,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Grey', 'Black', 'Grey'],
     label: '',
     description: 'Vintage wash graphic print tee with high-density minimalist screen print.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.6,
     reviews: 64,
     inStock: true,
@@ -519,13 +518,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: '',
     description: 'Knit textured polo shirt with vintage collar for a refined casual style.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.7,
     reviews: 68,
     inStock: true,
@@ -554,13 +553,9 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Tailored slim formal trousers in durable anti-wrinkle luxury fabric.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    pantStock: {
+
+      },
     rating: 4.8,
     reviews: 72,
     inStock: true,
@@ -589,13 +584,9 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Beige', 'Black', 'Grey'],
     label: '',
     description: 'Relaxed fit beige pants inspired by modern Seoul fashion silhouettes.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    pantStock: {
+
+      },
     rating: 4.9,
     reviews: 76,
     inStock: true,
@@ -624,13 +615,9 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Grey', 'Black', 'Grey'],
     label: '',
     description: 'Sleek slim fit trousers in textured charcoal grey weave.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    pantStock: {
+
+      },
     rating: 5.0,
     reviews: 80,
     inStock: true,
@@ -659,13 +646,9 @@ export const productDatabase: Record<string, Product> = {
     colors: ['White', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Fresh lightweight white trousers for summer parties and holidays.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    pantStock: {
+
+      },
     rating: 4.2,
     reviews: 84,
     inStock: true,
@@ -694,13 +677,9 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: '',
     description: 'Classic navy blue flat-front dress pants, tailored for business hours.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    pantStock: {
+
+      },
     rating: 4.3,
     reviews: 88,
     inStock: true,
@@ -729,13 +708,9 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Beige', 'Black', 'Grey'],
     label: 'BEST SELLER',
     description: 'Oversized drape trousers with elasticated side waistbands.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    pantStock: {
+
+      },
     rating: 4.4,
     reviews: 92,
     inStock: true,
@@ -764,13 +739,9 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Grey', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Soft brushed cotton casual chinos, tailored for smart-casual wear.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    pantStock: {
+
+      },
     rating: 4.5,
     reviews: 96,
     inStock: true,
@@ -799,13 +770,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: '',
     description: 'Sleek satin bomber jacket with silver zippers and ribbed collars.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.6,
     reviews: 100,
     inStock: true,
@@ -834,13 +805,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Brown', 'Black', 'Grey'],
     label: '',
     description: 'Heritage quality real leather jacket with soft lining.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.7,
     reviews: 104,
     inStock: true,
@@ -869,13 +840,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Heavyweight stone washed denim trucker jacket, timeless vintage look.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.8,
     reviews: 108,
     inStock: true,
@@ -904,13 +875,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Green', 'Black', 'Grey'],
     label: 'BEST SELLER',
     description: 'Military-style multi-pocket field jacket, robust and stylish.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.9,
     reviews: 112,
     inStock: true,
@@ -939,13 +910,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Beige', 'Black', 'Grey'],
     label: '',
     description: 'Light casual jacket in structured cotton drill.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 5.0,
     reviews: 116,
     inStock: true,
@@ -974,13 +945,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Warm insulated puffer coat, water-resistant outer shell.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.2,
     reviews: 120,
     inStock: true,
@@ -1009,13 +980,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Grey', 'Black', 'Grey'],
     label: '',
     description: 'Minimalist double-breasted short jacket with dropped shoulders.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    shirtStock: {
+        'S': 4,
+        'M': 10,
+        'L': 0,
+        'XL': 6,
+        'XXL': 3
+      },
     rating: 4.3,
     reviews: 124,
     inStock: true,
@@ -1044,13 +1015,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: '',
     description: 'Heavyweight organic cotton hoodie with kangaroo pocket.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.4,
     reviews: 128,
     inStock: true,
@@ -1079,13 +1044,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['White', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Clean white fleece-lined hoodie, cozy fit and minimalist design.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.5,
     reviews: 132,
     inStock: true,
@@ -1114,13 +1073,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Grey', 'Black', 'Grey'],
     label: '',
     description: 'Classic athletic grey marl hoodie with drawstring hood.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.6,
     reviews: 136,
     inStock: true,
@@ -1149,13 +1102,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Beige', 'Black', 'Grey'],
     label: '',
     description: 'Oversized heavy loopback terry hoodie in warm oat beige.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.7,
     reviews: 140,
     inStock: true,
@@ -1184,13 +1131,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Street fashion graphic print hoodie with relaxed drape.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.8,
     reviews: 144,
     inStock: true,
@@ -1219,13 +1160,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: '',
     description: 'Fine knit luxury cotton hoodie for casual layering.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.9,
     reviews: 148,
     inStock: true,
@@ -1254,13 +1189,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Grey', 'Black', 'Grey'],
     label: 'BEST SELLER',
     description: 'Full-zip front hoodie, soft fabric, and double-lined hood.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 5.0,
     reviews: 152,
     inStock: true,
@@ -1289,13 +1218,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Relaxed baggy silhouette jeans in premium light stone wash.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.2,
     reviews: 156,
     inStock: true,
@@ -1324,13 +1247,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: '',
     description: 'Deep black baggy fit jeans, washed denim structure.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.3,
     reviews: 160,
     inStock: true,
@@ -1359,13 +1276,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: '',
     description: 'Summer light wash denim jeans, straight fit design.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.4,
     reviews: 164,
     inStock: true,
@@ -1394,13 +1305,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Classic dark indigo wash raw denim jeans, slim taper.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.5,
     reviews: 168,
     inStock: true,
@@ -1429,13 +1334,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: 'BEST SELLER',
     description: 'Slim fit black stretch denim jeans, durable comfort.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.6,
     reviews: 12,
     inStock: true,
@@ -1464,13 +1363,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: '',
     description: 'Classic straight cut jeans, heavy rigid denim.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.7,
     reviews: 16,
     inStock: true,
@@ -1499,13 +1392,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Grey', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Distressed detail grey baggy leg jeans for modern streetwear.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.8,
     reviews: 20,
     inStock: true,
@@ -1534,13 +1421,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: '',
     description: 'Minimalist black crew neck sweatshirt in heavy loops cotton.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.9,
     reviews: 24,
     inStock: true,
@@ -1569,13 +1450,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Beige', 'Black', 'Grey'],
     label: '',
     description: 'Oatmeal beige cozy crew neck pullover sweatshirt.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 5.0,
     reviews: 28,
     inStock: true,
@@ -1604,13 +1479,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['White', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Bright white loopback cotton sweatshirt, clean casual look.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.2,
     reviews: 32,
     inStock: true,
@@ -1639,13 +1508,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Grey', 'Black', 'Grey'],
     label: '',
     description: 'Relaxed oversized crew neck sweatshirt, drop shoulders.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.3,
     reviews: 36,
     inStock: true,
@@ -1674,13 +1537,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: '',
     description: 'Clean chest-embroided tonal logo basic sweatshirt.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.4,
     reviews: 40,
     inStock: true,
@@ -1709,13 +1566,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Beige', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Draped wide-sleeve Korean cut fashion sweatshirt.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.5,
     reviews: 44,
     inStock: true,
@@ -1744,13 +1595,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: '',
     description: 'Fleece-back heavy winter sweatshirt for complete insulation.',
-    sizes: [
-      { size: 'S', stock: 4 },
-      { size: 'M', stock: 10 },
-      { size: 'L', stock: 0 },
-      { size: 'XL', stock: 6 },
-      { size: 'XXL', stock: 3 }
-    ],
+    overallStock: 23,
     rating: 4.6,
     reviews: 48,
     inStock: true,
@@ -1779,13 +1624,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Brown', 'Black', 'Grey'],
     label: 'BEST SELLER',
     description: 'Handcrafted brown Italian leather penny loafers with soft insoles.',
-    sizes: [
-      { size: '7', stock: 5 },
-      { size: '8', stock: 10 },
-      { size: '9', stock: 8 },
-      { size: '10', stock: 4 },
-      { size: '11', stock: 0 }
-    ],
+    shoeStock: {
+        '7': 5,
+        '8': 10,
+        '9': 8,
+        '10': 4,
+        '11': 0
+      },
     rating: 4.7,
     reviews: 52,
     inStock: true,
@@ -1814,13 +1659,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['White', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Minimalist white leather low-top sneakers, matching any outfit.',
-    sizes: [
-      { size: '7', stock: 5 },
-      { size: '8', stock: 10 },
-      { size: '9', stock: 8 },
-      { size: '10', stock: 4 },
-      { size: '11', stock: 0 }
-    ],
+    shoeStock: {
+        '7': 5,
+        '8': 10,
+        '9': 8,
+        '10': 4,
+        '11': 0
+      },
     rating: 4.8,
     reviews: 56,
     inStock: true,
@@ -1849,13 +1694,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Beige', 'Black', 'Grey'],
     label: '',
     description: 'Premium tan suede leather chelsea boots with elasticated sides.',
-    sizes: [
-      { size: '7', stock: 5 },
-      { size: '8', stock: 10 },
-      { size: '9', stock: 8 },
-      { size: '10', stock: 4 },
-      { size: '11', stock: 0 }
-    ],
+    shoeStock: {
+        '7': 5,
+        '8': 10,
+        '9': 8,
+        '10': 4,
+        '11': 0
+      },
     rating: 4.9,
     reviews: 60,
     inStock: true,
@@ -1884,13 +1729,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: '',
     description: 'Lightweight running trainers with breathable mesh and springy foam.',
-    sizes: [
-      { size: '7', stock: 5 },
-      { size: '8', stock: 10 },
-      { size: '9', stock: 8 },
-      { size: '10', stock: 4 },
-      { size: '11', stock: 0 }
-    ],
+    shoeStock: {
+        '7': 5,
+        '8': 10,
+        '9': 8,
+        '10': 4,
+        '11': 0
+      },
     rating: 5.0,
     reviews: 64,
     inStock: true,
@@ -1919,13 +1764,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Grey', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Retro grey trainers made of premium calf leather.',
-    sizes: [
-      { size: '7', stock: 5 },
-      { size: '8', stock: 10 },
-      { size: '9', stock: 8 },
-      { size: '10', stock: 4 },
-      { size: '11', stock: 0 }
-    ],
+    shoeStock: {
+        '7': 5,
+        '8': 10,
+        '9': 8,
+        '10': 4,
+        '11': 0
+      },
     rating: 4.2,
     reviews: 68,
     inStock: true,
@@ -1954,13 +1799,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: 'BEST SELLER',
     description: 'Elegant black velvet loafers, perfect for tuxedos.',
-    sizes: [
-      { size: '7', stock: 5 },
-      { size: '8', stock: 10 },
-      { size: '9', stock: 8 },
-      { size: '10', stock: 4 },
-      { size: '11', stock: 0 }
-    ],
+    shoeStock: {
+        '7': 5,
+        '8': 10,
+        '9': 8,
+        '10': 4,
+        '11': 0
+      },
     rating: 4.3,
     reviews: 72,
     inStock: true,
@@ -1989,13 +1834,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: '',
     description: 'Light casual canvas lace-ups with vulc rubber outsoles.',
-    sizes: [
-      { size: '7', stock: 5 },
-      { size: '8', stock: 10 },
-      { size: '9', stock: 8 },
-      { size: '10', stock: 4 },
-      { size: '11', stock: 0 }
-    ],
+    shoeStock: {
+        '7': 5,
+        '8': 10,
+        '9': 8,
+        '10': 4,
+        '11': 0
+      },
     rating: 4.4,
     reviews: 76,
     inStock: true,
@@ -2024,9 +1869,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Sleek black full-grain leather bifold wallet with RFID blocking.',
-    sizes: [
-      { size: 'One Size', stock: 15 }
-    ],
+    overallStock: 15,
     rating: 4.5,
     reviews: 80,
     inStock: true,
@@ -2055,9 +1898,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Grey', 'Black', 'Grey'],
     label: '',
     description: 'Premium analog watch with silver steel mesh strap.',
-    sizes: [
-      { size: 'One Size', stock: 15 }
-    ],
+    overallStock: 15,
     rating: 4.6,
     reviews: 84,
     inStock: true,
@@ -2086,9 +1927,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Black', 'Black', 'Grey'],
     label: '',
     description: 'Sleek acetate frame sunglasses with polarized UV400 lenses.',
-    sizes: [
-      { size: 'One Size', stock: 15 }
-    ],
+    overallStock: 15,
     rating: 4.7,
     reviews: 88,
     inStock: true,
@@ -2117,9 +1956,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Brown', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Full-grain brown leather belt with brass buckle.',
-    sizes: [
-      { size: 'One Size', stock: 15 }
-    ],
+    overallStock: 15,
     rating: 4.8,
     reviews: 92,
     inStock: true,
@@ -2148,9 +1985,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Blue', 'Black', 'Grey'],
     label: '',
     description: '100% pure silk woven pocket square, elegant paisley pattern.',
-    sizes: [
-      { size: 'One Size', stock: 15 }
-    ],
+    overallStock: 15,
     rating: 4.9,
     reviews: 96,
     inStock: true,
@@ -2179,9 +2014,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Grey', 'Black', 'Grey'],
     label: '',
     description: 'Warm merino wool ribbed beanie, elasticated cozy fit.',
-    sizes: [
-      { size: 'One Size', stock: 15 }
-    ],
+    overallStock: 15,
     rating: 5.0,
     reviews: 100,
     inStock: true,
@@ -2210,9 +2043,7 @@ export const productDatabase: Record<string, Product> = {
     colors: ['Beige', 'Black', 'Grey'],
     label: 'NEW',
     description: 'Heavy canvas weekend duffle bag with brown leather handles.',
-    sizes: [
-      { size: 'One Size', stock: 15 }
-    ],
+    overallStock: 15,
     rating: 4.2,
     reviews: 104,
     inStock: true,
@@ -2241,13 +2072,13 @@ export const productDatabase: Record<string, Product> = {
     colors: ['White'],
     label: 'NEW',
     description: 'Premium baggy pant with Denim fabric. Relaxed silhouette with wide-leg cut for the ultimate street-smart look. Crafted from premium denim for comfort and durability.',
-    sizes: [
-      { size: '28', stock: 5 },
-      { size: '30', stock: 5 },
-      { size: '32', stock: 5 },
-      { size: '34', stock: 5 },
-      { size: '36', stock: 5 },
-    ],
+    pantStock: {
+        '28': 5,
+        '30': 5,
+        '32': 5,
+        '34': 5,
+        '36': 5
+      },
     rating: 4.5,
     reviews: 0,
     inStock: true,
@@ -2278,11 +2109,7 @@ export const mapProduct = (p: any): Product => {
     discountPercent: p.discountPercent || p.discount || 0,
     label: p.label || (p.isNew ? 'NEW' : p.bestSeller ? 'BEST SELLER' : ''),
     description: p.description || '',
-    sizes: p.sizes
-      ? Array.isArray(p.sizes) && typeof p.sizes[0] === 'object'
-        ? p.sizes
-        : p.sizes.map((s: any) => ({ size: typeof s === 'string' ? s : s.size || '', stock: typeof s === 'string' ? 10 : s.stock || 0 }))
-      : [],
+
     brand: p.brand || 'GR Styles',
     rating: p.rating || 4.5,
     reviews: p.reviews || 0,

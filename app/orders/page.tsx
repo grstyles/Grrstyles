@@ -257,7 +257,10 @@ export default function OrdersPage() {
                                     <p className="font-bold text-gray-800 group-hover:underline">{item.productName}</p>
                                     <p className="text-[10px] text-gray-400 font-medium">
                                       {item.color && <span className="mr-2">Color: {item.color}</span>}
-                                      <span className="mr-2">Size: {item.size}</span>
+                                      {item.size && <span className="mr-2">Size: {item.size}</span>}
+                                      {item.shirtSize && <span className="mr-2">Shirt: {item.shirtSize}</span>}
+                                      {item.pantSize && <span className="mr-2">Pant: {item.pantSize}</span>}
+                                      {item.shoeSize && <span className="mr-2">Shoe: {item.shoeSize}</span>}
                                       <span>Qty: {item.quantity}</span>
                                     </p>
                                   </div>

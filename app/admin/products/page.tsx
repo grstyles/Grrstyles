@@ -17,15 +17,24 @@ const CATEGORIES = [
   'Shirts',
   'Printed Shirts',
   'T-Shirts',
+  'Formal Shirts',
+  'Combo Offers',
+  'Korean Collection',
+  'Baggy Pants',
+  'Korean Trousers',
+  'Shoes',
+  'Traditional Collection',
+  'Festival Collection',
+  'Trending Collection',
   'Jackets',
   'Night Tracks',
   'Accessories',
+  'Formal Combo',
   'Formal Pant',
-  'Formal Shirts',
   'Trousers',
   'Denim Jeans',
-  'Shoes',
-  'Combo Offer',
+  'Festival Offers',
+  'Weekend Offers'
 ];
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
 const PANT_SIZES  = ['28', '30', '32', '34', '36', '38', '40', '42'];
@@ -60,7 +69,10 @@ export default function AdminProductsPage() {
   const [sellingPrice, setSellingPrice] = useState('');
   const [description, setDescription] = useState('');
   const [label, setLabel] = useState('');
-  const [sizesInput, setSizesInput] = useState<{ size: string; stock: number; type?: 'shirt' | 'pant' }[]>([]);
+  const [shirtStockInput, setShirtStockInput] = useState<Record<string, number>>({});
+  const [pantStockInput, setPantStockInput] = useState<Record<string, number>>({});
+  const [shoeStockInput, setShoeStockInput] = useState<Record<string, number>>({});
+  const [overallStockInput, setOverallStockInput] = useState<number>(0);
   const [imagesList, setImagesList] = useState<string[]>([]);
   const [imageColors, setImageColors] = useState<string[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -109,45 +121,13 @@ export default function AdminProductsPage() {
       if (editId && items.length > 0) {
         const prod = items.find(p => p.id === editId);
         if (prod) {
-          handleEdit(prod);
+          populateFormFromProduct(prod);
           // Remove query param without refreshing
           window.history.replaceState({}, document.title, window.location.pathname);
         }
       }
     }
   }, [items]);
-
-  
-  // Initialize default sizes (always both Shirt and Pant)
-  useEffect(() => {
-    if (!editingId) {
-      const defaults = [
-        ...SHIRT_SIZES.map((s) => ({ size: s, stock: 10, type: 'shirt' as const })),
-        ...PANT_SIZES.map((s) => ({ size: s, stock: 10, type: 'pant' as const }))
-      ];
-      setSizesInput(defaults);
-    }
-  }, [editingId]);
-
-
-  const handleSizeStockChange = (size: string, val: number, type?: 'shirt' | 'pant') => {
-    setSizesInput((prev) =>
-      prev.map((item) => (item.size === size && item.type === type ? { ...item, stock: Math.max(0, val) } : item))
-    );
-  };
-
-  const handlePrimaryColorChange = (newColor: string) => {
-    setColor(newColor);
-    setImageColors((prev) => {
-      const updated = [...prev];
-      if (updated.length > 0) {
-        updated[0] = newColor;
-      } else {
-        updated.push(newColor);
-      }
-      return updated;
-    });
-  };
 
   const handleImageColorChange = (idx: number, val: string) => {
     setImageColors((prev) => {
@@ -254,6 +234,10 @@ export default function AdminProductsPage() {
     setSellingPrice('');
     setDescription('');
     setLabel('');
+    setShirtStockInput({});
+    setPantStockInput({});
+    setShoeStockInput({});
+    setOverallStockInput(0);
     setImagesList([]);
     setIsNewArrival(false);
     setIsTrending(false);
@@ -276,25 +260,10 @@ export default function AdminProductsPage() {
     setDescription(product.description);
     setLabel(product.label || '');
     
-    const defaults = [
-      ...SHIRT_SIZES.map((s) => ({ size: s, stock: 0, type: 'shirt' as const })),
-      ...PANT_SIZES.map((s) => ({ size: s, stock: 0, type: 'pant' as const }))
-    ];
-    if (product.sizes?.length) {
-      const merged = defaults.map(d => {
-        // Find by size string. For legacy, we just match the string.
-        const existing = product.sizes!.find(s => s.size === d.size);
-        if (existing) {
-          return { ...d, stock: existing.stock };
-        }
-        return d;
-      });
-      // Also add any custom sizes the product might have that aren't in defaults
-      const customSizes = product.sizes!.filter(s => !defaults.some(d => d.size === s.size));
-      setSizesInput([...merged, ...customSizes]);
-    } else {
-      setSizesInput(defaults);
-    }
+    setShirtStockInput(product.shirtStock || {});
+    setPantStockInput(product.pantStock || {});
+    setShoeStockInput(product.shoeStock || {});
+    setOverallStockInput(product.overallStock || 0);
 
     setImagesList(product.images || []);
 
@@ -344,14 +313,17 @@ export default function AdminProductsPage() {
       discountPercent: discount,
       label: effectiveLabel,
       description,
-      sizes: sizesInput.filter((s) => s.stock > 0),
+      shirtStock: shirtStockInput,
+      pantStock: pantStockInput,
+      shoeStock: shoeStockInput,
+      overallStock: overallStockInput,
       brand: brand || 'GR STYLES',
       rating: 5.0,
       reviews: 0,
       isNew: isNewArrival,
       bestSeller: isTrending,
-      inStock: sizesInput.some((s) => s.stock > 0),
-      stockCount: sizesInput.reduce((sum, s) => sum + s.stock, 0),
+      inStock: true, // recalculated in service
+      stockCount: 0, // recalculated in service
       metadata: {
         dealOfDay: isDealOfDay,
         featured: isFeatured,
@@ -390,6 +362,33 @@ export default function AdminProductsPage() {
           return;
         }
       }
+    }
+
+    // Validation
+    const isCombo = category === 'Combo Offers' || category === 'Formal Combo';
+    const isShirt = ['Shirts', 'Printed Shirts', 'T-Shirts', 'Formal Shirts', 'Korean Collection', 'Jackets', 'Night Tracks'].includes(category);
+    const isPant = ['Baggy Pants', 'Korean Trousers', 'Formal Pant', 'Trousers', 'Denim Jeans'].includes(category);
+    const isShoe = category === 'Shoes';
+
+    const hasShirtStock = Object.values(shirtStockInput).some(v => v > 0);
+    const hasPantStock = Object.values(pantStockInput).some(v => v > 0);
+    const hasShoeStock = Object.values(shoeStockInput).some(v => v > 0);
+    
+    if (isCombo && (!hasShirtStock || !hasPantStock)) {
+      dispatch(addToast({ message: 'Combo requires both Shirt and Pant inventory.', type: 'error' }));
+      return;
+    }
+    if (isShirt && !isCombo && !hasShirtStock) {
+      dispatch(addToast({ message: 'Shirt categories require Shirt inventory.', type: 'error' }));
+      return;
+    }
+    if (isPant && !isCombo && !hasPantStock) {
+      dispatch(addToast({ message: 'Pant categories require Pant inventory.', type: 'error' }));
+      return;
+    }
+    if (isShoe && !hasShoeStock) {
+      dispatch(addToast({ message: 'Shoe categories require Shoe inventory.', type: 'error' }));
+      return;
     }
 
     const tempId = editingId || `p-${Date.now()}`;
@@ -623,7 +622,7 @@ export default function AdminProductsPage() {
                     type="text"
                     required
                     value={color}
-                    onChange={(e) => handlePrimaryColorChange(e.target.value)}
+                    onChange={(e) => setColor(e.target.value)}
                     placeholder="e.g. White"
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
                     readOnly
@@ -754,25 +753,43 @@ export default function AdminProductsPage() {
             {/* Right: Sizes + Images */}
             <div className="space-y-5 bg-gray-50 p-4 rounded-2xl border border-gray-100">
               {/* Sizes */}
+              
+              {/* Sizes */}
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase">Sizes & Stock</label>
                 
-                <div className="mt-2 space-y-4">
-                  {(!['Trousers', 'Denim Jeans', 'Formal Pant', 'Shoes'].includes(category) || category === 'Combo Offer') && (
+                <div className="mt-4 space-y-6">
+                  {/* Accessories */}
+                  {['Accessories'].includes(category) && (
                     <div>
-                      <h4 className="text-xs font-semibold text-gray-700 mb-2">Shirt Sizes</h4>
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2">Overall Stock</h4>
+                      <input
+                        type="number"
+                        min="0"
+                        value={overallStockInput === 0 ? '' : overallStockInput}
+                        placeholder="0"
+                        onChange={(e) => setOverallStockInput(parseInt(e.target.value, 10) || 0)}
+                        className="w-32 border border-gray-300 rounded text-xs px-3 py-2 focus:border-black focus:outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* Shirts */}
+                  {(['Shirts', 'Printed Shirts', 'T-Shirts', 'Formal Shirts', 'Korean Collection', 'Jackets', 'Night Tracks', 'Combo Offers', 'Formal Combo', 'Party Combo', 'Combo Offer'].includes(category) || category.toLowerCase().includes('combo')) && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">Shirt Sizes <span className="text-[10px] text-gray-400 font-normal">(Enter quantity)</span></h4>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {sizesInput.filter(s => s.type === 'shirt').map((item) => (
-                          <div key={`shirt-${item.size}`} className="flex items-center gap-3">
-                            <span className="text-xs font-semibold w-8">{item.size}</span>
+                        {SHIRT_SIZES.map((size) => (
+                          <div key={'shirt-'+size} className="flex items-center gap-3">
+                            <span className="text-xs font-semibold w-8">{size}</span>
                             <input
                               type="number"
                               min="0"
-                              value={item.stock === 0 ? '' : item.stock}
+                              value={shirtStockInput[size] || ''}
                               placeholder="0"
                               onChange={(e) => {
-                                const val = e.target.value;
-                                handleSizeStockChange(item.size, val === '' ? 0 : parseInt(val, 10), 'shirt');
+                                const val = parseInt(e.target.value, 10) || 0;
+                                setShirtStockInput(prev => ({ ...prev, [size]: val }));
                               }}
                               className="w-20 border border-gray-300 rounded text-xs px-2 py-1 focus:border-black focus:outline-none"
                             />
@@ -781,21 +798,48 @@ export default function AdminProductsPage() {
                       </div>
                     </div>
                   )}
-                  {(['Trousers', 'Denim Jeans', 'Formal Pant', 'Combo Offer'].includes(category)) && (
+
+                  {/* Pants */}
+                  {(['Baggy Pants', 'Korean Trousers', 'Formal Pant', 'Trousers', 'Denim Jeans', 'Combo Offers', 'Formal Combo', 'Party Combo', 'Combo Offer'].includes(category) || category.toLowerCase().includes('combo')) && (
                     <div>
-                      <h4 className="text-xs font-semibold text-gray-700 mb-2">Pant Sizes</h4>
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">Pant Sizes <span className="text-[10px] text-gray-400 font-normal">(Enter quantity)</span></h4>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {sizesInput.filter(s => s.type === 'pant').map((item) => (
-                          <div key={`pant-${item.size}`} className="flex items-center gap-3">
-                            <span className="text-xs font-semibold w-8">{item.size}</span>
+                        {PANT_SIZES.map((size) => (
+                          <div key={'pant-'+size} className="flex items-center gap-3">
+                            <span className="text-xs font-semibold w-8">{size}</span>
                             <input
                               type="number"
                               min="0"
-                              value={item.stock === 0 ? '' : item.stock}
+                              value={pantStockInput[size] || ''}
                               placeholder="0"
                               onChange={(e) => {
-                                const val = e.target.value;
-                                handleSizeStockChange(item.size, val === '' ? 0 : parseInt(val, 10), 'pant');
+                                const val = parseInt(e.target.value, 10) || 0;
+                                setPantStockInput(prev => ({ ...prev, [size]: val }));
+                              }}
+                              className="w-20 border border-gray-300 rounded text-xs px-2 py-1 focus:border-black focus:outline-none"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Shoes */}
+                  {category === 'Shoes' && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">Shoe Sizes <span className="text-[10px] text-gray-400 font-normal">(Enter quantity)</span></h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {SHOE_SIZES.map((size) => (
+                          <div key={'shoe-'+size} className="flex items-center gap-3">
+                            <span className="text-xs font-semibold w-8">{size}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={shoeStockInput[size] || ''}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10) || 0;
+                                setShoeStockInput(prev => ({ ...prev, [size]: val }));
                               }}
                               className="w-20 border border-gray-300 rounded text-xs px-2 py-1 focus:border-black focus:outline-none"
                             />
@@ -806,7 +850,6 @@ export default function AdminProductsPage() {
                   )}
                 </div>
               </div>
-
               {/* Images and Colors */}
               <div className="space-y-4">
                 <label className="text-xs font-bold text-gray-500 uppercase">Product Images & Colors</label>
@@ -974,7 +1017,7 @@ export default function AdminProductsPage() {
                 {filteredItems.map((product) => {
                   const displayPrice = product.sellingPrice || product.discountedPrice || 0;
                   const originalPrice = product.mrpPrice || product.price || 0;
-                  const totalStock = (product.sizes || []).reduce((sum, s) => sum + s.stock, 0);
+                  const totalStock = product.stockCount || 0;
                   const imageSrc = product.images?.[0] || '/placeholder.png';
                   const isLowStock = totalStock > 0 && totalStock <= 5;
 

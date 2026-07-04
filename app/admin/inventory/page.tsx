@@ -61,7 +61,7 @@ export default function AdminInventoryPage() {
           if (item.id === itemId) {
             return {
               ...item,
-              sizeStock: item.sizeStock.map((ss) => ({
+              sizeStock: (item.sizeStock ?? []).map((ss: any) => ({
                 size: ss.size,
                 stock: editingStock[ss.size] !== undefined ? editingStock[ss.size] : ss.stock,
               })),
@@ -84,15 +84,15 @@ export default function AdminInventoryPage() {
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.category.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const aggregateStock = item.sizeStock.reduce((acc, ss) => acc + ss.stock, 0);
-    const isLow = aggregateStock > 0 && aggregateStock <= (LOW_STOCK_THRESHOLD * item.sizeStock.length);
+    const aggregateStock = (item.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0);
+    const isLow = aggregateStock > 0 && aggregateStock <= (LOW_STOCK_THRESHOLD * (item.sizeStock ?? []).length);
 
     return matchesSearch && (filterLowStock ? isLow : true);
   });
 
   const lowStockCount = inventoryList.filter((item) => {
-    const total = item.sizeStock.reduce((acc, ss) => acc + ss.stock, 0);
-    return total > 0 && total <= LOW_STOCK_THRESHOLD * item.sizeStock.length;
+    const total = (item.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0);
+    return total > 0 && total <= LOW_STOCK_THRESHOLD * (item.sizeStock ?? []).length;
   }).length;
 
   if (loading) {
@@ -167,8 +167,8 @@ export default function AdminInventoryPage() {
               <tbody className="divide-y divide-gray-100 text-xs">
                 {filteredList.map((item) => {
                   const isEditing = editingId === item.id;
-                  const aggregateStock = item.sizeStock.reduce((acc, ss) => acc + ss.stock, 0);
-                  const hasLowSize = item.sizeStock.some((ss) => ss.stock > 0 && ss.stock <= LOW_STOCK_THRESHOLD);
+                  const aggregateStock = (item.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0);
+                  const hasLowSize = (item.sizeStock ?? []).some((ss: any) => ss.stock > 0 && ss.stock <= LOW_STOCK_THRESHOLD);
                   const isOutOfStock = aggregateStock === 0;
 
                   return (
@@ -182,7 +182,7 @@ export default function AdminInventoryPage() {
                       <td className="p-4 text-gray-500 uppercase font-semibold">{item.category}</td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-1.5">
-                          {item.sizeStock.map((ss) => {
+                          {(item.sizeStock ?? []).map((ss: any) => {
                             const isLow = ss.stock > 0 && ss.stock <= LOW_STOCK_THRESHOLD;
                             const isEmpty = ss.stock === 0;
                             return (

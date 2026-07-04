@@ -45,11 +45,10 @@ export default function PremiumProductCard({ product }: PremiumProductCardProps)
     e.preventDefault();
     e.stopPropagation();
 
-    // Check if size is required (has sizes and is not just 'One Size')
-    const needsSize =
-      product.sizes &&
-      product.sizes.length > 0 &&
-      !(product.sizes.length === 1 && product.sizes[0].size.toLowerCase() === 'one size');
+    // Check if size is required
+    const needsSize = (product.shirtStock && Object.keys(product.shirtStock).length > 0) || 
+                      (product.pantStock && Object.keys(product.pantStock).length > 0) || 
+                      (product.shoeStock && Object.keys(product.shoeStock).length > 0);
 
     if (needsSize) {
       dispatch(addToast({ message: 'Please select a size first', type: 'info' }));
@@ -57,7 +56,7 @@ export default function PremiumProductCard({ product }: PremiumProductCardProps)
       return;
     }
 
-    const defaultSize = product.sizes?.[0]?.size || '';
+    const defaultSize = '';
     const defaultColor = product.colors?.[0] || '';
 
     dispatch(

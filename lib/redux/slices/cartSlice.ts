@@ -10,6 +10,9 @@ export interface CartItem {
   image: string;
   quantity: number;
   size?: string;
+  shirtSize?: string;
+  pantSize?: string;
+  shoeSize?: string;
   color?: string;
   selected?: boolean;
   custom_images?: { image_url: string; color_name: string }[];
@@ -66,6 +69,9 @@ const cartSlice = createSlice({
         (item) =>
           item.id === action.payload.id &&
           item.size === action.payload.size &&
+          item.shirtSize === action.payload.shirtSize &&
+          item.pantSize === action.payload.pantSize &&
+          item.shoeSize === action.payload.shoeSize &&
           item.color === action.payload.color
       );
 
@@ -82,7 +88,7 @@ const cartSlice = createSlice({
       state.unlockedRewards = calculateRewards(state.total);
       console.log('Cart state after update:', current(state));
     },
-    removeFromCart: (state, action: PayloadAction<{ id: string; size?: string; color?: string }>) => {
+    removeFromCart: (state, action: PayloadAction<{ id: string; size?: string; color?: string; shirtSize?: string; pantSize?: string; shoeSize?: string }>) => {
       console.log('Redux Action: cart/removeFromCart');
       console.log('Remove details received:', action.payload);
       console.log('Cart state before update:', current(state));
@@ -92,6 +98,9 @@ const cartSlice = createSlice({
           !(
             item.id === action.payload.id &&
             item.size === action.payload.size &&
+            item.shirtSize === action.payload.shirtSize &&
+            item.pantSize === action.payload.pantSize &&
+            item.shoeSize === action.payload.shoeSize &&
             item.color === action.payload.color
           )
       );
@@ -102,7 +111,7 @@ const cartSlice = createSlice({
     },
     updateQuantity: (
       state,
-      action: PayloadAction<{ id: string; size?: string; color?: string; quantity: number }>
+      action: PayloadAction<{ id: string; size?: string; color?: string; shirtSize?: string; pantSize?: string; shoeSize?: string; quantity: number }>
     ) => {
       console.log('Redux Action: cart/updateQuantity');
       console.log('Update details received:', action.payload);
@@ -112,6 +121,9 @@ const cartSlice = createSlice({
         (item) =>
           item.id === action.payload.id &&
           item.size === action.payload.size &&
+          item.shirtSize === action.payload.shirtSize &&
+          item.pantSize === action.payload.pantSize &&
+          item.shoeSize === action.payload.shoeSize &&
           item.color === action.payload.color
       );
 
@@ -125,12 +137,15 @@ const cartSlice = createSlice({
     },
     toggleSelectItem: (
       state,
-      action: PayloadAction<{ id: string; size?: string; color?: string }>
+      action: PayloadAction<{ id: string; size?: string; color?: string; shirtSize?: string; pantSize?: string; shoeSize?: string }>
     ) => {
       const item = state.items.find(
         (item) =>
           item.id === action.payload.id &&
           item.size === action.payload.size &&
+          item.shirtSize === action.payload.shirtSize &&
+          item.pantSize === action.payload.pantSize &&
+          item.shoeSize === action.payload.shoeSize &&
           item.color === action.payload.color
       );
       if (item) {

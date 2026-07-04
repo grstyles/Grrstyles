@@ -32,7 +32,7 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
     }));
   }
 
-  return {
+  const mappedProduct: Product = {
     id: db.product_id || db.id,
     productId: db.product_id || db.id,
     sku: db.sku || '',
@@ -52,27 +52,39 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
     discountPercent: discount,
     label: db.label || '',
     description: db.description,
-    sizes: db.sizes || [],
+    shirtStock: db.shirt_stock ?? {},
+    pantStock: db.pant_stock ?? {},
+    shoeStock: db.shoe_stock ?? {},
+    overallStock: db.overall_stock ?? 0,
     brand: db.brand || 'GR STYLES',
     rating: Number(db.rating || 5.0),
     reviews: Number(db.reviews_count || 0),
     isNew: !!db.new_arrival,
     bestSeller: !!db.trending,
-    inStock: (db.sizes || []).some((s: any) => s.stock > 0),
-    stockCount: db.stock !== undefined ? Number(db.stock) : (db.sizes || []).reduce((sum: number, s: any) => sum + (s.stock || 0), 0),
+    inStock: (db.overall_stock > 0) || 
+             (db.shirt_stock && Object.keys(db.shirt_stock).length > 0) || 
+             (db.pant_stock && Object.keys(db.pant_stock).length > 0) || 
+             (db.shoe_stock && Object.keys(db.shoe_stock).length > 0) || 
+             false,
+    stockCount: db.overall_stock || 0,
     metadata: {
       dealOfDay: !!(db.deal_of_day || db.deal_of_the_day),
       featured: !!db.featured,
       tags: db.tags || [],
     },
   };
+
+  console.log("RAW DB", db);
+  console.log("MAPPED PRODUCT", mappedProduct);
+
+  return mappedProduct;
 }
 
 export const productService = {
   async getProducts(): Promise<Product[]> {
     const productsRes = await supabase!.from('products').select('*').order('created_at', { ascending: false });
     if (productsRes.error || !productsRes.data) throw productsRes.error || new Error('No data');
-    return productsRes.data.map(p => mapDbProduct(p));
+    return productsRes.data.map((p: any) => mapDbProduct(p));
   },
 
   async getProductBySlug(slug: string): Promise<Product | null> {
@@ -92,7 +104,7 @@ export const productService = {
     // Query all products and then filter dynamically via matchCategory
     const productsRes = await supabase!.from('products').select('*');
     if (productsRes.error || !productsRes.data) throw productsRes.error || new Error('No data');
-    return productsRes.data.map(p => mapDbProduct(p)).filter((p) => matchCategory(p, normalizedSlug));
+    return productsRes.data.map((p: any) => mapDbProduct(p)).filter((p: any) => matchCategory(p, normalizedSlug));
   },
 
   async getProductsByCollection(collectionSlug: string): Promise<Product[]> {
@@ -126,7 +138,7 @@ export const productService = {
       const { data: allProds, error: allErr } = await supabase!.from('products').select('*');
       if (allErr) throw allErr;
       if (allProds) {
-        return allProds.map(p => mapDbProduct(p)).filter(p => {
+        return allProds.map((p: any) => mapDbProduct(p)).filter((p: any) => {
           if (slug === 'korean-collection') return p.name.toLowerCase().includes('korean') || p.description.toLowerCase().includes('korean');
           if (slug === 'festival-collection' || slug === 'festival-wear') return p.label === 'HOT' || p.discountPercent > 20 || p.label === 'NEW';
           if (slug === 'formal-collection' || slug === 'formal-wear') return p.name.toLowerCase().includes('formal') || p.description.toLowerCase().includes('formal') || p.name.toLowerCase().includes('office');
@@ -141,14 +153,14 @@ export const productService = {
       return [];
     }
 
-    return data.map(p => mapDbProduct(p));
+    return data.map((p: any) => mapDbProduct(p));
   },
 
   async getProductsByBrand(brandSlug: string): Promise<Product[]> {
     const cleanBrand = brandSlug.replace(/-/g, ' ').toLowerCase();
     const productsRes = await supabase!.from('products').select('*').ilike('brand', `%${cleanBrand}%`);
     if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map(p => mapDbProduct(p));
+    return (productsRes.data || []).map((p: any) => mapDbProduct(p));
   },
 
   async getProductsByFestival(festivalSlug: string): Promise<Product[]> {
@@ -171,7 +183,7 @@ export const productService = {
       .limit(4);
 
     if (error) throw error;
-    return (data || []).map(p => mapDbProduct(p));
+    return (data || []).map((p: any) => mapDbProduct(p));
   },
 
   async createProduct(p: Product): Promise<Product | null> {
@@ -183,8 +195,12 @@ export const productService = {
       collection: p.collection || '',
       images: p.images,
       color: p.color || '',
-      sizes: p.sizes,
-      stock: p.sizes?.reduce((sum: number, s: any) => sum + (s.stock || 0), 0) || 0,
+
+      shirt_stock: p.shirtStock || {},
+      pant_stock: p.pantStock || {},
+      shoe_stock: p.shoeStock || {},
+      overall_stock: p.overallStock || 0,
+      stock: p.overallStock || 0,
       mrp: p.mrpPrice,
       selling_price: p.sellingPrice,
       description: p.description,
@@ -338,7 +354,7 @@ export const productService = {
 
       if (allReviews && allReviews.length > 0) {
         const count = allReviews.length;
-        const avg = allReviews.reduce((sum, r) => sum + r.rating, 0) / count;
+        const avg = allReviews.reduce((sum: number, r: any) => sum + r.rating, 0) / count;
         await supabase!
           .from('products')
           .update({

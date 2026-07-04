@@ -59,7 +59,7 @@ export const adminService = {
       .neq('status', 'Cancelled');
     if (revenueErr) throw revenueErr;
 
-    const rev = (revenueData || []).reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const rev = (revenueData || []).reduce((sum: number, o: any) => sum + Number(o.total_amount || 0), 0);
 
     return {
       totalProducts: prodCount || 0,

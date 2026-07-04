@@ -38,7 +38,7 @@ export class SupabaseProductRepository implements IProductRepository {
   async getAll(): Promise<Product[]> {
     const productsRes = await supabase!.from('products').select('*').order('created_at', { ascending: false });
     if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map(p => mapDbProduct(p));
+    return (productsRes.data || []).map((p: any) => mapDbProduct(p));
   }
 
   async getById(id: string): Promise<Product | null> {
@@ -70,13 +70,13 @@ export class SupabaseProductRepository implements IProductRepository {
   async getByCategory(category: string): Promise<Product[]> {
     const productsRes = await supabase!.from('products').select('*').ilike('category', category).order('created_at', { ascending: false });
     if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map(p => mapDbProduct(p));
+    return (productsRes.data || []).map((p: any) => mapDbProduct(p));
   }
 
   async getByCollection(collection: string): Promise<Product[]> {
     const productsRes = await supabase!.from('products').select('*').ilike('collection', collection).order('created_at', { ascending: false });
     if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map(p => mapDbProduct(p));
+    return (productsRes.data || []).map((p: any) => mapDbProduct(p));
   }
 
   private async generateUniqueSlug(baseName: string, currentId?: string): Promise<string> {
@@ -121,8 +121,10 @@ export class SupabaseProductRepository implements IProductRepository {
       images: product.images,
       color: product.color || '',
       image_colors: (product as any).imageColors || null,
-      sizes: product.sizes,
-      stock: product.sizes?.reduce((sum: number, s: any) => sum + (s.stock || 0), 0) || 0,
+      shirt_stock: product.shirtStock || {},
+      pant_stock: product.pantStock || {},
+      shoe_stock: product.shoeStock || {},
+      overall_stock: product.overallStock || 0,
       mrp: product.mrpPrice,
       selling_price: product.sellingPrice,
       description: product.description,
@@ -177,10 +179,10 @@ export class SupabaseProductRepository implements IProductRepository {
     if (updates.collection !== undefined) mapped.collection = updates.collection ? normalizeCollection(updates.collection) : '';
     if (updates.sellingPrice) mapped.selling_price = updates.sellingPrice;
     if (updates.mrpPrice) mapped.mrp = updates.mrpPrice;
-    if (updates.sizes) {
-      mapped.sizes = updates.sizes;
-      mapped.stock = updates.sizes.reduce((sum: number, s: any) => sum + (s.stock || 0), 0);
-    }
+    if (updates.shirtStock !== undefined) mapped.shirt_stock = updates.shirtStock;
+    if (updates.pantStock !== undefined) mapped.pant_stock = updates.pantStock;
+    if (updates.shoeStock !== undefined) mapped.shoe_stock = updates.shoeStock;
+    if (updates.overallStock !== undefined) mapped.overall_stock = updates.overallStock;
     if (updates.description) mapped.description = updates.description;
     if (updates.isNew !== undefined) mapped.new_arrival = updates.isNew;
     if (updates.bestSeller !== undefined) mapped.trending = updates.bestSeller;
@@ -242,13 +244,13 @@ export class SupabaseProductRepository implements IProductRepository {
   async search(query: string): Promise<Product[]> {
     const productsRes = await supabase!.from('products').select('*').or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`);
     if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map(p => mapDbProduct(p));
+    return (productsRes.data || []).map((p: any) => mapDbProduct(p));
   }
 
   async getInventory(): Promise<InventoryEntry[]> {
     const { data, error } = await supabase!
       .from('products')
-      .select('id, name, slug, category, sizes')
+      .select('id, name, slug, category, shirt_stock, pant_stock, shoe_stock, overall_stock')
       .order('category');
     if (error) throw error;
     return (data || []).map((d: any) => ({
@@ -256,30 +258,39 @@ export class SupabaseProductRepository implements IProductRepository {
       name: d.name,
       slug: d.slug,
       category: d.category,
-      sizeStock: d.sizes || [],
+      shirtStock: d.shirt_stock || {},
+      pantStock: d.pant_stock || {},
+      shoeStock: d.shoe_stock || {},
+      overallStock: d.overall_stock || 0,
     }));
   }
 
-  async updateStock(productId: string, size: string, newStock: number): Promise<boolean> {
+  async updateStock(productId: string, size: string, newStock: number, type: 'shirt' | 'pant' | 'shoe' | 'overall' = 'overall'): Promise<boolean> {
+    const column = type === 'shirt' ? 'shirt_stock' : type === 'pant' ? 'pant_stock' : type === 'shoe' ? 'shoe_stock' : 'overall_stock';
+    
+    if (type === 'overall') {
+      const { error: updateError } = await supabase!
+        .from('products')
+        .update({ overall_stock: newStock })
+        .eq('id', productId);
+      if (updateError) throw updateError;
+      return true;
+    }
+
     const { data, error } = await supabase!
       .from('products')
-      .select('sizes')
+      .select(column)
       .eq('id', productId)
       .maybeSingle();
     if (error) throw error;
     if (!data) throw new Error('Product not found');
 
-    const current = data.sizes || [];
-    const updated = current.map((s: any) =>
-      s.size === size ? { ...s, stock: Math.max(0, newStock) } : s
-    );
-    if (!current.some((s: any) => s.size === size)) {
-      updated.push({ size, stock: Math.max(0, newStock) });
-    }
+    const current = data[column] || {};
+    current[size] = Math.max(0, newStock);
 
     const { error: updateError } = await supabase!
       .from('products')
-      .update({ sizes: updated })
+      .update({ [column]: current })
       .eq('id', productId);
     if (updateError) throw updateError;
     return true;
@@ -658,7 +669,7 @@ export class SupabaseStorageRepository implements IStorageRepository {
     const { error } = await supabase!.storage.from(bucket).upload(path, file);
     if (error) {
       console.error('Supabase upload error:', error);
-      return null;
+      throw error;
     }
     const { data } = supabase!.storage.from(bucket).getPublicUrl(path);
     return data.publicUrl;
@@ -698,7 +709,7 @@ export class SupabaseAnalyticsRepository implements IAnalyticsRepository {
       { data: ordersData, error: ordersError },
       { count: couponCount, error: couponError },
     ] = await Promise.all([
-      supabase!.from('products').select('id, name, sizes, category, sku'),
+      supabase!.from('products').select('id, name, shirt_stock, pant_stock, shoe_stock, overall_stock, category, sku'),
       supabase!.from('orders').select('id, order_number, customer_name, total_amount, status, created_at, items'),
       supabase!.from('coupons').select('*', { count: 'exact', head: true }).eq('active', true),
     ]);
@@ -714,11 +725,11 @@ export class SupabaseAnalyticsRepository implements IAnalyticsRepository {
     const totalOrders = orders.length;
     const totalCoupons = couponCount || 0;
 
-    const pendingOrders = orders.filter((o) => o.status === 'Pending').length;
+    const pendingOrders = orders.filter((o: any) => o.status === 'Pending').length;
     const validOrders = orders.filter(
-      (o) => o.status !== 'Cancelled' && o.status !== 'Returned'
+      (o: any) => o.status !== 'Cancelled' && o.status !== 'Returned'
     );
-    const totalRevenue = validOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const totalRevenue = validOrders.reduce((sum: number, o: any) => sum + Number(o.total_amount || 0), 0);
     const avgOrderValue =
       validOrders.length > 0 ? Math.round(totalRevenue / validOrders.length) : 0;
 
@@ -781,7 +792,7 @@ export class SupabaseAnalyticsRepository implements IAnalyticsRepository {
       .slice(0, 6);
 
     // 4. Recent orders
-    const recentOrders = orders.slice(0, 6).map((o) => ({
+    const recentOrders = orders.slice(0, 6).map((o: any) => ({
       id: o.id,
       orderNumber: o.order_number,
       customerName: o.customer_name,
@@ -798,16 +809,29 @@ export class SupabaseAnalyticsRepository implements IAnalyticsRepository {
       stock: number;
     }[] = [];
     for (const p of products) {
-      const sizesArray = p.sizes || [];
-      for (const s of sizesArray) {
-        if (s.stock >= 0 && s.stock <= 5) {
-          lowStockProducts.push({
-            productId: p.id,
-            name: p.name,
-            size: s.size,
-            stock: s.stock,
-          });
+      const checkStock = (stockObj: Record<string, number>) => {
+        if (!stockObj) return;
+        for (const [size, stock] of Object.entries(stockObj)) {
+          if (stock >= 0 && stock <= 5) {
+            lowStockProducts.push({
+              productId: p.id,
+              name: p.name,
+              size,
+              stock,
+            });
+          }
         }
+      };
+      checkStock(p.shirt_stock);
+      checkStock(p.pant_stock);
+      checkStock(p.shoe_stock);
+      if (p.overall_stock >= 0 && p.overall_stock <= 5) {
+        lowStockProducts.push({
+          productId: p.id,
+          name: p.name,
+          size: 'Overall',
+          stock: p.overall_stock,
+        });
       }
     }
     lowStockProducts.sort((a, b) => a.stock - b.stock);
@@ -849,7 +873,7 @@ export class SupabaseAnalyticsRepository implements IAnalyticsRepository {
     ];
     const orderStatusBreakdown = statusLabels.map((label) => ({
       label,
-      count: orders.filter((o) => o.status === label).length,
+      count: orders.filter((o: any) => o.status === label).length,
     }));
 
     return {

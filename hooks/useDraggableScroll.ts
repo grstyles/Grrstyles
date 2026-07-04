@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export function useDraggableScroll<T extends HTMLElement>() {
   const ref = useRef<T>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -10,59 +11,94 @@ export function useDraggableScroll<T extends HTMLElement>() {
     let isDown = false;
     let startX: number;
     let scrollLeft: number;
+    let velocity = 0;
+    let animationFrameId: number;
+    let lastX = 0;
+    let lastTime = 0;
 
-    const onPointerDown = (e: PointerEvent) => {
-      // Only apply drag logic for mouse, let touch use native scrolling
-      if (e.pointerType !== 'mouse') return;
-      
+    const applyMomentum = () => {
+      if (Math.abs(velocity) > 0.5) {
+        el.scrollLeft -= velocity;
+        velocity *= 0.95; // friction
+        animationFrameId = requestAnimationFrame(applyMomentum);
+      }
+    };
+
+    const onDown = (e: PointerEvent | MouseEvent | TouchEvent) => {
       isDown = true;
+      setIsDragging(true);
       el.style.cursor = 'grabbing';
       el.style.userSelect = 'none';
-      startX = e.pageX - el.offsetLeft;
+      cancelAnimationFrame(animationFrameId);
+
+      const pageX = 'touches' in e ? e.touches[0].pageX : (e as MouseEvent).pageX;
+      startX = pageX - el.offsetLeft;
       scrollLeft = el.scrollLeft;
+      lastX = pageX;
+      lastTime = performance.now();
+      velocity = 0;
     };
 
-    const onPointerLeave = (e: PointerEvent) => {
-      if (e.pointerType !== 'mouse') return;
+    const onLeaveOrUp = () => {
       isDown = false;
+      setIsDragging(false);
       el.style.cursor = 'grab';
       el.style.userSelect = 'auto';
+      
+      // Apply momentum when released
+      if (Math.abs(velocity) > 1) {
+        animationFrameId = requestAnimationFrame(applyMomentum);
+      }
     };
 
-    const onPointerUp = (e: PointerEvent) => {
-      if (e.pointerType !== 'mouse') return;
-      isDown = false;
-      el.style.cursor = 'grab';
-      el.style.userSelect = 'auto';
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
-      if (!isDown || e.pointerType !== 'mouse') return;
-      e.preventDefault();
-      const x = e.pageX - el.offsetLeft;
-      const walk = (x - startX) * 2.5; 
+    const onMove = (e: PointerEvent | MouseEvent | TouchEvent) => {
+      if (!isDown) return;
+      e.preventDefault(); // prevent native scroll
+      const pageX = 'touches' in e ? e.touches[0].pageX : (e as MouseEvent).pageX;
+      const x = pageX - el.offsetLeft;
+      const walk = (x - startX) * 1.5; 
       el.scrollLeft = scrollLeft - walk;
+
+      // Calculate velocity
+      const now = performance.now();
+      const dt = now - lastTime;
+      if (dt > 0) {
+        velocity = (pageX - lastX) / dt * 15;
+      }
+      lastX = pageX;
+      lastTime = now;
     };
 
-    // Ensure native smooth scrolling for touch devices
+    // Smooth scroll config
     el.style.overflowX = 'auto';
-    el.style.WebkitOverflowScrolling = 'touch';
-    // Remove scrollbar for cleaner look if not already done by CSS
     el.style.scrollbarWidth = 'none'; 
     el.style.cursor = 'grab';
+    el.style.scrollBehavior = 'auto'; // allow JS to scroll instantly
 
-    el.addEventListener('pointerdown', onPointerDown);
-    el.addEventListener('pointerleave', onPointerLeave);
-    el.addEventListener('pointerup', onPointerUp);
-    el.addEventListener('pointermove', onPointerMove);
+    el.addEventListener('mousedown', onDown);
+    el.addEventListener('mouseleave', onLeaveOrUp);
+    el.addEventListener('mouseup', onLeaveOrUp);
+    el.addEventListener('mousemove', onMove);
+    
+    el.addEventListener('touchstart', onDown, { passive: false });
+    el.addEventListener('touchend', onLeaveOrUp);
+    el.addEventListener('touchcancel', onLeaveOrUp);
+    el.addEventListener('touchmove', onMove, { passive: false });
 
     return () => {
-      el.removeEventListener('pointerdown', onPointerDown);
-      el.removeEventListener('pointerleave', onPointerLeave);
-      el.removeEventListener('pointerup', onPointerUp);
-      el.removeEventListener('pointermove', onPointerMove);
+      el.removeEventListener('mousedown', onDown);
+      el.removeEventListener('mouseleave', onLeaveOrUp);
+      el.removeEventListener('mouseup', onLeaveOrUp);
+      el.removeEventListener('mousemove', onMove);
+      
+      el.removeEventListener('touchstart', onDown);
+      el.removeEventListener('touchend', onLeaveOrUp);
+      el.removeEventListener('touchcancel', onLeaveOrUp);
+      el.removeEventListener('touchmove', onMove);
+      
+      cancelAnimationFrame(animationFrameId);
     };
   }, []);
 
-  return ref;
+  return { ref, isDragging };
 }

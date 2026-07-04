@@ -13,7 +13,7 @@ const categories = [
 ];
 
 export default function TrendingCarousel() {
-  const scrollRef = useDraggableScroll<HTMLDivElement>();
+  const { ref: scrollRef } = useDraggableScroll<HTMLDivElement>();
 
   return (
     <section className={styles.carouselSection}>

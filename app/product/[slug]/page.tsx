@@ -37,20 +37,35 @@ export default function ProductDetailsPage() {
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [selectedColorState, setSelectedColorState] = useState<string>('');
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedShirtSize, setSelectedShirtSize] = useState<string | null>(null);
   const [selectedPantSize, setSelectedPantSize] = useState<string | null>(null);
-  const isCombo = product?.category === 'Combo Offer';
+  const isCombo = product?.category === 'combo-offers' || product?.category === 'Formal Combo' || product?.category === 'Combo Offer' || product?.category?.toLowerCase().includes('combo');
   const isPantCategory = ['Trousers', 'Denim Jeans', 'Formal Pant'].includes(product?.category || '') || isCombo;
-  const isShirtCategory = !['Trousers', 'Denim Jeans', 'Formal Pant', 'Shoes'].includes(product?.category || '') || isCombo;
+  const isShirtCategory = !['Trousers', 'Denim Jeans', 'Formal Pant', 'Shoes', 'Accessories'].includes(product?.category || '') || isCombo;
 
-  const shirtSizes = product?.sizes?.filter((s: any) => s.type === 'shirt' && s.stock > 0 && isShirtCategory) || [];
-  const pantSizes = product?.sizes?.filter((s: any) => s.type === 'pant' && s.stock > 0 && isPantCategory) || [];
-  const genericSizes = product?.sizes?.filter((s: any) => (!s.type || (s.type !== 'shirt' && s.type !== 'pant')) && s.stock > 0) || [];
+  const STANDARD_SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
+  const STANDARD_PANT_SIZES = ['28', '30', '32', '34', '36', '38', '40', '42'];
 
-  const hasShirt = shirtSizes.length > 0;
-  const hasPant = pantSizes.length > 0;
-  const hasGeneric = !hasShirt && !hasPant && genericSizes.length > 0;
+  const shirtSizes = STANDARD_SHIRT_SIZES
+    .map(size => ({ size, stock: (product?.shirtStock?.[size] as number) || 0, type: 'shirt' }))
+    .filter(obj => isShirtCategory && (obj.stock > 0 || product?.shirtStock?.[obj.size] !== undefined));
+    
+  const pantSizes = STANDARD_PANT_SIZES
+    .map(size => ({ size, stock: (product?.pantStock?.[size] as number) || 0, type: 'pant' }))
+    .filter(obj => isPantCategory && (obj.stock > 0 || product?.pantStock?.[obj.size] !== undefined));
+    
+  const genericSizes = Object.entries(product?.shoeStock || {})
+    .filter(([_, stock]) => (stock as number) > 0)
+    .map(([size, stock]) => ({ size, stock, type: 'shoe' }));
+
+  const hasShirtStockConfigured = Object.keys(product?.shirtStock || {}).length > 0;
+  const hasPantStockConfigured = Object.keys(product?.pantStock || {}).length > 0;
+
+  const hasShirt = isShirtCategory && hasShirtStockConfigured;
+  const hasPant = isPantCategory && hasPantStockConfigured;
+  const hasGeneric = genericSizes.length > 0 || (product?.overallStock && product.overallStock > 0);
   const [quantity, setQuantity] = useState(1);
   const [sizeWarning, setSizeWarning] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -164,6 +179,7 @@ export default function ProductDetailsPage() {
       try {
         const data = await productService.getProductBySlug(slug);
         if (active && data) {
+          console.log("Product Page:", data);
           setProduct(data);
           const related = await productService.getRelatedProducts(slug);
           setRelatedProducts(related);
@@ -177,6 +193,11 @@ export default function ProductDetailsPage() {
             (c.applicableProducts?.includes(data.id) || !c.applicableProducts || c.applicableProducts.length === 0)
           );
           setApplicableCoupons(valid);
+          if (data.colors && data.colors.length > 0) {
+            setSelectedColorState(data.colors[0]);
+          } else if (data.imageColors && data.imageColors.length > 0) {
+            setSelectedColorState(data.imageColors[0].color_name);
+          }
         }
       } catch (err) {
         console.error('Error loading product details:', err);
@@ -219,21 +240,26 @@ export default function ProductDetailsPage() {
 
   const handleAddToCart = () => {
     if (hasShirt && hasPant) {
-      if (!selectedShirtSize || !selectedPantSize) {
+      if (!selectedShirtSize) {
         setSizeWarning(true);
-        dispatch(addToast({ message: "Please select both Shirt and Pant sizes", type: "error" }));
+        dispatch(addToast({ message: "Please select shirt size.", type: "error" }));
+        return;
+      }
+      if (!selectedPantSize) {
+        setSizeWarning(true);
+        dispatch(addToast({ message: "Please select pant size.", type: "error" }));
         return;
       }
     } else if (hasShirt) {
       if (!selectedShirtSize) {
         setSizeWarning(true);
-        dispatch(addToast({ message: "Please select a Shirt size", type: "error" }));
+        dispatch(addToast({ message: "Please select shirt size.", type: "error" }));
         return;
       }
     } else if (hasPant) {
       if (!selectedPantSize) {
         setSizeWarning(true);
-        dispatch(addToast({ message: "Please select a Pant size", type: "error" }));
+        dispatch(addToast({ message: "Please select pant size.", type: "error" }));
         return;
       }
     } else if (hasGeneric) {
@@ -260,6 +286,9 @@ export default function ProductDetailsPage() {
             : (product.images && product.images.length > 0 ? product.images[0] : ''),
           quantity: quantity,
           size: (hasShirt && hasPant) ? `Shirt: ${selectedShirtSize} / Pant: ${selectedPantSize}` : (hasShirt ? selectedShirtSize : (hasPant ? selectedPantSize : selectedSize)) || undefined,
+          shirtSize: selectedShirtSize || undefined,
+          pantSize: selectedPantSize || undefined,
+          shoeSize: selectedSize || undefined,
           color: selectedColor || undefined,
           sku: product.sku || undefined,
         }),
@@ -273,21 +302,26 @@ export default function ProductDetailsPage() {
 
   const handleBuyNow = () => {
     if (hasShirt && hasPant) {
-      if (!selectedShirtSize || !selectedPantSize) {
+      if (!selectedShirtSize) {
         setSizeWarning(true);
-        dispatch(addToast({ message: "Please select both Shirt and Pant sizes", type: "error" }));
+        dispatch(addToast({ message: "Please select shirt size.", type: "error" }));
+        return;
+      }
+      if (!selectedPantSize) {
+        setSizeWarning(true);
+        dispatch(addToast({ message: "Please select pant size.", type: "error" }));
         return;
       }
     } else if (hasShirt) {
       if (!selectedShirtSize) {
         setSizeWarning(true);
-        dispatch(addToast({ message: "Please select a Shirt size", type: "error" }));
+        dispatch(addToast({ message: "Please select shirt size.", type: "error" }));
         return;
       }
     } else if (hasPant) {
       if (!selectedPantSize) {
         setSizeWarning(true);
-        dispatch(addToast({ message: "Please select a Pant size", type: "error" }));
+        dispatch(addToast({ message: "Please select pant size.", type: "error" }));
         return;
       }
     } else if (hasGeneric) {
@@ -315,6 +349,9 @@ export default function ProductDetailsPage() {
             : (product.images && product.images.length > 0 ? product.images[0] : ''),
           quantity: quantity,
           size: (hasShirt && hasPant) ? `Shirt: ${selectedShirtSize} / Pant: ${selectedPantSize}` : (hasShirt ? selectedShirtSize : (hasPant ? selectedPantSize : selectedSize)) || undefined,
+          shirtSize: selectedShirtSize || undefined,
+          pantSize: selectedPantSize || undefined,
+          shoeSize: selectedSize || undefined,
           color: selectedColor || undefined,
           sku: product.sku || undefined,
         }),
@@ -371,7 +408,7 @@ export default function ProductDetailsPage() {
     ? product.imageColors.map((img: any) => ({ url: img.image_url, color: img.color_name }))
     : (product?.images || []).map((img: string) => ({ url: img, color: product?.colors?.[0] || 'Default' }));
 
-  const selectedColor = visibleImages[activeImageIndex]?.color || '';
+  const selectedColor = selectedColorState || visibleImages[activeImageIndex]?.color || '';
 
   const handleImageChange = (newIndex: number | 'next' | 'prev') => {
     let nextIndex = activeImageIndex;
@@ -384,9 +421,13 @@ export default function ProductDetailsPage() {
     }
     
     setActiveImageIndex(nextIndex);
+    if (visibleImages[nextIndex] && visibleImages[nextIndex].color) {
+      setSelectedColorState(visibleImages[nextIndex].color);
+    }
   };
 
   const handleColorSelect = (colorName: string) => {
+    setSelectedColorState(colorName);
     const firstIndex = visibleImages.findIndex((img: any) => img.color === colorName);
     if (firstIndex !== -1) {
       setActiveImageIndex(firstIndex);
@@ -588,56 +629,64 @@ export default function ProductDetailsPage() {
             <div className="mb-5">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-[#1a1a1a]">
-                  {(hasShirt && hasPant) ? 'Sizes' : 'Size'}
+                  {(isShirtCategory && isPantCategory) ? 'Sizes' : 'Size'}
                   {sizeWarning && <span className="text-red-500 text-xs ml-2">* Required</span>}
                 </span>
               </div>
               
               <div className="space-y-4">
-                  {hasShirt && (
+                  {isShirtCategory && (
                     <div>
-                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">{hasPant ? 'Shirt Size' : 'Select Size'}</span>
-                      <div className={`flex flex-wrap gap-2 p-1.5 rounded-xl border transition-all ${sizeWarning && !selectedShirtSize ? 'border-red-500 bg-red-50/20 shadow-[0_0_8px_rgba(239,68,68,0.2)] animate-pulse' : 'border-transparent'}`}>
-                        {shirtSizes.map((sizeObj: any) => {
-                          const size = sizeObj.size;
-                          const isSelected = selectedShirtSize === size;
-                          const isOutOfStock = sizeObj.stock === 0;
-                          return (
-                            <button
-                              key={'shirt-'+size}
-                              disabled={isOutOfStock}
-                              onClick={() => { setSelectedShirtSize(size); setSizeWarning(false); }}
-                              className={`w-14 h-14 border text-sm font-medium rounded-xl transition-all flex items-center justify-center relative ${isSelected ? 'border-black bg-black text-white shadow-md' : isOutOfStock ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50' : 'border-gray-200 bg-white text-[#1a1a1a] hover:border-black'}`}
-                            >
-                              {size}
-                              {isOutOfStock && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" /></div>}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">{isPantCategory ? 'Select Shirt Size' : 'Select Size'}</span>
+                      {shirtSizes.length > 0 ? (
+                        <div className={`flex flex-wrap gap-2 p-1.5 rounded-xl border transition-all ${sizeWarning && !selectedShirtSize ? 'border-red-500 bg-red-50/20 shadow-[0_0_8px_rgba(239,68,68,0.2)] animate-pulse' : 'border-transparent'}`}>
+                          {shirtSizes.map((sizeObj: any) => {
+                            const size = sizeObj.size;
+                            const isSelected = selectedShirtSize === size;
+                            const isOutOfStock = sizeObj.stock === 0;
+                            return (
+                              <button
+                                key={'shirt-'+size}
+                                disabled={isOutOfStock}
+                                onClick={() => { setSelectedShirtSize(size); setSizeWarning(false); }}
+                                className={`w-14 h-14 border text-sm font-medium rounded-xl transition-all flex items-center justify-center relative ${isSelected ? 'border-black bg-black text-white shadow-md' : isOutOfStock ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50' : 'border-gray-200 bg-white text-[#1a1a1a] hover:border-black'}`}
+                              >
+                                {size}
+                                {isOutOfStock && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" /></div>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400">No shirt sizes configured</p>
+                      )}
                     </div>
                   )}
-                  {hasPant && (
+                  {isPantCategory && (
                     <div>
-                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">{hasShirt ? 'Pant Size' : 'Select Size'}</span>
-                      <div className={`flex flex-wrap gap-2 p-1.5 rounded-xl border transition-all ${sizeWarning && !selectedPantSize ? 'border-red-500 bg-red-50/20 shadow-[0_0_8px_rgba(239,68,68,0.2)] animate-pulse' : 'border-transparent'}`}>
-                        {pantSizes.map((sizeObj: any) => {
-                          const size = sizeObj.size;
-                          const isSelected = selectedPantSize === size;
-                          const isOutOfStock = sizeObj.stock === 0;
-                          return (
-                            <button
-                              key={'pant-'+size}
-                              disabled={isOutOfStock}
-                              onClick={() => { setSelectedPantSize(size); setSizeWarning(false); }}
-                              className={`w-14 h-14 border text-sm font-medium rounded-xl transition-all flex items-center justify-center relative ${isSelected ? 'border-black bg-black text-white shadow-md' : isOutOfStock ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50' : 'border-gray-200 bg-white text-[#1a1a1a] hover:border-black'}`}
-                            >
-                              {size}
-                              {isOutOfStock && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" /></div>}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">{isShirtCategory ? 'Select Pant Size' : 'Select Size'}</span>
+                      {pantSizes.length > 0 ? (
+                        <div className={`flex flex-wrap gap-2 p-1.5 rounded-xl border transition-all ${sizeWarning && !selectedPantSize ? 'border-red-500 bg-red-50/20 shadow-[0_0_8px_rgba(239,68,68,0.2)] animate-pulse' : 'border-transparent'}`}>
+                          {pantSizes.map((sizeObj: any) => {
+                            const size = sizeObj.size;
+                            const isSelected = selectedPantSize === size;
+                            const isOutOfStock = sizeObj.stock === 0;
+                            return (
+                              <button
+                                key={'pant-'+size}
+                                disabled={isOutOfStock}
+                                onClick={() => { setSelectedPantSize(size); setSizeWarning(false); }}
+                                className={`w-14 h-14 border text-sm font-medium rounded-xl transition-all flex items-center justify-center relative ${isSelected ? 'border-black bg-black text-white shadow-md' : isOutOfStock ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50' : 'border-gray-200 bg-white text-[#1a1a1a] hover:border-black'}`}
+                              >
+                                {size}
+                                {isOutOfStock && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" /></div>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400">No pant sizes configured</p>
+                      )}
                     </div>
                   )}
                   {hasGeneric && (

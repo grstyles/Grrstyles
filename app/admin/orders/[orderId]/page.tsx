@@ -213,7 +213,7 @@ export default function AdminOrderDetailsPage() {
           <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
             <h3 className="text-lg font-bold mb-4">Ordered Products ({order.itemsCount})</h3>
             <div className="space-y-4">
-              {order.items?.map((item: MockOrderItem, idx) => {
+              {(order.items ?? []).map((item: MockOrderItem, idx) => {
                 const prod = productDetails[item.productId];
                 const isMissing = !prod || prod._missing;
                 
@@ -257,7 +257,7 @@ export default function AdminOrderDetailsPage() {
                           </div>
                           <div>
                             <p className="text-gray-400 uppercase tracking-wider text-[9px] font-bold">Selected Size</p>
-                            <p className="font-semibold mt-0.5">{item.size}</p>
+                            <p className="font-semibold mt-0.5">{item.size || ''} {item.shirtSize ? `Shirt: ${item.shirtSize}` : ''} {item.pantSize ? `Pant: ${item.pantSize}` : ''} {item.shoeSize ? `Shoe: ${item.shoeSize}` : ''}</p>
                           </div>
                         </div>
                       </div>
@@ -310,7 +310,7 @@ export default function AdminOrderDetailsPage() {
               <p className="font-bold text-gray-900 text-lg">{order.customerName}</p>
               <p className="text-gray-600">{order.email}</p>
               {order.phone && <p className="text-gray-600">Phone: {order.phone}</p>}
-              {order.alternate_phone && <p className="text-gray-600">Alt Phone: {order.alternate_phone}</p>}
+              {((order as any).alternate_phone) && <p className="text-gray-600">Alt Phone: {((order as any).alternate_phone)}</p>}
             </div>
 
             <div className="border-t border-gray-100 pt-6">

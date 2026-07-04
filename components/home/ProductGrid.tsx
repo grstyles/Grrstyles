@@ -73,10 +73,11 @@ export default function ProductGrid({ products }: ProductGridProps) {
 
     // 4. Size filter
     if (filters.sizes.length > 0) {
-      const hasSize = product.sizes?.some((s: any) => 
-        filters.sizes.includes(s.size) && s.stock > 0
-      );
-      if (!hasSize) return false;
+      const hasSizes = (product.overallStock && product.overallStock > 0) ||
+                   (product.shirtStock && Object.keys(product.shirtStock).length > 0) ||
+                   (product.pantStock && Object.keys(product.pantStock).length > 0) ||
+                   (product.shoeStock && Object.keys(product.shoeStock).length > 0);
+      if (!hasSizes) return false;
     }
 
     // 5. Color filter
@@ -92,7 +93,7 @@ export default function ProductGrid({ products }: ProductGridProps) {
       const hasStock = 
         product.inStock || 
         (product.stockCount && product.stockCount > 0) || 
-        product.sizes?.some((s: any) => s.stock > 0);
+        ((product as any).sizes || [])?.some((s: any) => s.stock > 0);
       if (!hasStock) return false;
     }
 

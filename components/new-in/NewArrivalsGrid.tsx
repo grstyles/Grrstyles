@@ -16,7 +16,7 @@ import { useDraggableScroll } from "@/hooks/useDraggableScroll";
 export default function NewArrivalsGrid() {
   const [activeCategory, setActiveCategory] = useState("All");
   const gridRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useDraggableScroll<HTMLDivElement>();
+  const { ref: scrollRef } = useDraggableScroll<HTMLDivElement>();
 
   const categories = [
     "All",

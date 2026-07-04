@@ -128,24 +128,24 @@ export default function AdminDashboard() {
   ];
 
   const recentActivity = [
-    ...(analytics?.recentOrders.slice(0, 3).map((o) => ({
+    ...((analytics?.recentOrders ?? []).slice(0, 3).map((o) => ({
       text: `Order ${o.orderNumber} from ${o.customerName} — ${formatDashboardPrice(o.totalAmount)}`,
       time: o.date,
       type: 'info' as const,
-    })) || []),
-    ...(analytics?.lowStockProducts.slice(0, 2).map((p) => ({
+    }))),
+    ...((analytics?.lowStockProducts ?? []).slice(0, 2).map((p) => ({
       text: `Stock low alert: ${p.name} (${p.size} → ${p.stock} unit${p.stock === 1 ? '' : 's'})`,
       time: 'Live',
       type: 'warning' as const,
-    })) || []),
+    }))),
   ];
 
   const activeStatusCount = (analytics?.orderStatusBreakdown || []).filter(item => item.count > 0).length;
 
   // Monthly Performance Chart Variables
   const monthlyData = analytics?.monthlyPerformance || [];
-  const maxRevenue = Math.max(...monthlyData.map((d) => d.revenue), 1);
-  const maxOrders = Math.max(...monthlyData.map((d) => d.orders), 1);
+  const maxRevenue = Math.max(...(monthlyData ?? []).map((d: any) => d.revenue), 1);
+  const maxOrders = Math.max(...(monthlyData ?? []).map((d: any) => d.orders), 1);
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -223,7 +223,7 @@ export default function AdminDashboard() {
 
           {hasData && monthlyData.length > 0 ? (
             <div className="flex items-end gap-3 h-48 pt-4">
-              {monthlyData.map((d, i) => {
+              {(monthlyData ?? []).map((d: any, i: number) => {
                 const val = performanceTab === 'revenue' ? d.revenue : d.orders;
                 const maxVal = performanceTab === 'revenue' ? maxRevenue : maxOrders;
                 const heightPct = (val / maxVal) * 100;
@@ -314,7 +314,7 @@ export default function AdminDashboard() {
           </h3>
           <div className="space-y-4">
             {hasData && analytics?.topCategories && analytics.topCategories.length > 0 ? (
-              analytics.topCategories.map((cat) => (
+              (analytics.topCategories ?? []).map((cat: any) => (
                 <div key={cat.name} className="space-y-1.5">
                   <div className="flex justify-between items-center text-xs">
                     <span className="font-semibold text-gray-700 uppercase tracking-wide">{cat.name}</span>
@@ -342,7 +342,7 @@ export default function AdminDashboard() {
           </h3>
           <div className="space-y-3">
             {hasData && analytics?.topProducts && analytics.topProducts.length > 0 ? (
-              analytics.topProducts.map((product, i) => (
+              (analytics.topProducts ?? []).map((product: any, i: number) => (
                 <div key={product.sku} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
                   <div className="w-7 h-7 rounded-xl bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 flex-shrink-0">
                     {i + 1}
@@ -387,7 +387,7 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {inventory.slice(0, 5).map((item) => (
+                    {(inventory ?? []).slice(0, 5).map((item: any) => (
                       <tr key={item.id} className="hover:bg-gray-50/30 transition-colors">
                         <td className="p-3 pl-5">
                           <div>
@@ -397,7 +397,7 @@ export default function AdminDashboard() {
                         </td>
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
-                            {item.sizeStock.map((ss) => (
+                            {(item.sizeStock ?? []).map((ss: any) => (
                               <span key={ss.size} className="text-[9px] bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md font-mono font-semibold">
                                 {ss.size}:{ss.stock}
                               </span>
@@ -406,7 +406,7 @@ export default function AdminDashboard() {
                         </td>
                         <td className="p-3 text-right pr-5">
                           <span className="font-bold text-xs text-gray-900">
-                            {item.sizeStock.reduce((acc, ss) => acc + ss.stock, 0)} Units
+                            {(item.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0)} Units
                           </span>
                         </td>
                       </tr>
@@ -437,7 +437,7 @@ export default function AdminDashboard() {
           </h3>
           <div className="space-y-3 divide-y divide-gray-50">
             {recentActivity.length > 0 ? (
-              recentActivity.map((activity, i) => (
+              (recentActivity ?? []).map((activity: any, i: number) => (
                 <div key={i} className="flex items-start gap-3 pt-3 first:pt-0">
                   <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
                     activity.type === 'info' ? 'bg-blue-400' : 'bg-amber-400'
@@ -467,7 +467,7 @@ export default function AdminDashboard() {
           </h3>
           <div className="space-y-2.5">
             {analytics?.lowStockProducts && analytics.lowStockProducts.length > 0 ? (
-              analytics.lowStockProducts.slice(0, 5).map((item, i) => (
+              (analytics.lowStockProducts ?? []).slice(0, 5).map((item: any, i: number) => (
                 <div key={`${item.productId}-${item.size}-${i}`} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                   <div>
                     <p className="text-xs font-semibold text-gray-800">{item.name}</p>

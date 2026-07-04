@@ -49,7 +49,12 @@ export default function NewInClient({ initialProducts }: NewInClientProps) {
     });
 
     if (newFilters.sizes?.length > 0) {
-      filtered = filtered.filter(p => p.sizes?.some(s => newFilters.sizes.includes(s.size) && s.stock > 0));
+      filtered = filtered.filter(p => {
+        const shirtMatch = Object.entries(p.shirtStock || {}).some(([size, stock]) => newFilters.sizes.includes(size) && (stock as number) > 0);
+        const pantMatch = Object.entries(p.pantStock || {}).some(([size, stock]) => newFilters.sizes.includes(size) && (stock as number) > 0);
+        const shoeMatch = Object.entries(p.shoeStock || {}).some(([size, stock]) => newFilters.sizes.includes(size) && (stock as number) > 0);
+        return shirtMatch || pantMatch || shoeMatch;
+      });
     }
 
     if (newFilters.colors?.length > 0) {
@@ -68,8 +73,10 @@ export default function NewInClient({ initialProducts }: NewInClientProps) {
     if (newFilters.inStock) {
       filtered = filtered.filter(p => 
         p.inStock || 
-        (p.stockCount && p.stockCount > 0) || 
-        p.sizes?.some(s => s.stock > 0)
+        (p.overallStock && p.overallStock > 0) ||
+        Object.values(p.shirtStock || {}).some(s => (s as number) > 0) ||
+        Object.values(p.pantStock || {}).some(s => (s as number) > 0) ||
+        Object.values(p.shoeStock || {}).some(s => (s as number) > 0)
       );
     }
 

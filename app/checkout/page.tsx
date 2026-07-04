@@ -167,7 +167,7 @@ export default function CheckoutPage() {
         customerName: orderPayload.customerName,
         email: orderPayload.email,
         phone: orderPayload.phone,
-        alternate_phone: orderPayload.alternatePhone,
+
         shippingAddress: orderPayload.shippingAddress,
         paymentMethod: orderPayload.paymentMethod,
         paymentStatus: orderPayload.paymentStatus || 'Pending',
@@ -181,7 +181,7 @@ export default function CheckoutPage() {
         items: cartItems.map((item) => ({
           productId: item.id,
           productName: item.title,
-          size: item.size || 'One Size',
+          size: item.size || '', shirtSize: item.shirtSize || '', pantSize: item.pantSize || '', shoeSize: item.shoeSize || '',
           quantity: item.quantity,
           price: item.discountedPrice,
           color: item.color,
@@ -625,7 +625,7 @@ export default function CheckoutPage() {
             {/* Items */}
             <div className="mb-6 max-h-64 overflow-y-auto space-y-3">
               {cartItems.map((item) => {
-                const uniqueKey = `${item.id}-${item.size || ''}-${item.color || ''}`;
+                const uniqueKey = `${item.id}-${item.size || ''}-${item.shirtSize || ''}-${item.pantSize || ''}-${item.shoeSize || ''}-${item.color || ''}`;
                 return (
                   <div key={uniqueKey} className="flex gap-4 text-sm pb-3 border-b border-gray-200 items-start group">
                     {item.image ? (
@@ -638,7 +638,7 @@ export default function CheckoutPage() {
                     <div className="flex-1 space-y-0.5">
                       <p className="font-medium text-gray-800 leading-tight">{item.title}</p>
                       <p className="text-[11px] text-gray-400">
-                        Qty: {item.quantity} {item.size ? `| Size: ${item.size}` : ''} {item.color ? `| Color: ${item.color}` : ''}
+                        Qty: {item.quantity} {item.size ? `| Size: ${item.size}` : ''} {item.shirtSize ? `| Shirt: ${item.shirtSize}` : ''} {item.pantSize ? `| Pant: ${item.pantSize}` : ''} {item.shoeSize ? `| Shoe: ${item.shoeSize}` : ''} {item.color ? `| Color: ${item.color}` : ''}
                       </p>
                     </div>
                     <span className="font-semibold text-gray-800 shrink-0">{formatPrice(item.discountedPrice * item.quantity)}</span>

@@ -4,8 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { GripVertical, Plus, Trash2, Save, X, Edit, Upload } from 'lucide-react';
 import { repo } from '@/lib/repositories';
 import { CategoryCarouselItem } from '@/lib/repositories/categoryCarouselRepository';
+import { supabase } from '@/lib/supabase';
+import { useDispatch } from 'react-redux';
+import { addToast } from '@/lib/redux/slices/uiSlice';
 
 export default function CategoryCarouselTab() {
+  const dispatch = useDispatch();
   const [categories, setCategories] = useState<CategoryCarouselItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -83,7 +87,7 @@ export default function CategoryCarouselTab() {
 
   const saveEdit = async () => {
     if (!editForm.title || !editForm.slug) {
-      alert('Title and slug are required.');
+      dispatch(addToast({ message: 'Title and slug are required.', type: 'error' }));
       return;
     }
 
@@ -101,9 +105,9 @@ export default function CategoryCarouselTab() {
         setCategories(categories.map(c => c.id === editingId ? updatedItem : c));
       }
       setEditingId(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to save category. Check console for details.');
+      dispatch(addToast({ message: err.message || 'Failed to save category', type: 'error' }));
     }
   };
 
@@ -113,18 +117,26 @@ export default function CategoryCarouselTab() {
 
     setUploadingImage(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        dispatch(addToast({ message: "Please login again.", type: 'error' }));
+        return;
+      }
+
       // NOTE: Our IStorageRepository expects bucket names typed but accepts strings if cast
       const url = await repo.storage.uploadImage(file, 'category-images' as any);
       if (!url) {
          // Fallback if RLS or bucket is missing
          console.warn('Storage upload failed, fallback to local path');
-         alert('Supabase Storage failed (missing bucket or permissions). Using placeholder.');
+         dispatch(addToast({ message: 'Supabase Storage failed (missing bucket or permissions). Using placeholder.', type: 'error' }));
          setEditForm({ ...editForm, image_url: '/images/categories/category-placeholder.png' });
          return;
       }
       setEditForm({ ...editForm, image_url: url });
-    } catch (err) {
+      // UI refresh happens when user clicks Save, as editForm is just local state
+    } catch (err: any) {
       console.error(err);
+      dispatch(addToast({ message: err.message || 'Storage upload failed', type: 'error' }));
     } finally {
       setUploadingImage(false);
     }

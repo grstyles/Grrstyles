@@ -21,8 +21,14 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
   const dispatch = useDispatch();
   const router = useRouter();
   const [quantity, setQuantity] = useState(1);
-  const [selectedSize, setSelectedSize] = useState<string>("");
-  const [selectedColor, setSelectedColor] = useState<string>("");
+  const [selectedShirtSize, setSelectedShirtSize] = useState<string>("");
+  const [selectedPantSize, setSelectedPantSize] = useState<string>("");
+  const [selectedShoeSize, setSelectedShoeSize] = useState<string>("");
+  const [selectedColor, setSelectedColor] = useState<string>(() => {
+    if (product?.colors && product.colors.length > 0) return product.colors[0];
+    if (product?.imageColors && product.imageColors.length > 0) return product.imageColors[0].color_name;
+    return "";
+  });
   const [sizeError, setSizeError] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
@@ -65,20 +71,23 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
     e.stopPropagation();
 
     // Check size selection
-    const sizeRequired =
-      product.sizes &&
-      product.sizes.length > 0 &&
-      !(
-        product.sizes.length === 1 &&
-        (typeof product.sizes[0] === "string"
-          ? product.sizes[0]
-          : product.sizes[0].size || ""
-        ).toLowerCase() === "one size"
-      );
-
-    if (sizeRequired && !selectedSize) {
+    const hasShirtStock = Object.keys(product.shirtStock || {}).length > 0;
+    const hasPantStock = Object.keys(product.pantStock || {}).length > 0;
+    const hasShoeStock = Object.keys(product.shoeStock || {}).length > 0;
+    
+    if (hasShirtStock && !selectedShirtSize) {
       setSizeError(true);
-      dispatch(addToast({ message: "Please select a size first", type: "error" }));
+      dispatch(addToast({ message: "Please select shirt size.", type: "error" }));
+      return;
+    }
+    if (hasPantStock && !selectedPantSize) {
+      setSizeError(true);
+      dispatch(addToast({ message: "Please select pant size.", type: "error" }));
+      return;
+    }
+    if (hasShoeStock && !selectedShoeSize) {
+      setSizeError(true);
+      dispatch(addToast({ message: "Please select shoe size.", type: "error" }));
       return;
     }
     setSizeError(false);
@@ -95,7 +104,9 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
           discountedPrice: price,
           image,
           quantity,
-          size: selectedSize || undefined,
+          shirtSize: selectedShirtSize || undefined,
+          pantSize: selectedPantSize || undefined,
+          shoeSize: selectedShoeSize || undefined,
           color: selectedColor || undefined,
           sku: product.sku || undefined,
         })
@@ -122,20 +133,23 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
     e.preventDefault();
     e.stopPropagation();
 
-    const sizeRequired =
-      product.sizes &&
-      product.sizes.length > 0 &&
-      !(
-        product.sizes.length === 1 &&
-        (typeof product.sizes[0] === "string"
-          ? product.sizes[0]
-          : product.sizes[0].size || ""
-        ).toLowerCase() === "one size"
-      );
-
-    if (sizeRequired && !selectedSize) {
+    const hasShirtStock = Object.keys(product.shirtStock || {}).length > 0;
+    const hasPantStock = Object.keys(product.pantStock || {}).length > 0;
+    const hasShoeStock = Object.keys(product.shoeStock || {}).length > 0;
+    
+    if (hasShirtStock && !selectedShirtSize) {
       setSizeError(true);
-      dispatch(addToast({ message: "Please select a size first", type: "error" }));
+      dispatch(addToast({ message: "Please select shirt size.", type: "error" }));
+      return;
+    }
+    if (hasPantStock && !selectedPantSize) {
+      setSizeError(true);
+      dispatch(addToast({ message: "Please select pant size.", type: "error" }));
+      return;
+    }
+    if (hasShoeStock && !selectedShoeSize) {
+      setSizeError(true);
+      dispatch(addToast({ message: "Please select shoe size.", type: "error" }));
       return;
     }
     setSizeError(false);
@@ -153,7 +167,7 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
           discountedPrice: price,
           image,
           quantity: quantity,
-          size: selectedSize || undefined,
+          shirtSize: selectedShirtSize || undefined, pantSize: selectedPantSize || undefined, shoeSize: selectedShoeSize || undefined,
           color: selectedColor || undefined,
           sku: product.sku || undefined,
         })
@@ -268,46 +282,99 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
                 {product.description || "Premium quality product designed for comfort and style."}
               </p>
 
-              {/* Size selector */}
-              {product.sizes?.length > 0 && (
+              {/* Size selectors */}
+              {Object.keys(product.shirtStock || {}).length > 0 && (
                 <div className="mb-3">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-semibold text-[#1a1a1a]">
-                      Size
-                      {sizeError && <span className="text-red-500 text-[10px] ml-2">* Size selection required</span>}
+                      Shirt Size
+                      {sizeError && !selectedShirtSize && <span className="text-red-500 text-[10px] ml-2">* Required</span>}
                     </span>
                   </div>
                   <div className={`flex flex-wrap gap-1.5 p-1 rounded-xl transition-all border ${
-                    sizeError ? 'border-red-500 bg-red-50/30 shadow-[0_0_8px_rgba(239,68,68,0.2)] animate-pulse' : 'border-transparent'
+                    sizeError && !selectedShirtSize ? 'border-red-500 bg-red-50/30' : 'border-transparent'
                   }`}>
-                    {product.sizes.map((sizeObj: any) => {
-                      const sizeName = typeof sizeObj === 'string' ? sizeObj : sizeObj.size || "";
-                      const isOutOfStock = typeof sizeObj === 'object' && sizeObj.stock === 0;
-                      const isSelected = selectedSize === sizeName;
-
+                    {['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL']
+                      .map(sizeName => ({ sizeName, stock: (product.shirtStock?.[sizeName] as number) || 0 }))
+                      .filter(obj => obj.stock > 0 || product.shirtStock?.[obj.sizeName] !== undefined)
+                      .map(({ sizeName, stock }) => {
+                      const isOutOfStock = stock === 0;
+                      const isSelected = selectedShirtSize === sizeName;
                       return (
                         <button
                           key={sizeName}
                           disabled={isOutOfStock}
-                          onClick={() => {
-                            setSelectedSize(sizeName);
-                            setSizeError(false);
-                          }}
+                          onClick={() => { setSelectedShirtSize(sizeName); setSizeError(false); }}
                           className={`w-9 h-9 border rounded-xl text-xs font-medium transition-all flex items-center justify-center relative ${
-                            isSelected
-                              ? "border-black bg-black text-white scale-105"
-                              : isOutOfStock
-                                ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50"
-                                : "border-gray-200 hover:border-black text-gray-700 bg-white"
+                            isSelected ? "border-black bg-black text-white scale-105" : isOutOfStock ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50" : "border-gray-200 hover:border-black text-gray-700 bg-white"
                           }`}
-                          title={isOutOfStock ? `${sizeName} (Out of Stock)` : sizeName}
                         >
                           {sizeName}
-                          {isOutOfStock && (
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" />
-                            </div>
-                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {Object.keys(product.pantStock || {}).length > 0 && (
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-semibold text-[#1a1a1a]">
+                      Pant Size
+                      {sizeError && !selectedPantSize && <span className="text-red-500 text-[10px] ml-2">* Required</span>}
+                    </span>
+                  </div>
+                  <div className={`flex flex-wrap gap-1.5 p-1 rounded-xl transition-all border ${
+                    sizeError && !selectedPantSize ? 'border-red-500 bg-red-50/30' : 'border-transparent'
+                  }`}>
+                    {['28', '30', '32', '34', '36', '38', '40', '42']
+                      .map(sizeName => ({ sizeName, stock: (product.pantStock?.[sizeName] as number) || 0 }))
+                      .filter(obj => obj.stock > 0 || product.pantStock?.[obj.sizeName] !== undefined)
+                      .map(({ sizeName, stock }) => {
+                      const isOutOfStock = stock === 0;
+                      const isSelected = selectedPantSize === sizeName;
+                      return (
+                        <button
+                          key={sizeName}
+                          disabled={isOutOfStock}
+                          onClick={() => { setSelectedPantSize(sizeName); setSizeError(false); }}
+                          className={`w-9 h-9 border rounded-xl text-xs font-medium transition-all flex items-center justify-center relative ${
+                            isSelected ? "border-black bg-black text-white scale-105" : isOutOfStock ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50" : "border-gray-200 hover:border-black text-gray-700 bg-white"
+                          }`}
+                        >
+                          {sizeName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {Object.keys(product.shoeStock || {}).length > 0 && (
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-semibold text-[#1a1a1a]">
+                      Shoe Size
+                      {sizeError && !selectedShoeSize && <span className="text-red-500 text-[10px] ml-2">* Required</span>}
+                    </span>
+                  </div>
+                  <div className={`flex flex-wrap gap-1.5 p-1 rounded-xl transition-all border ${
+                    sizeError && !selectedShoeSize ? 'border-red-500 bg-red-50/30' : 'border-transparent'
+                  }`}>
+                    {Object.entries(product.shoeStock || {}).map(([sizeName, stock]) => {
+                      const isOutOfStock = stock === 0;
+                      const isSelected = selectedShoeSize === sizeName;
+                      return (
+                        <button
+                          key={sizeName}
+                          disabled={isOutOfStock}
+                          onClick={() => { setSelectedShoeSize(sizeName); setSizeError(false); }}
+                          className={`w-9 h-9 border rounded-xl text-xs font-medium transition-all flex items-center justify-center relative ${
+                            isSelected ? "border-black bg-black text-white scale-105" : isOutOfStock ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50" : "border-gray-200 hover:border-black text-gray-700 bg-white"
+                          }`}
+                        >
+                          {sizeName}
                         </button>
                       );
                     })}

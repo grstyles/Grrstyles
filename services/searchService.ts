@@ -56,7 +56,7 @@ export const searchService = {
     const products = data.map(mapDbProduct);
     const suggestionsSet = new Set<string>();
 
-    products.forEach((p) => {
+    products.forEach((p: any) => {
       const name = p.name || p.title || '';
       const brand = p.brand || '';
       const cat = p.category || '';

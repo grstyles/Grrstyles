@@ -73,7 +73,12 @@ export default function CollectionsPage() {
     });
 
     if (filters.sizes.length > 0) {
-      items = items.filter(p => p.sizes?.some(s => filters.sizes.includes(s.size) && s.stock > 0));
+      items = items.filter(p => {
+        const shirtMatch = Object.entries(p.shirtStock || {}).some(([size, stock]) => filters.sizes.includes(size) && (stock as number) > 0);
+        const pantMatch = Object.entries(p.pantStock || {}).some(([size, stock]) => filters.sizes.includes(size) && (stock as number) > 0);
+        const shoeMatch = Object.entries(p.shoeStock || {}).some(([size, stock]) => filters.sizes.includes(size) && (stock as number) > 0);
+        return shirtMatch || pantMatch || shoeMatch;
+      });
     }
 
     if (filters.colors.length > 0) {
@@ -92,8 +97,10 @@ export default function CollectionsPage() {
     if (filters.inStock) {
       items = items.filter(p => 
         p.inStock || 
-        (p.stockCount && p.stockCount > 0) || 
-        p.sizes?.some(s => s.stock > 0)
+        (p.overallStock && p.overallStock > 0) ||
+        Object.values(p.shirtStock || {}).some(s => (s as number) > 0) ||
+        Object.values(p.pantStock || {}).some(s => (s as number) > 0) ||
+        Object.values(p.shoeStock || {}).some(s => (s as number) > 0)
       );
     }
 

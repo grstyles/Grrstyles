@@ -61,7 +61,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
     const sanitized = (data || []).map(sanitizeItem);
     
     console.log("Fetched Categories:");
-    sanitized.forEach(c => {
+    sanitized.forEach((c: any) => {
       console.log(`- title: ${c.title}, slug: ${c.slug}, image_url: ${c.image_url}, redirect: ${c.redirect_link}, enabled: ${c.enabled}, priority: ${c.priority}`);
     });
     

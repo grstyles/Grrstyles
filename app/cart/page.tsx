@@ -106,7 +106,7 @@ export default function CartPage() {
   const handleToggleSelect = (item: any) => {
     dispatch(toggleSelectItem({
       id: item.id,
-      size: item.size,
+      size: item.size, shirtSize: item.shirtSize, pantSize: item.pantSize, shoeSize: item.shoeSize,
       color: item.color
     }));
   };
@@ -152,7 +152,7 @@ export default function CartPage() {
     if (newQty < 1) return;
     dispatch(updateQuantity({
       id: item.id,
-      size: item.size,
+      size: item.size, shirtSize: item.shirtSize, pantSize: item.pantSize, shoeSize: item.shoeSize,
       color: item.color,
       quantity: newQty
     }));
@@ -162,7 +162,7 @@ export default function CartPage() {
   const handleRemoveItem = (item: any) => {
     dispatch(removeFromCart({
       id: item.id,
-      size: item.size,
+      size: item.size, shirtSize: item.shirtSize, pantSize: item.pantSize, shoeSize: item.shoeSize,
       color: item.color
     }));
     dispatch(addToast({ message: `${item.title} removed from bag`, type: 'info' }));
@@ -236,7 +236,7 @@ export default function CartPage() {
 
             <AnimatePresence mode="popLayout">
               {cartItems.map((item) => {
-                const uniqueKey = `${item.id}-${item.size || ''}-${item.color || ''}`;
+                const uniqueKey = `${item.id}-${item.size || ''}-${item.shirtSize || ''}-${item.pantSize || ''}-${item.shoeSize || ''}-${item.color || ''}`;
                 return (
                   <motion.div
                     key={uniqueKey}
@@ -279,9 +279,10 @@ export default function CartPage() {
                         </Link>
                         
                         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[#6b5b4b] mb-2">
-                          {item.size && (
-                            <span>Size: <strong className="text-gray-800">{item.size}</strong></span>
-                          )}
+                          {item.size && <span>Size: <strong className="text-gray-800">{item.size}</strong></span>}
+                          {item.shirtSize && <span>Shirt: <strong className="text-gray-800">{item.shirtSize}</strong></span>}
+                          {item.pantSize && <span>Pant: <strong className="text-gray-800">{item.pantSize}</strong></span>}
+                          {item.shoeSize && <span>Shoe: <strong className="text-gray-800">{item.shoeSize}</strong></span>}
                           {item.color && (
                             <span>Color: <strong className="text-gray-800">{item.color}</strong></span>
                           )}

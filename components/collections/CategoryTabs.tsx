@@ -26,7 +26,7 @@ export default function CategoryTabs({
   activeCategory,
   setActiveCategory,
 }: CategoryTabsProps) {
-  const scrollContainerRef = useDraggableScroll<HTMLDivElement>();
+  const { ref: scrollContainerRef } = useDraggableScroll<HTMLDivElement>();
   const activeTabRef = useRef<HTMLButtonElement>(null);
 
   // Scroll active tab into view

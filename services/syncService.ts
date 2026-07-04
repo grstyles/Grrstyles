@@ -106,13 +106,18 @@ export const syncService = {
         return;
       }
 
-      const { data: existing } = await supabase!
+      let query = supabase!
         .from('cart_items')
         .select('id')
         .eq('cart_id', cartId)
-        .eq('product_id', prod.id)
-        .eq('size', item.size || 'One Size')
-        .maybeSingle();
+        .eq('product_id', prod.id);
+
+      if (item.size) query = query.eq('size', item.size);
+      if (item.shirtSize) query = query.eq('shirt_size', item.shirtSize);
+      if (item.pantSize) query = query.eq('pant_size', item.pantSize);
+      if (item.shoeSize) query = query.eq('shoe_size', item.shoeSize);
+
+      const { data: existing } = await query.maybeSingle();
 
       if (existing) {
         const { error } = await supabase!
@@ -130,19 +135,32 @@ export const syncService = {
           .insert({
             cart_id: cartId,
             product_id: prod.id,
-            size: item.size || 'One Size',
+            size: item.size || '',
+            shirt_size: item.shirtSize || '',
+            pant_size: item.pantSize || '',
+            shoe_size: item.shoeSize || '',
             quantity: item.quantity,
             custom_images: item.custom_images || [],
             updated_at: new Date().toISOString(),
           });
-        if (error) console.error('Error inserting cart item to DB:', error.message);
+        if (error) {
+          if (error.code === '42703' || error.message.includes('Could not find')) {
+            console.error('CRITICAL DB ERROR: The cart_items table is missing required columns (shirt_size, pant_size, etc.). Please run the final_combo_migration.sql!');
+          } else {
+            console.error('Error inserting cart item to DB:', error.message);
+          }
+        }
       }
-    } catch (e) {
-      console.error('Error syncing cart item:', e);
+    } catch (e: any) {
+      if (e?.code === '42703' || e?.message?.includes('Could not find')) {
+        console.error('CRITICAL DB ERROR: The cart_items table is missing required columns. Please run final_combo_migration.sql!');
+      } else {
+        console.error('Error syncing cart item:', e);
+      }
     }
   },
 
-  async removeCartItem(userId: string, productId: string, size?: string) {
+  async removeCartItem(userId: string, productId: string, size?: string, shirtSize?: string, pantSize?: string, shoeSize?: string) {
     if (!isSupabaseConfigured()) return;
     try {
       const cartId = await this.getOrCreateCartId(userId);
@@ -156,12 +174,18 @@ export const syncService = {
 
       if (!prod) return;
 
-      const { error } = await supabase!
+      let query = supabase!
         .from('cart_items')
         .delete()
         .eq('cart_id', cartId)
-        .eq('product_id', prod.id)
-        .eq('size', size || 'One Size');
+        .eq('product_id', prod.id);
+
+      if (size) query = query.eq('size', size);
+      if (shirtSize) query = query.eq('shirt_size', shirtSize);
+      if (pantSize) query = query.eq('pant_size', pantSize);
+      if (shoeSize) query = query.eq('shoe_size', shoeSize);
+
+      const { error } = await query;
 
       if (error) console.error('Error deleting cart item from DB:', error.message);
     } catch (e) {

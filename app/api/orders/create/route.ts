@@ -55,6 +55,9 @@ export async function POST(req: Request) {
           productId: item.productId,
           productName: item.productName,
           size: item.size,
+          shirtSize: item.shirtSize,
+          pantSize: item.pantSize,
+          shoeSize: item.shoeSize,
           quantity: item.quantity,
           price: item.price,
           color: item.color,
@@ -73,32 +76,18 @@ export async function POST(req: Request) {
     try {
       for (const item of input.items) {
         if (item.productId && item.size && item.quantity) {
-          // Fetch current stock
-          const { data: currentProduct, error: fetchError } = await supabase
-            .from('products')
-            .select('sizes')
-            .eq('id', item.productId)
-            .maybeSingle();
-            
-          if (!fetchError && currentProduct) {
-            const sizes = currentProduct.sizes || [];
-            let updated = false;
-            
-            const newSizes = sizes.map((s: any) => {
-              if (s.size === item.size) {
-                updated = true;
-                return { ...s, stock: Math.max(0, s.stock - item.quantity) };
-              }
-              return s;
-            });
-            
-            if (updated) {
-              await supabase
-                .from('products')
-                .update({ sizes: newSizes })
-                .eq('id', item.productId);
-            }
+        if (item.productId && item.quantity) {
+          const { error: rpcError } = await supabase.rpc('decrease_product_stock', {
+            p_id: item.productId,
+            p_shirt_size: item.shirtSize || null,
+            p_pant_size: item.pantSize || null,
+            p_shoe_size: item.shoeSize || null,
+            p_quantity: item.quantity
+          });
+          if (rpcError) {
+            console.error('RPC stock deduction error:', rpcError);
           }
+        }
         }
       }
     } catch (invErr) {

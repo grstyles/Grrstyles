@@ -176,13 +176,20 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async loginWithGoogle() {
     if (!config.isSupabaseConfigured) return { success: false, error: 'Supabase not configured.' };
+    
+    const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
+    const redirectTo = `${origin}/auth/callback`;
+    console.log("Redirect URL:", redirectTo);
+
     const { data, error } = await supabase!.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
+        redirectTo,
       },
     });
+    
     if (error) {
+      console.error("OAuth error:", error.message);
       return { success: false, error: error.message };
     }
     return { success: true };
