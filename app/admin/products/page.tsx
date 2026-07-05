@@ -1,0 +1,1133 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Product } from '@/lib/data/products';
+import { repo, MockCoupon } from '@/lib/repositories';
+import { COLLECTIONS } from '@/lib/config';
+import {
+  Plus, X, Trash2, Tag, ShoppingBag, DollarSign, Upload,
+  Star, TrendingUp, Sparkles, Zap, RefreshCw, Search, Check, Edit2
+} from 'lucide-react';
+import { addToast } from '@/lib/redux/slices/uiSlice';
+import { useDispatch } from 'react-redux';
+import { formatPrice } from '@/lib/utils/helpers';
+import Image from 'next/image';
+
+const CATEGORIES = [
+  'Shirts',
+  'Printed Shirts',
+  'T-Shirts',
+  'Formal Shirts',
+  'Combo Offers',
+  'Korean Collection',
+  'Baggy Pants',
+  'Korean Trousers',
+  'Shoes',
+  'Traditional Collection',
+  'Festival Collection',
+  'Trending Collection',
+  'Jackets',
+  'Night Tracks',
+  'Accessories',
+  'Formal Combo',
+  'Formal Pant',
+  'Trousers',
+  'Denim Jeans',
+  'Festival Offers',
+  'Weekend Offers'
+];
+const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
+const PANT_SIZES  = ['28', '30', '32', '34', '36', '38', '40', '42'];
+const SHOE_SIZES  = ['6', '7', '8', '9', '10', '11'];
+
+function getSizeOptions(cat: string) {
+  if (['Trousers', 'Denim Jeans', 'Formal Pant'].includes(cat)) return PANT_SIZES;
+  if (cat === 'Shoes') return SHOE_SIZES;
+  return SHIRT_SIZES;
+}
+
+export default function AdminProductsPage() {
+  const dispatch = useDispatch();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [items, setItems] = useState<Product[]>([]);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCat, setFilterCat] = useState('All');
+
+  // Form state
+  const [name, setName] = useState('');
+  const [sku, setSku] = useState('');
+  const [category, setCategory] = useState('Shirts');
+  const [collection, setCollection] = useState('');
+  const [brand, setBrand] = useState('GR STYLES');
+  const [tagsInput, setTagsInput] = useState('');
+  const [color, setColor] = useState('');
+  const [mrpPrice, setMrpPrice] = useState('');
+  const [sellingPrice, setSellingPrice] = useState('');
+  const [description, setDescription] = useState('');
+  const [label, setLabel] = useState('');
+  const [shirtStockInput, setShirtStockInput] = useState<Record<string, number>>({});
+  const [pantStockInput, setPantStockInput] = useState<Record<string, number>>({});
+  const [shoeStockInput, setShoeStockInput] = useState<Record<string, number>>({});
+  const [overallStockInput, setOverallStockInput] = useState<number>(0);
+  const [imagesList, setImagesList] = useState<string[]>([]);
+  const [imageColors, setImageColors] = useState<string[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  // Feature toggles
+  const [isNewArrival, setIsNewArrival] = useState(false);
+  const [isTrending, setIsTrending] = useState(false);
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [isDealOfDay, setIsDealOfDay] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState<MockCoupon[]>([]);
+  const [selectedCoupons, setSelectedCoupons] = useState<string[]>([]);
+
+  const dynamicCollections = Array.from(new Set(items.map(p => p.collection).filter(Boolean))) as string[];
+  const dynamicCategories = Array.from(new Set([...CATEGORIES, ...items.map(p => p.category).filter(Boolean)])) as string[];
+
+  const loadProductsAndCoupons = async () => {
+    setLoading(true);
+    try {
+      const [productsData, couponsData] = await Promise.all([
+        repo.products.getAll(),
+        repo.coupons.getAll()
+      ]);
+      setItems(productsData);
+      
+      const now = new Date();
+      setAvailableCoupons(couponsData.filter(c => 
+        c.isActive && 
+        (!c.startDate || new Date(c.startDate) <= now) &&
+        (!c.endDate || new Date(c.endDate) > now)
+      ));
+    } catch (e) {
+      console.error('Failed to load data', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProductsAndCoupons();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const editId = urlParams.get('edit');
+      if (editId && items.length > 0) {
+        const prod = items.find(p => p.id === editId);
+        if (prod) {
+          populateFormFromProduct(prod);
+          // Remove query param without refreshing
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    }
+  }, [items]);
+
+  const handleImageColorChange = (idx: number, val: string) => {
+    setImageColors((prev) => {
+      const updated = [...prev];
+      updated[idx] = val;
+      return updated;
+    });
+    if (idx === 0) {
+      setColor(val);
+    }
+  };
+
+  const handleRemoveImage = (idx: number) => {
+    setImagesList((prev) => prev.filter((_, i) => i !== idx));
+    setImageColors((prev) => {
+      const updated = prev.filter((_, i) => i !== idx);
+      if (idx === 0 && updated.length > 0) {
+        setColor(updated[0] || '');
+      }
+      return updated;
+    });
+  };
+
+  const handleDragStart = (idx: number) => {
+    setDraggedIndex(idx);
+  };
+
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIdx: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIdx) return;
+
+    setImagesList((prev) => {
+      const newImages = [...prev];
+      const [draggedImg] = newImages.splice(draggedIndex, 1);
+      newImages.splice(targetIdx, 0, draggedImg);
+      return newImages;
+    });
+
+    setImageColors((prev) => {
+      const newColors = [...prev];
+      const [draggedCol] = newColors.splice(draggedIndex, 1);
+      newColors.splice(targetIdx, 0, draggedCol);
+      if (targetIdx === 0 || draggedIndex === 0) {
+        setColor(newColors[0] || '');
+      }
+      return newColors;
+    });
+
+    setDraggedIndex(null);
+  };
+
+  const getOrdinalText = (index: number): string => {
+    const ordinals = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth'];
+    return ordinals[index] || `${index + 1}th`;
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await repo.storage.uploadImage(file, 'product-images');
+      if (url) {
+        setImagesList((prev) => {
+          const newList = [...prev, url];
+          setImageColors((colorsPrev) => {
+            const newColors = [...colorsPrev];
+            if (newColors.length === 0) {
+              newColors.push(color || '');
+            } else {
+              newColors.push(''); // required input for subsequent images
+            }
+            return newColors;
+          });
+          return newList;
+        });
+        dispatch(addToast({ message: 'Image uploaded successfully!', type: 'success' }));
+      } else {
+        dispatch(addToast({ message: 'Image upload failed.', type: 'error' }));
+      }
+    } catch {
+      dispatch(addToast({ message: 'Image upload error.', type: 'error' }));
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setName('');
+    setSku('');
+    setCategory('Shirts');
+    setCollection('');
+    setBrand('GR STYLES');
+    setTagsInput('');
+    setColor('');
+    setImageColors([]);
+    setMrpPrice('');
+    setSellingPrice('');
+    setDescription('');
+    setLabel('');
+    setShirtStockInput({});
+    setPantStockInput({});
+    setShoeStockInput({});
+    setOverallStockInput(0);
+    setImagesList([]);
+    setIsNewArrival(false);
+    setIsTrending(false);
+    setIsFeatured(false);
+    setIsDealOfDay(false);
+    setSelectedCoupons([]);
+  };
+
+  const populateFormFromProduct = (product: Product) => {
+    setEditingId(product.id);
+    setName(product.name || product.title);
+    setSku(product.sku || '');
+    setCategory(product.category);
+    setCollection(product.collection || '');
+    setBrand(product.brand || 'GR STYLES');
+    setTagsInput((product.metadata?.tags || []).join(', '));
+    setColor(product.color || '');
+    setMrpPrice(String(product.mrpPrice || product.price || ''));
+    setSellingPrice(String(product.sellingPrice || product.discountedPrice || ''));
+    setDescription(product.description);
+    setLabel(product.label || '');
+    
+    setShirtStockInput(product.shirtStock || {});
+    setPantStockInput(product.pantStock || {});
+    setShoeStockInput(product.shoeStock || {});
+    setOverallStockInput(product.overallStock || 0);
+
+    setImagesList(product.images || []);
+
+    const defaultColors = (product.images || []).map((_, idx) => {
+      if ((product as any).imageColors && (product as any).imageColors[idx]) {
+        return (product as any).imageColors[idx].color_name;
+      }
+      return product.color || '';
+    });
+    setImageColors(defaultColors);
+
+    setIsNewArrival(!!product.isNew);
+    setIsTrending(!!product.bestSeller);
+    setIsFeatured(!!product.metadata?.featured);
+    setIsDealOfDay(!!product.metadata?.dealOfDay);
+    setSelectedCoupons(product.coupons || []);
+    setFormOpen(true);
+  };
+
+  const buildProductPayload = (id: string): Product => {
+    const mrp = parseFloat(mrpPrice);
+    const selling = parseFloat(sellingPrice);
+    const discount = mrp > 0 ? Math.round(((mrp - selling) / mrp) * 100) : 0;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+    let effectiveLabel = label;
+    if (isNewArrival && !effectiveLabel) effectiveLabel = 'NEW';
+
+    const uniqueColors = Array.from(new Set(imageColors.filter(Boolean)));
+
+    return {
+      id,
+      productId: id,
+      sku: sku || `GR-${category.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+      name,
+      title: name,
+      slug,
+      category,
+      collection,
+      images: imagesList.length > 0 ? imagesList : ['/placeholder.png'],
+      color: color || imageColors[0] || '',
+      colors: uniqueColors.length > 0 ? uniqueColors : [color || 'Original'],
+      mrpPrice: mrp,
+      price: mrp,
+      sellingPrice: selling,
+      discountedPrice: selling,
+      discountPercent: discount,
+      label: effectiveLabel,
+      description,
+      shirtStock: shirtStockInput,
+      pantStock: pantStockInput,
+      shoeStock: shoeStockInput,
+      overallStock: overallStockInput,
+      brand: brand || 'GR STYLES',
+      rating: 5.0,
+      reviews: 0,
+      isNew: isNewArrival,
+      bestSeller: isTrending,
+      inStock: true, // recalculated in service
+      stockCount: 0, // recalculated in service
+      metadata: {
+        dealOfDay: isDealOfDay,
+        featured: isFeatured,
+        tags,
+      },
+      coupons: selectedCoupons,
+      imageColors: imagesList.map((img, idx) => ({
+        image_url: img,
+        color_name: imageColors[idx] || color || 'Original',
+        display_order: idx
+      }))
+    } as any;
+  };
+
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!name || !color || !mrpPrice || !sellingPrice || !description) {
+      dispatch(addToast({ message: 'Please fill out all required fields.', type: 'error' }));
+      return;
+    }
+
+    const mrp = parseFloat(mrpPrice);
+    const selling = parseFloat(sellingPrice);
+
+    if (selling > mrp) {
+      dispatch(addToast({ message: 'Selling price cannot exceed MRP.', type: 'error' }));
+      return;
+    }
+
+    // Verify all subsequent images have colors assigned
+    if (imagesList.length > 1) {
+      for (let i = 1; i < imagesList.length; i++) {
+        if (!imageColors[i] || !imageColors[i].trim()) {
+          dispatch(addToast({ message: `Please specify a color name for the ${getOrdinalText(i)} image.`, type: 'error' }));
+          return;
+        }
+      }
+    }
+
+    // Validation
+    const isCombo = category === 'Combo Offers' || category === 'Formal Combo';
+    const isShirt = ['Shirts', 'Printed Shirts', 'T-Shirts', 'Formal Shirts', 'Korean Collection', 'Jackets', 'Night Tracks'].includes(category);
+    const isPant = ['Baggy Pants', 'Korean Trousers', 'Formal Pant', 'Trousers', 'Denim Jeans'].includes(category);
+    const isShoe = category === 'Shoes';
+
+    const hasShirtStock = Object.values(shirtStockInput).some(v => v > 0);
+    const hasPantStock = Object.values(pantStockInput).some(v => v > 0);
+    const hasShoeStock = Object.values(shoeStockInput).some(v => v > 0);
+    
+    if (isCombo && (!hasShirtStock || !hasPantStock)) {
+      dispatch(addToast({ message: 'Combo requires both Shirt and Pant inventory.', type: 'error' }));
+      return;
+    }
+    if (isShirt && !isCombo && !hasShirtStock) {
+      dispatch(addToast({ message: 'Shirt categories require Shirt inventory.', type: 'error' }));
+      return;
+    }
+    if (isPant && !isCombo && !hasPantStock) {
+      dispatch(addToast({ message: 'Pant categories require Pant inventory.', type: 'error' }));
+      return;
+    }
+    if (isShoe && !hasShoeStock) {
+      dispatch(addToast({ message: 'Shoe categories require Shoe inventory.', type: 'error' }));
+      return;
+    }
+
+    const tempId = editingId || `p-${Date.now()}`;
+    console.log('[DEBUG Admin Flow] 1. imageColors React state before Save:', JSON.stringify(imageColors, null, 2));
+    const productPayload = buildProductPayload(tempId);
+    console.log('[DEBUG Admin Flow] 2. buildProductPayload():', JSON.stringify(productPayload.imageColors, null, 2));
+
+    setLoading(true);
+    try {
+      if (editingId) {
+        console.log('[DEBUG Admin Flow] 3. Payload sent to updateProduct():', JSON.stringify(productPayload.imageColors, null, 2));
+        const updated = await repo.products.update(editingId, productPayload);
+        if (updated) {
+          setItems((prev) => prev.map((p) => (p.id === editingId ? { ...p, ...updated } : p)));
+          dispatch(addToast({ message: `✓ "${name}" updated successfully!`, type: 'success' }));
+          resetForm();
+          setFormOpen(false);
+        } else {
+          dispatch(addToast({ message: 'Failed to update product.', type: 'error' }));
+        }
+      } else {
+        const created = await repo.products.create(productPayload);
+        if (created) {
+          setItems((prev) => [created, ...prev]);
+          dispatch(addToast({ message: `✓ "${name}" added to catalog! Visible on website now.`, type: 'success' }));
+          resetForm();
+          setFormOpen(false);
+        } else {
+          dispatch(addToast({ message: 'Failed to save product.', type: 'error' }));
+        }
+      }
+    } catch (err: any) {
+      dispatch(addToast({ message: err.message || 'Error saving product.', type: 'error' }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteProduct = async (productId: string, productName: string) => {
+    if (!confirm(`Delete "${productName}"? This cannot be undone.`)) return;
+    try {
+      const success = await repo.products.delete(productId);
+      if (success) {
+        setItems((prev) => prev.filter((p) => p.id !== productId));
+        dispatch(addToast({ message: `"${productName}" removed from catalog.`, type: 'info' }));
+      } else {
+        dispatch(addToast({ message: 'Failed to delete product.', type: 'error' }));
+      }
+    } catch (e: any) {
+      dispatch(addToast({ message: e.message || 'Error deleting product.', type: 'error' }));
+    }
+  };
+
+  const handleToggleLabel = async (product: Product, newLabel: string) => {
+    const effectiveLabel = product.label === newLabel ? '' : newLabel;
+    const updated = await repo.products.update(product.id, {
+      label: effectiveLabel,
+      isNew: effectiveLabel === 'NEW',
+      bestSeller: effectiveLabel === 'BEST SELLER',
+    });
+    if (updated) {
+      setItems((prev) => prev.map((p) => (p.id === product.id ? { ...p, label: effectiveLabel } : p)));
+      dispatch(addToast({ message: `Label updated to "${effectiveLabel || 'None'}"`, type: 'success' }));
+    }
+  };
+
+  // Filtering
+  const filteredItems = items.filter((p) => {
+    const matchesCat = filterCat === 'All' || p.category === filterCat;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q ||
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.category || '').toLowerCase().includes(q) ||
+      (p.color || '').toLowerCase().includes(q);
+    return matchesCat && matchesSearch;
+  });
+
+  const ToggleBtn = ({
+    active, onClick, icon: Icon, label: btnLabel, activeColor
+  }: {
+    active: boolean;
+    onClick: () => void;
+    icon: React.ElementType;
+    label: string;
+    activeColor: string;
+  }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all ${
+        active
+          ? `${activeColor} border-transparent`
+          : 'bg-white text-gray-400 border-gray-200 hover:border-gray-400'
+      }`}
+    >
+      <Icon size={11} />
+      {btnLabel}
+      {active && <Check size={10} />}
+    </button>
+  );
+
+  if (loading && items.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-4 border-b border-gray-100 pb-5">
+        <div>
+          <h1 className="text-3xl font-light tracking-tight text-gray-900 uppercase">Product Catalog</h1>
+          <p className="text-sm text-gray-400 mt-1">{items.length} products · Changes reflect on website immediately.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadProductsAndCoupons}
+            className="p-2.5 border border-gray-200 hover:border-black rounded-xl text-gray-500 hover:text-black transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw size={14} />
+          </button>
+          <button
+            id="admin-add-product-btn"
+            onClick={() => {
+              if (formOpen) {
+                resetForm();
+                setFormOpen(false);
+              } else {
+                resetForm();
+                setFormOpen(true);
+              }
+            }}
+            className="flex items-center gap-2 bg-black hover:bg-gray-900 text-white px-5 py-3 rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm"
+          >
+            {formOpen ? <X size={14} /> : <Plus size={14} />}
+            {formOpen ? 'Close Form' : 'Add New Product'}
+          </button>
+        </div>
+      </div>
+
+      {/* Add Product Form */}
+      {formOpen && (
+        <form onSubmit={handleAddProduct} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
+          <h3 className="text-sm font-bold text-gray-700 uppercase tracking-widest border-b border-gray-100 pb-3">
+            {editingId ? 'Edit Product Details' : 'New Product Details'}
+          </h3>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left: General Details */}
+            <div className="space-y-4 lg:col-span-2">
+              {/* Name */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Product Name *</label>
+                <input
+                  id="form-product-name"
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. White Baggy Pant"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
+                />
+              </div>
+
+              {/* SKU + Brand */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">SKU</label>
+                  <input
+                    id="form-product-sku"
+                    type="text"
+                    value={sku}
+                    onChange={(e) => setSku(e.target.value)}
+                    placeholder="e.g. GR-SH-001"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Brand</label>
+                  <input
+                    id="form-product-brand"
+                    type="text"
+                    value={brand}
+                    onChange={(e) => setBrand(e.target.value)}
+                    placeholder="GR STYLES"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
+                  />
+                </div>
+              </div>
+
+              {/* Category + Collection + Color */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Category *</label>
+                  <input
+                    list="dynamic-categories"
+                    required
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="e.g. Shirts, T-Shirts"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+                  />
+                  <datalist id="dynamic-categories">
+                    {dynamicCategories.map((c) => <option key={c} value={c} />)}
+                  </datalist>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Collection</label>
+                  <input
+                    list="dynamic-collections"
+                    value={collection}
+                    onChange={(e) => setCollection(e.target.value)}
+                    placeholder="e.g. Summer Collection"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
+                  />
+                  <datalist id="dynamic-collections">
+                    {dynamicCollections.map((c) => <option key={c} value={c} />)}
+                  </datalist>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                    Primary Color *
+                  </label>
+                  <input
+                    id="form-product-color"
+                    type="text"
+                    required
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    placeholder="e.g. White"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
+                    readOnly
+                    title="Automatically set from the first image color"
+                  />
+                </div>
+              </div>
+
+              {/* Prices + Label */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                    <DollarSign size={10} /> MRP *
+                  </label>
+                  <input
+                    id="form-mrp-price"
+                    type="number" required min="0"
+                    value={mrpPrice}
+                    onChange={(e) => setMrpPrice(e.target.value)}
+                    placeholder="1200"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                    <DollarSign size={10} /> Sell Price *
+                  </label>
+                  <input
+                    id="form-selling-price"
+                    type="number" required min="0"
+                    value={sellingPrice}
+                    onChange={(e) => setSellingPrice(e.target.value)}
+                    placeholder="599"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                    <Tag size={10} /> Label
+                  </label>
+                  <select
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+                  >
+                    <option value="">NONE</option>
+                    <option value="NEW">NEW</option>
+                    <option value="BEST SELLER">BEST SELLER</option>
+                    <option value="HOT">HOT</option>
+                    <option value="SALE">SALE</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Description + Tags */}
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Description *</label>
+                  <textarea
+                    required
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Describe the product — fabric, fit, details..."
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300 resize-none"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tags (comma separated)</label>
+                  <input
+                    type="text"
+                    value={tagsInput}
+                    onChange={(e) => setTagsInput(e.target.value)}
+                    placeholder="e.g. casual, summer, slim-fit"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Applicable Coupons</label>
+                  <div className="border border-gray-200 rounded-xl p-3 bg-gray-50/50 max-h-40 overflow-y-auto space-y-2">
+                    {availableCoupons.length > 0 ? availableCoupons.map((c) => (
+                      <label key={c.code} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white p-1 rounded-md">
+                        <input
+                          type="checkbox"
+                          checked={selectedCoupons.includes(c.code)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedCoupons([...selectedCoupons, c.code]);
+                            else setSelectedCoupons(selectedCoupons.filter(code => code !== c.code));
+                          }}
+                          className="rounded border-gray-300 text-black focus:ring-black cursor-pointer"
+                        />
+                        <span className="font-semibold text-gray-800">{c.code}</span>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                          {c.discountType === 'percentage' ? `${c.discountValue}% OFF` : `₹${c.discountValue} OFF`}
+                        </span>
+                      </label>
+                    )) : (
+                      <p className="text-xs text-gray-400">No active coupons available.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Feature Toggles */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Feature Toggles</label>
+                <div className="flex flex-wrap gap-2">
+                  <ToggleBtn
+                    active={isNewArrival} onClick={() => setIsNewArrival(!isNewArrival)}
+                    icon={Sparkles} label="New Arrival" activeColor="bg-blue-50 text-blue-600"
+                  />
+                  <ToggleBtn
+                    active={isTrending} onClick={() => setIsTrending(!isTrending)}
+                    icon={TrendingUp} label="Trending" activeColor="bg-green-50 text-green-600"
+                  />
+                  <ToggleBtn
+                    active={isFeatured} onClick={() => setIsFeatured(!isFeatured)}
+                    icon={Star} label="Featured" activeColor="bg-purple-50 text-purple-600"
+                  />
+                  <ToggleBtn
+                    active={isDealOfDay} onClick={() => setIsDealOfDay(!isDealOfDay)}
+                    icon={Zap} label="Deal of Day" activeColor="bg-amber-50 text-amber-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Sizes + Images */}
+            <div className="space-y-5 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+              {/* Sizes */}
+              
+              {/* Sizes */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase">Sizes & Stock</label>
+                
+                <div className="mt-4 space-y-6">
+                  {/* Accessories */}
+                  {['Accessories'].includes(category) && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2">Overall Stock</h4>
+                      <input
+                        type="number"
+                        min="0"
+                        value={overallStockInput === 0 ? '' : overallStockInput}
+                        placeholder="0"
+                        onChange={(e) => setOverallStockInput(parseInt(e.target.value, 10) || 0)}
+                        className="w-32 border border-gray-300 rounded text-xs px-3 py-2 focus:border-black focus:outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* Shirts */}
+                  {(['Shirts', 'Printed Shirts', 'T-Shirts', 'Formal Shirts', 'Korean Collection', 'Jackets', 'Night Tracks', 'Combo Offers', 'Formal Combo', 'Party Combo', 'Combo Offer'].includes(category) || category.toLowerCase().includes('combo')) && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">Shirt Sizes <span className="text-[10px] text-gray-400 font-normal">(Enter quantity)</span></h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {SHIRT_SIZES.map((size) => (
+                          <div key={'shirt-'+size} className="flex items-center gap-3">
+                            <span className="text-xs font-semibold w-8">{size}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={shirtStockInput[size] || ''}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10) || 0;
+                                setShirtStockInput(prev => ({ ...prev, [size]: val }));
+                              }}
+                              className="w-20 border border-gray-300 rounded text-xs px-2 py-1 focus:border-black focus:outline-none"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pants */}
+                  {(['Baggy Pants', 'Korean Trousers', 'Formal Pant', 'Trousers', 'Denim Jeans', 'Combo Offers', 'Formal Combo', 'Party Combo', 'Combo Offer'].includes(category) || category.toLowerCase().includes('combo')) && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">Pant Sizes <span className="text-[10px] text-gray-400 font-normal">(Enter quantity)</span></h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {PANT_SIZES.map((size) => (
+                          <div key={'pant-'+size} className="flex items-center gap-3">
+                            <span className="text-xs font-semibold w-8">{size}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={pantStockInput[size] || ''}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10) || 0;
+                                setPantStockInput(prev => ({ ...prev, [size]: val }));
+                              }}
+                              className="w-20 border border-gray-300 rounded text-xs px-2 py-1 focus:border-black focus:outline-none"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Shoes */}
+                  {category === 'Shoes' && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">Shoe Sizes <span className="text-[10px] text-gray-400 font-normal">(Enter quantity)</span></h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {SHOE_SIZES.map((size) => (
+                          <div key={'shoe-'+size} className="flex items-center gap-3">
+                            <span className="text-xs font-semibold w-8">{size}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={shoeStockInput[size] || ''}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10) || 0;
+                                setShoeStockInput(prev => ({ ...prev, [size]: val }));
+                              }}
+                              className="w-20 border border-gray-300 rounded text-xs px-2 py-1 focus:border-black focus:outline-none"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* Images and Colors */}
+              <div className="space-y-4">
+                <label className="text-xs font-bold text-gray-500 uppercase">Product Images & Colors</label>
+                
+                {imagesList.length > 1 && (
+                  <p className="text-[9px] text-gray-400 italic">Drag and drop images to reorder them.</p>
+                )}
+
+                <div className="flex gap-2 flex-wrap">
+                  {imagesList.map((img, idx) => (
+                    <div
+                      key={idx}
+                      draggable
+                      onDragStart={() => handleDragStart(idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDrop={(e) => handleDrop(e, idx)}
+                      className={`relative w-14 h-20 border rounded-xl overflow-hidden bg-white flex-shrink-0 cursor-move transition-all ${
+                        draggedIndex === idx ? 'opacity-40 border-black ring-2 ring-black' : 'border-gray-200 hover:border-black'
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img} alt={`Product ${idx}`} className="object-cover w-full h-full pointer-events-none" />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(idx)}
+                        className="absolute top-0.5 right-0.5 p-1 bg-black/60 hover:bg-black text-white rounded-full transition-colors"
+                        title="Remove Image"
+                      >
+                        <X size={8} />
+                      </button>
+                      <div className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-[8px] text-center py-0.5 font-bold truncate px-1 pointer-events-none">
+                        {imageColors[idx] || color || 'No Color'}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                  <button
+                    type="button"
+                    disabled={uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-14 h-20 border-2 border-dashed border-gray-300 hover:border-black rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-black transition-colors flex-shrink-0"
+                  >
+                    {uploading ? (
+                      <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Upload size={14} />
+                        <span className="text-[8px] font-bold mt-1">UPLOAD</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Dynamic color inputs for all images */}
+                {imagesList.map((img, idx) => {
+                  const labelText = `${getOrdinalText(idx)} Product Color`;
+                  return (
+                    <div key={idx} className="space-y-1 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="relative w-8 h-10 border rounded overflow-hidden flex-shrink-0">
+                          <img src={img} alt={`Thumbnail ${idx}`} className="object-cover w-full h-full" />
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider leading-tight">
+                          {idx === 0 ? 'Primary Image Color *' : `${getOrdinalText(idx)} Image Color *`}
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={imageColors[idx] || ''}
+                        onChange={(e) => handleImageColorChange(idx, e.target.value)}
+                        placeholder="e.g. Red, Black"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-xs font-semibold"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              {mrpPrice && sellingPrice && parseFloat(mrpPrice) > 0 && (
+                <div className="text-[10px] text-gray-400 bg-white rounded-xl border border-gray-100 px-3 py-2">
+                  Discount: <strong className="text-green-600">{Math.round(((parseFloat(mrpPrice) - parseFloat(sellingPrice)) / parseFloat(mrpPrice)) * 100)}% off</strong>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Form Actions */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => setFormOpen(false)}
+              className="px-5 py-3 border border-gray-200 hover:border-black text-black rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              id="form-submit-product"
+              type="submit"
+              className="px-7 py-3 bg-black hover:bg-gray-900 text-white rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm"
+            >
+              {editingId ? 'Update Product →' : 'Save Product →'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Filter Bar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[200px]">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search products..."
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-black placeholder-gray-300 font-semibold"
+          />
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        </div>
+
+        {/* Category filter pills */}
+        <div className="flex gap-2 flex-wrap">
+          {['All', ...CATEGORIES].map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setFilterCat(cat)}
+              className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-xl border transition-all ${
+                filterCat === cat
+                  ? 'bg-black text-white border-black'
+                  : 'text-gray-500 border-gray-200 hover:border-gray-400 hover:text-black'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Catalog Table */}
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+            Catalog Listings
+          </h3>
+          <span className="text-xs text-gray-400">{filteredItems.length} of {items.length} products</span>
+        </div>
+
+        {filteredItems.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100 text-[10px] font-bold tracking-widest text-gray-400 uppercase">
+                  <th className="p-4 pl-6">Product</th>
+                  <th className="p-4">Category</th>
+                  <th className="p-4">MRP</th>
+                  <th className="p-4">Sale Price</th>
+                  <th className="p-4">Discount</th>
+                  <th className="p-4">Label / Tags</th>
+                  <th className="p-4">Stock</th>
+                  <th className="p-4 pr-6 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-xs">
+                {filteredItems.map((product) => {
+                  const displayPrice = product.sellingPrice || product.discountedPrice || 0;
+                  const originalPrice = product.mrpPrice || product.price || 0;
+                  const totalStock = product.stockCount || 0;
+                  const imageSrc = product.images?.[0] || '/placeholder.png';
+                  const isLowStock = totalStock > 0 && totalStock <= 5;
+
+                  return (
+                    <tr key={product.id} className="hover:bg-gray-50/30 transition-colors">
+                      <td className="p-4 pl-6">
+                        <div className="flex items-center gap-3">
+                          <div className="relative w-9 h-12 rounded bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
+                            <Image
+                              src={imageSrc}
+                              alt={product.name || ''}
+                              fill
+                              className="object-cover"
+                              sizes="40px"
+                              unoptimized={imageSrc.startsWith('data:')}
+                            />
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-800 uppercase max-w-[180px] truncate">{product.name || product.title}</p>
+                            <p className="text-[9px] text-gray-400 uppercase font-mono">{product.color}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 text-gray-500 uppercase font-semibold">{product.category}</td>
+                      <td className="p-4 text-gray-400 line-through">{formatPrice(originalPrice)}</td>
+                      <td className="p-4 font-bold text-gray-800">{formatPrice(displayPrice)}</td>
+                      <td className="p-4">
+                        {product.discountPercent > 0 && (
+                          <span className="bg-green-50 text-green-600 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                            {product.discountPercent}% OFF
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-1">
+                          {product.label && (
+                            <span className="bg-red-50 text-red-500 border border-red-100 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                              {product.label}
+                            </span>
+                          )}
+                          {product.isNew && !product.label && (
+                            <span className="bg-blue-50 text-blue-500 text-[9px] font-bold px-2 py-0.5 rounded-full">NEW</span>
+                          )}
+                          {product.bestSeller && (
+                            <span className="bg-amber-50 text-amber-500 text-[9px] font-bold px-2 py-0.5 rounded-full">🔥 TRENDING</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        {totalStock === 0 ? (
+                          <span className="text-red-500 font-bold text-[10px] uppercase">Out of Stock</span>
+                        ) : isLowStock ? (
+                          <span className="text-amber-500 font-bold">{totalStock} ⚠️</span>
+                        ) : (
+                          <span className="text-green-600 font-semibold">{totalStock} units</span>
+                        )}
+                      </td>
+                      <td className="p-4 pr-6 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {/* Quick label toggles */}
+                          <button
+                            onClick={() => handleToggleLabel(product, 'NEW')}
+                            className={`p-1.5 rounded-lg transition-all text-[10px] ${product.label === 'NEW' || product.isNew ? 'bg-blue-50 text-blue-500' : 'text-gray-300 hover:text-blue-400'}`}
+                            title="Toggle New Arrival"
+                          >
+                            <Sparkles size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleToggleLabel(product, 'BEST SELLER')}
+                            className={`p-1.5 rounded-lg transition-all ${product.label === 'BEST SELLER' || product.bestSeller ? 'bg-amber-50 text-amber-500' : 'text-gray-300 hover:text-amber-400'}`}
+                            title="Toggle Trending"
+                          >
+                            <TrendingUp size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleToggleLabel(product, 'HOT')}
+                            className={`p-1.5 rounded-lg transition-all ${product.label === 'HOT' ? 'bg-red-50 text-red-500' : 'text-gray-300 hover:text-red-400'}`}
+                            title="Toggle Hot"
+                          >
+                            <Star size={13} />
+                          </button>
+                          <button
+                            onClick={() => populateFormFromProduct(product)}
+                            className="p-1.5 text-gray-300 hover:text-black hover:bg-gray-50 rounded-lg transition-all"
+                            title="Edit Product"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(product.id, product.name || product.title || '')}
+                            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Delete Product"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-16">
+            <ShoppingBag size={28} className="text-gray-200 mx-auto mb-3" />
+            <p className="text-sm text-gray-400">No products match your filters.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

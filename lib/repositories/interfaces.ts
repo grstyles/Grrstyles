@@ -1,0 +1,292 @@
+/**
+ * GR STYLES – Repository Interfaces
+ * ====================================
+ * Abstract contracts that both MockProvider and SupabaseProvider must implement.
+ * The frontend ONLY interacts with these interfaces – never with the provider directly.
+ * 
+ * Swap between providers by changing a single config flag (NEXT_PUBLIC_SUPABASE_URL).
+ */
+
+import { Product } from '@/lib/data/products';
+
+export interface MockOrderItem {
+  productId: string;
+  productName: string;
+  size: string;
+  quantity: number;
+  price: number;
+  color?: string;
+  shirtSize?: string;
+  pantSize?: string;
+  shoeSize?: string;
+  image?: string;
+  slug?: string;
+  sku?: string;
+}
+
+export interface MockOrder {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  email: string;
+  phone?: string;
+  itemsCount: number;
+  totalAmount: number;
+  status: 'Pending' | 'Confirmed' | 'Packed' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Returned';
+  paymentStatus: 'Pending' | 'Paid' | 'Failed' | 'Refunded';
+  paymentMethod: string;
+  shippingAddress?: any;
+  couponCode?: string;
+  discountAmount?: number;
+  date: string;
+  items?: MockOrderItem[];
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
+  payment_signature?: string;
+  gateway?: string;
+  transaction_time?: string;
+  invoice_number?: string;
+  payment_verified?: boolean;
+  gateway_response?: any;
+  tracking_id?: string;
+  tracking_url?: string;
+  courier_partner?: string;
+  dispatch_date?: string;
+  expected_delivery_date?: string;
+  delivered_date?: string;
+}
+
+export interface MockCoupon {
+  code: string;
+  discountType: 'percentage' | 'flat';
+  discountValue: number;
+  description: string;
+  isActive: boolean;
+  minOrderValue?: number;
+  startDate?: string;
+  endDate?: string;
+  usageLimit?: number;
+  usageCount: number;
+  applicableProducts?: string[];
+}
+
+// ─── Product Repository ───────────────────────────────────────────────────────
+
+export interface IProductRepository {
+  /** Return all products */
+  getAll(): Promise<Product[]>;
+
+  /** Return single product by ID */
+  getById(id: string): Promise<Product | null>;
+
+  /** Return single product by URL slug */
+  getBySlug(slug: string): Promise<Product | null>;
+
+  /** Return products filtered by category name */
+  getByCategory(category: string): Promise<Product[]>;
+
+  /** Return products filtered by collection name */
+  getByCollection(collection: string): Promise<Product[]>;
+
+  /** Create a new product. Returns the saved product or null on failure. */
+  create(product: Product): Promise<Product | null>;
+
+  /** Update a product by ID. Returns updated product or null. */
+  update(id: string, updates: Partial<Product>): Promise<Product | null>;
+
+  /** Delete a product by ID. Returns true on success. */
+  delete(id: string): Promise<boolean>;
+
+  /** Search products by name/description */
+  search(query: string): Promise<Product[]>;
+
+  /** Get all inventory entries (product + size-wise stock) */
+  getInventory(): Promise<InventoryEntry[]>;
+
+  /** Update stock for a specific size of a product */
+  updateStock(productId: string, size: string, newStock: number): Promise<boolean>;
+}
+
+export interface InventoryEntry {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  sizeStock: { size: string; stock: number }[];
+}
+
+// ─── Order Repository ─────────────────────────────────────────────────────────
+
+export interface IOrderRepository {
+  /** Get all orders, newest first */
+  getAll(): Promise<MockOrder[]>;
+
+  /** Get order by ID */
+  getById(id: string): Promise<MockOrder | null>;
+
+  /** Create a new order from checkout */
+  create(orderData: CreateOrderInput): Promise<string | null>; // returns order number
+
+  /** Update order status */
+  updateStatus(id: string, status: MockOrder['status']): Promise<boolean>;
+
+  /** Update shipping information */
+  updateShipping(id: string, shippingData: Partial<MockOrder>): Promise<boolean>;
+}
+
+export interface CreateOrderInput {
+  customerName: string;
+  email: string;
+  phone?: string;
+  shippingAddress?: any;
+  paymentMethod: string;
+  paymentStatus?: string;
+  status?: MockOrder['status'];
+  totalAmount: number;
+  discountAmount?: number;
+  couponCode?: string;
+  items: {
+    productId: string;
+    productName: string;
+    size: string;
+    quantity: number;
+    price: number;
+    color?: string;
+    image?: string;
+    slug?: string;
+    sku?: string;
+  }[];
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
+  payment_signature?: string;
+  gateway?: string;
+  transaction_time?: string;
+  invoice_number?: string;
+}
+
+// ─── Coupon Repository ────────────────────────────────────────────────────────
+
+export interface ICouponRepository {
+  /** Get all coupons */
+  getAll(): Promise<MockCoupon[]>;
+
+  /** Validate and apply a coupon code */
+  apply(code: string, validationData?: { subtotal: number; productIds: string[] }): Promise<{ valid: boolean; discountValue: number; discountType: 'percentage' | 'flat'; message: string }>;
+
+  /** Create a new coupon */
+  create(coupon: Omit<MockCoupon, 'usageCount'>): Promise<MockCoupon | null>;
+
+  /** Toggle coupon active/inactive */
+  toggle(code: string, isActive: boolean): Promise<boolean>;
+
+  /** Delete coupon */
+  delete(code: string): Promise<boolean>;
+}
+
+// ─── Storage Repository ───────────────────────────────────────────────────────
+
+export interface IStorageRepository {
+  /** Upload an image file, returns public URL */
+  uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections'): Promise<string | null>;
+
+  /** Delete an image by URL or path */
+  deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections'): Promise<boolean>;
+
+  /** Get public URL for a stored asset */
+  getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections'): string;
+}
+
+// ─── Analytics Repository ─────────────────────────────────────────────────────
+
+export interface IAnalyticsRepository {
+  getDashboardStats(): Promise<DashboardStats>;
+  getFullAnalytics(): Promise<FullAnalytics>;
+}
+
+export interface DashboardStats {
+  totalProducts: number;
+  totalOrders: number;
+  totalRevenue: number;
+  totalCoupons: number;
+  lowStockCount: number;
+  pendingOrders: number;
+}
+
+export interface AnalyticsTopProduct {
+  name: string;
+  sku: string;
+  sales: number;
+  revenue: number;
+}
+
+export interface AnalyticsCategoryBreakdown {
+  name: string;
+  value: number;
+  revenue: number;
+}
+
+export interface AnalyticsRecentOrder {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  totalAmount: number;
+  status: string;
+  date: string;
+}
+
+export interface AnalyticsLowStockItem {
+  productId: string;
+  name: string;
+  size: string;
+  stock: number;
+}
+
+export interface AnalyticsMonthlyData {
+  month: string;
+  revenue: number;
+  orders: number;
+}
+
+export interface AnalyticsOrderStatusCount {
+  label: string;
+  count: number;
+}
+
+export interface FullAnalytics extends DashboardStats {
+  avgOrderValue: number;
+  couponsUsed: number;
+  topProducts: AnalyticsTopProduct[];
+  topCategories: AnalyticsCategoryBreakdown[];
+  recentOrders: AnalyticsRecentOrder[];
+  lowStockProducts: AnalyticsLowStockItem[];
+  monthlyPerformance: AnalyticsMonthlyData[];
+  orderStatusBreakdown: AnalyticsOrderStatusCount[];
+}
+
+// ─── Banner Repository ────────────────────────────────────────────────────────
+
+export interface Banner {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  image_url: string;
+  mobile_image_url?: string | null;
+  link_url?: string | null;
+  button_text?: string | null;
+  is_active: boolean;
+  display_order: number;
+  start_date?: string | null;
+  end_date?: string | null;
+  target_page?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface IBannerRepository {
+  getAll(): Promise<Banner[]>;
+  getById(id: string): Promise<Banner | null>;
+  create(banner: Omit<Banner, 'id' | 'created_at' | 'updated_at'>): Promise<Banner | null>;
+  update(id: string, banner: Partial<Banner>): Promise<Banner | null>;
+  delete(id: string): Promise<boolean>;
+  getActive(): Promise<Banner[]>;
+}

@@ -1,0 +1,124 @@
+/* components/collections/CategoryTabs.module.css */
+
+.tabsSection {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #ffffff;
+  border-bottom: 1px solid #f0f0f0;
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Hide scrollbar for Chrome, Safari, Edge */
+.container::-webkit-scrollbar {
+  display: none;
+}
+
+.tabBtn {
+  position: relative;
+  padding: 8px 20px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666666;
+  background: transparent;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.tabBtn:hover {
+  color: #111111;
+  background: #f5f5f5;
+}
+
+.tabBtn:active {
+  transform: scale(0.95);
+}
+
+.tabBtn.active {
+  color: #ffffff;
+  background: #111111;
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Active indicator dot */
+.activeIndicator {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #D4AF37;
+  animation: indicatorPulse 2s ease-in-out infinite;
+}
+
+@keyframes indicatorPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: translateX(-50%) scale(0.8);
+  }
+}
+
+/* New Arrivals special styling */
+.tabBtn[data-category="New Arrivals"] {
+  position: relative;
+}
+
+.tabBtn[data-category="New Arrivals"]::before {
+  content: '✦';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 8px;
+  color: #D4AF37;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 10px 16px;
+    gap: 2px;
+  }
+  
+  .tabBtn {
+    padding: 6px 14px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 8px 12px;
+    gap: 2px;
+  }
+  
+  .tabBtn {
+    padding: 5px 10px;
+    font-size: 10px;
+  }
+}

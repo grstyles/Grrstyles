@@ -1,0 +1,97 @@
+.section {
+  background-color: #111;
+  color: #fff;
+  padding: 3rem 0;
+  overflow: hidden;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.container {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.label {
+  position: absolute;
+  left: 4rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #d4af37;
+  z-index: 10;
+  background-color: #111;
+  padding-right: 3rem;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.carouselContainer {
+  display: flex;
+  white-space: nowrap;
+  padding-left: 20rem; /* Offset for label */
+  cursor: pointer;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  font-family: 'Playfair Display', serif;
+  font-size: 2.5rem;
+  font-style: italic;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.5);
+  transition: all 0.4s ease;
+}
+
+.item:hover {
+  color: #fff;
+  -webkit-text-stroke: 1px #fff;
+}
+
+.separator {
+  color: #d4af37;
+  font-size: 1.5rem;
+  margin: 0 4rem;
+  -webkit-text-stroke: 0;
+  font-style: normal;
+}
+
+@media (max-width: 1024px) {
+  .label {
+    left: 2rem;
+  }
+  .carouselContainer {
+    padding-left: 14rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+  }
+  
+  .label {
+    position: static;
+    margin-bottom: 2rem;
+    padding-right: 0;
+    text-align: center;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .carouselContainer {
+    padding-left: 2rem;
+  }
+
+  .item {
+    font-size: 2rem;
+  }
+  
+  .separator {
+    margin: 0 2rem;
+  }
+}

@@ -1,0 +1,161 @@
+.section {
+  padding: 4rem 0;
+  background: #faf9f7;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #1e2a3a 0%, #2c3e4e 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  margin-bottom: 0.75rem;
+}
+
+.subtitle {
+  font-size: 1.125rem;
+  color: #5b6c7a;
+  max-width: 500px;
+  margin: 0 auto;
+  border-left: 3px solid #c7a05b;
+  padding-left: 1rem;
+}
+
+.scrollWrapper {
+  overflow-x: visible;
+  cursor: grab;
+  width: 100%;
+  position: relative;
+}
+
+.scrollWrapper:active {
+  cursor: grabbing;
+}
+
+.cards {
+  display: flex;
+  gap: 1.5rem;
+  width: max-content;
+  will-change: transform;
+}
+
+.cardLink {
+  text-decoration: none;
+  transition: transform 0.2s ease;
+  display: block;
+}
+
+.cardLink:hover {
+  transform: translateY(-5px);
+}
+
+.card {
+  background: white;
+  border-radius: 1.5rem;
+  padding: 1.5rem 1rem 1rem 1rem;
+  width: 180px;
+  text-align: center;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.02);
+  transition: all 0.3s ease;
+  border: 1px solid #efebe6;
+}
+
+.card:hover {
+  box-shadow: 0 20px 30px -12px rgba(0, 0, 0, 0.1);
+  border-color: #e0d6ca;
+}
+
+.imageContainer {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 1rem auto;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #f5f2ef;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.image {
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.card:hover .image {
+  transform: scale(1.03);
+}
+
+.name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2d3e4f;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .section {
+    padding: 2.5rem 0;
+  }
+  
+  .container {
+    padding: 0 1rem;
+  }
+  
+  .title {
+    font-size: 1.8rem;
+  }
+  
+  .subtitle {
+    font-size: 0.95rem;
+  }
+  
+  .card {
+    width: 140px;
+    padding: 1rem 0.75rem 0.75rem 0.75rem;
+  }
+  
+  .imageContainer {
+    width: 90px;
+    height: 90px;
+  }
+  
+  .name {
+    font-size: 0.85rem;
+  }
+  
+  .cards {
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .card {
+    width: 120px;
+  }
+  
+  .imageContainer {
+    width: 75px;
+    height: 75px;
+  }
+  
+  .name {
+    font-size: 0.75rem;
+  }
+}
