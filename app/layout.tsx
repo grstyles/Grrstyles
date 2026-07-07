@@ -1,17 +1,18 @@
-
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Playfair_Display, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+
 import Navbar from "@/components/navbar/Navbar";
 import Footer from "@/components/footer/Footer";
 import TopBar from "@/components/navbar/TopBar";
 
+const geistSans = Geist({ 
+  variable: "--font-geist-sans", 
+  subsets: ["latin"] 
+});
 
-
-
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
@@ -65,7 +66,7 @@ export const viewport: Viewport = {
 import { IS_PRODUCTION } from '@/lib/config';
 import QuickViewWrapper from "@/components/ui/QuickViewWrapper";
 import AuthModal from "@/components/ui/AuthModal";
-
+import Script from "next/script";
 import BottomNavigation from "@/components/layout/BottomNavigation";
 
 export default function RootLayout({
@@ -88,6 +89,10 @@ export default function RootLayout({
           <QuickViewWrapper />
           <AuthModal />
         </Providers>
+          <Script
+            src="https://checkout.razorpay.com/v1/checkout.js"
+            strategy="afterInteractive"
+          />
         {IS_PRODUCTION && <Analytics />}
       </body>
     </html>

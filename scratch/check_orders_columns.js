@@ -5,7 +5,7 @@ const path = require('path');
 let supabaseUrl = '';
 let supabaseKey = '';
 
-const envLocalPath = 'C:\\Users\\hp\\Documents\\AUTOFIT AGENCEY\\gr_styles\\.env.local';
+const envLocalPath = path.join(process.cwd(), '.env.local');
 if (fs.existsSync(envLocalPath)) {
   const envContent = fs.readFileSync(envLocalPath, 'utf8');
   envContent.split('\n').forEach(line => {
@@ -26,13 +26,13 @@ const cleanedUrl = (supabaseUrl || '').trim().replace(/\/rest\/v1\/?$/, '');
 const supabase = createClient(cleanedUrl, supabaseKey);
 
 async function run() {
-  const { data, error } = await supabase.from('orders').select('*').limit(1);
+  const { data, error } = await supabase.from('products').select('*').limit(1);
   if (error) {
-    console.error('Error fetching orders:', error);
+    console.error('Error fetching products:', error);
   } else {
-    console.log('Orders row keys:', data.length > 0 ? Object.keys(data[0]) : 'No orders in DB');
+    console.log('Products row keys:', data.length > 0 ? Object.keys(data[0]) : 'No products in DB');
     if (data.length > 0) {
-      console.log('Sample order row:', JSON.stringify(data[0], null, 2));
+      console.log('Sample product row:', JSON.stringify(data[0], null, 2));
     }
   }
 }

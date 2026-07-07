@@ -14,7 +14,7 @@ async function check(table) {
 }
 
 async function run() {
-  const tables = ['products', 'orders', 'profiles', 'user_addresses', 'category_carousel', 'wishlist', 'cart', 'marketing_config', 'coupons', 'banners', 'product_coupons'];
+  const tables = ['products', 'orders', 'profiles', 'user_addresses', 'category_carousel', 'carts', 'cart_items', 'wishlists', 'wishlist_items', 'marketing_config', 'coupons', 'banners', 'product_coupons'];
   for (const t of tables) await check(t);
 }
 run();

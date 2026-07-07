@@ -44,7 +44,7 @@ export class SupabaseProductRepository implements IProductRepository {
   async getById(id: string): Promise<Product | null> {
     const { data, error } = await supabase!
       .from('products')
-      .select('*, product_coupons(coupon_code), image_colors(image_url, color_name, display_order)')
+      .select('*, product_coupons(coupon_code)')
       .eq('id', id)
       .maybeSingle();
       

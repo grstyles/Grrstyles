@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Script from 'next/script';
+
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/lib/redux/store';
 import { formatPrice } from '@/lib/utils/helpers';
@@ -145,6 +145,32 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
+  // Load Razorpay SDK dynamically on client side
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if ((window as any).Razorpay) {
+        setRazorpayLoaded(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => {
+        console.log('✅ Razorpay SDK Loaded');
+        setRazorpayLoaded(true);
+      };
+      script.onerror = () => {
+        console.error('❌ Failed to load Razorpay SDK');
+        dispatch(addToast({
+          message: 'Failed to load payment SDK. Please refresh and try again.',
+          type: 'error'
+        }));
+      };
+      document.body.appendChild(script);
+    }
+  }, []);
+
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -266,6 +292,16 @@ export default function CheckoutPage() {
       if (!razorpayLoaded || !(window as any).Razorpay) {
         dispatch(addToast({ 
           message: 'Razorpay SDK is still loading. Please try again in a moment.', 
+          type: 'error' 
+        }));
+        setLoading(false);
+        return;
+      }
+
+      // Check if Razorpay Key ID is configured properly
+      if (!RAZORPAY_KEY_ID || RAZORPAY_KEY_ID.includes('placeholder') || RAZORPAY_KEY_ID.includes('demo')) {
+        dispatch(addToast({ 
+          message: 'Razorpay Key ID is not configured. Please define NEXT_PUBLIC_RAZORPAY_KEY_ID in your .env.local file.', 
           type: 'error' 
         }));
         setLoading(false);
@@ -396,21 +432,7 @@ export default function CheckoutPage() {
   return (
     <>
       {/* Razorpay Script - Loaded after page interactive for better performance */}
-      <Script
-        src="https://checkout.razorpay.com/v1/checkout.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          console.log("✅ Razorpay SDK Loaded");
-          setRazorpayLoaded(true);
-        }}
-        onError={() => {
-          console.error("❌ Failed to load Razorpay SDK");
-          dispatch(addToast({ 
-            message: 'Failed to load payment SDK. Please refresh and try again.', 
-            type: 'error' 
-          }));
-        }}
-      />
+      {/* Razorpay SDK loading is handled via useEffect in this component */}
 
       <div className="min-h-screen bg-white">
         <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-10 py-12">

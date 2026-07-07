@@ -5,7 +5,7 @@ const path = require('path');
 let supabaseUrl = '';
 let supabaseKey = '';
 
-const envLocalPath = 'C:\\Users\\hp\\Documents\\AUTOFIT AGENCEY\\gr_styles\\.env.local';
+const envLocalPath = path.join(process.cwd(), '.env.local');
 if (fs.existsSync(envLocalPath)) {
   const envContent = fs.readFileSync(envLocalPath, 'utf8');
   envContent.split('\n').forEach(line => {
