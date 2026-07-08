@@ -35,37 +35,57 @@ const sanitizeItem = (item: any): CategoryCarouselItem => {
 
 export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepository {
   async getAll(): Promise<CategoryCarouselItem[]> {
-    const { data, error } = await supabase
-      .from('category_carousel')
-      .select('*')
-      .order('priority', { ascending: true });
-    
-    if (error) {
-      console.warn('Failed to fetch category_carousel. Table might not exist yet.', error);
+    try {
+      const { data, error } = await supabase
+        .from('category_carousel')
+        .select('*')
+        .order('priority', { ascending: true });
+      
+      if (error) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Failed to fetch category_carousel. Table might not exist yet.', error);
+        }
+        return [];
+      }
+      return (data || []).map(sanitizeItem);
+    } catch (error) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Failed to fetch category_carousel. Table might not exist yet.', error);
+      }
       return [];
     }
-    return (data || []).map(sanitizeItem);
   }
 
   async getActive(): Promise<CategoryCarouselItem[]> {
-    const { data, error } = await supabase
-      .from('category_carousel')
-      .select('*')
-      .eq('enabled', true)
-      .order('priority', { ascending: true });
-    
-    if (error) {
-      console.warn('Failed to fetch active category_carousel. Table might not exist yet.');
+    try {
+      const { data, error } = await supabase
+        .from('category_carousel')
+        .select('*')
+        .eq('enabled', true)
+        .order('priority', { ascending: true });
+      
+      if (error) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Failed to fetch active category_carousel. Table might not exist yet.', error);
+        }
+        return [];
+      }
+      const sanitized = (data || []).map(sanitizeItem);
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("Fetched Categories:");
+        sanitized.forEach((c: any) => {
+          console.log(`- title: ${c.title}, slug: ${c.slug}, image_url: ${c.image_url}, redirect: ${c.redirect_link}, enabled: ${c.enabled}, priority: ${c.priority}`);
+        });
+      }
+      
+      return sanitized;
+    } catch (error) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('Failed to fetch active category_carousel. Table might not exist yet.', error);
+      }
       return [];
     }
-    const sanitized = (data || []).map(sanitizeItem);
-    
-    console.log("Fetched Categories:");
-    sanitized.forEach((c: any) => {
-      console.log(`- title: ${c.title}, slug: ${c.slug}, image_url: ${c.image_url}, redirect: ${c.redirect_link}, enabled: ${c.enabled}, priority: ${c.priority}`);
-    });
-    
-    return sanitized;
   }
 
   async update(id: string, updates: Partial<CategoryCarouselItem>): Promise<CategoryCarouselItem> {

@@ -170,6 +170,8 @@ export default function HeroCarousel({ banners }: { banners?: Banner[] }) {
               alt={slide.title}
               fill
               priority={idx === 0}
+              loading={idx === 0 ? "eager" : "lazy"}
+              fetchPriority={idx === 0 ? "high" : undefined}
               className={`object-cover object-top transition-transform duration-[10000ms] ease-linear ${
                 slide.mobileImage ? 'hidden md:block' : 'block'
               } ${
@@ -184,6 +186,8 @@ export default function HeroCarousel({ banners }: { banners?: Banner[] }) {
                 alt={slide.title}
                 fill
                 priority={idx === 0}
+                loading={idx === 0 ? "eager" : "lazy"}
+                fetchPriority={idx === 0 ? "high" : undefined}
                 className={`object-cover object-center transition-transform duration-[10000ms] ease-linear md:hidden ${
                   idx === currentSlide ? 'scale-110' : 'scale-100'
                 }`}
