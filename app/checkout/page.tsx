@@ -17,9 +17,8 @@ import { Package, CheckCircle, CreditCard, Smartphone } from 'lucide-react';
 export default function CheckoutPage() {
   const dispatch = useDispatch();
   const router = useRouter();
-  const { user, isAuthModalOpen, openAuthModal, closeAuthModal, requireAuth } = useAuth();
+  const { user, requireAuth } = useAuth();
   const [authChecked, setAuthChecked] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const directCheckoutItem = useSelector((state: RootState) => state.cart.directCheckoutItem);
   const cartItemsAll = useSelector((state: RootState) => state.cart.items);
   const cartItems = directCheckoutItem ? [directCheckoutItem] : cartItemsAll.filter((item) => item.selected !== false);
@@ -42,49 +41,6 @@ export default function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState('new');
   const [saveAddressToProfile, setSaveAddressToProfile] = useState(false);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
-
-  // Check authentication on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      // If user already exists, we're authenticated
-      if (user) {
-        console.log('✅ User already logged in:', user.email);
-        setIsAuthenticated(true);
-        setAuthChecked(true);
-        return;
-      }
-
-      // If no user, check if we need to show auth modal
-      console.log('🔐 No user found, checking authentication...');
-      
-      // Use requireAuth to handle authentication
-      requireAuth(
-        () => {
-          // This callback runs when authentication is successful
-          console.log('✅ Authentication successful');
-          setIsAuthenticated(true);
-          setAuthChecked(true);
-        },
-        () => {
-          // This callback runs when authentication is cancelled or fails
-          console.log('❌ Authentication cancelled or failed');
-          setAuthChecked(true);
-          // Redirect to cart if not authenticated
-          router.push('/cart');
-        }
-      );
-    };
-
-    checkAuth();
-  }, [user, requireAuth, router]);
-
-  // Listen for auth state changes
-  useEffect(() => {
-    if (user) {
-      setIsAuthenticated(true);
-      setAuthChecked(true);
-    }
-  }, [user]);
 
   useEffect(() => {
     if (authChecked && user) {
@@ -154,7 +110,7 @@ export default function CheckoutPage() {
     }
   };
 
-  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const [paymentMethod, setPaymentMethod] = useState('upi'); // Changed from 'card' to 'upi'
   const [loading, setLoading] = useState(false);
   const discountValue = useSelector((state: RootState) => state.cart.discountValue);
   const discountType = useSelector((state: RootState) => state.cart.discountType);
@@ -168,11 +124,22 @@ export default function CheckoutPage() {
   const finalTotal = total - discount + tax + shipping;
 
   useEffect(() => {
+    requireAuth(
+      () => {
+        setAuthChecked(true);
+      },
+      () => {
+        router.push('/cart');
+      }
+    );
+  }, [requireAuth, router]);
+
+  useEffect(() => {
     if (user) {
       setFormData((prev) => ({
         ...prev,
-        firstName: prev.firstName || user.fullName?.split(' ')[0] || '',
-        lastName: prev.lastName || user.fullName?.split(' ').slice(1).join(' ') || '',
+        firstName: prev.firstName || user.fullName.split(' ')[0] || '',
+        lastName: prev.lastName || user.fullName.split(' ').slice(1).join(' ') || '',
         email: prev.email || user.email || '',
       }));
     }
@@ -260,13 +227,6 @@ export default function CheckoutPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
-
-    // Double-check authentication before proceeding
-    if (!user) {
-      dispatch(addToast({ message: 'Please login to continue.', type: 'error' }));
-      openAuthModal();
-      return;
-    }
 
     if (appliedPromo) {
       const productIds = cartItems.map((item) => item.id);
@@ -526,31 +486,10 @@ export default function CheckoutPage() {
     }
   };
 
-  // Show loading while checking auth
   if (!authChecked) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // If not authenticated, show message
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-10 py-12">
-          <h1 className="text-4xl font-bold mb-8">Checkout</h1>
-          <div className="text-center py-16">
-            <p className="text-xl text-gray-600 mb-6">Please login to continue with checkout</p>
-            <button
-              onClick={() => openAuthModal()}
-              className="inline-block bg-black text-white px-8 py-3 rounded-lg font-bold hover:bg-gray-800"
-            >
-              Login
-            </button>
-          </div>
-        </div>
       </div>
     );
   }
