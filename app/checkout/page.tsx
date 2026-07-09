@@ -17,8 +17,9 @@ import { Package, CheckCircle, CreditCard, Smartphone } from 'lucide-react';
 export default function CheckoutPage() {
   const dispatch = useDispatch();
   const router = useRouter();
-  const { user, requireAuth } = useAuth();
+  const { user, isAuthModalOpen, openAuthModal, closeAuthModal, requireAuth } = useAuth();
   const [authChecked, setAuthChecked] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const directCheckoutItem = useSelector((state: RootState) => state.cart.directCheckoutItem);
   const cartItemsAll = useSelector((state: RootState) => state.cart.items);
   const cartItems = directCheckoutItem ? [directCheckoutItem] : cartItemsAll.filter((item) => item.selected !== false);
@@ -41,6 +42,49 @@ export default function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState('new');
   const [saveAddressToProfile, setSaveAddressToProfile] = useState(false);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      // If user already exists, we're authenticated
+      if (user) {
+        console.log('✅ User already logged in:', user.email);
+        setIsAuthenticated(true);
+        setAuthChecked(true);
+        return;
+      }
+
+      // If no user, check if we need to show auth modal
+      console.log('🔐 No user found, checking authentication...');
+      
+      // Use requireAuth to handle authentication
+      requireAuth(
+        () => {
+          // This callback runs when authentication is successful
+          console.log('✅ Authentication successful');
+          setIsAuthenticated(true);
+          setAuthChecked(true);
+        },
+        () => {
+          // This callback runs when authentication is cancelled or fails
+          console.log('❌ Authentication cancelled or failed');
+          setAuthChecked(true);
+          // Redirect to cart if not authenticated
+          router.push('/cart');
+        }
+      );
+    };
+
+    checkAuth();
+  }, [user, requireAuth, router]);
+
+  // Listen for auth state changes
+  useEffect(() => {
+    if (user) {
+      setIsAuthenticated(true);
+      setAuthChecked(true);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (authChecked && user) {
@@ -110,7 +154,7 @@ export default function CheckoutPage() {
     }
   };
 
-  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [paymentMethod, setPaymentMethod] = useState('upi');
   const [loading, setLoading] = useState(false);
   const discountValue = useSelector((state: RootState) => state.cart.discountValue);
   const discountType = useSelector((state: RootState) => state.cart.discountType);
@@ -124,22 +168,11 @@ export default function CheckoutPage() {
   const finalTotal = total - discount + tax + shipping;
 
   useEffect(() => {
-    requireAuth(
-      () => {
-        setAuthChecked(true);
-      },
-      () => {
-        router.push('/cart');
-      }
-    );
-  }, [requireAuth, router]);
-
-  useEffect(() => {
     if (user) {
       setFormData((prev) => ({
         ...prev,
-        firstName: prev.firstName || user.fullName.split(' ')[0] || '',
-        lastName: prev.lastName || user.fullName.split(' ').slice(1).join(' ') || '',
+        firstName: prev.firstName || user.fullName?.split(' ')[0] || '',
+        lastName: prev.lastName || user.fullName?.split(' ').slice(1).join(' ') || '',
         email: prev.email || user.email || '',
       }));
     }
@@ -169,7 +202,6 @@ export default function CheckoutPage() {
       document.body.appendChild(script);
     }
   }, []);
-
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -229,6 +261,13 @@ export default function CheckoutPage() {
     e.preventDefault();
     if (loading) return;
 
+    // Double-check authentication before proceeding
+    if (!user) {
+      dispatch(addToast({ message: 'Please login to continue.', type: 'error' }));
+      openAuthModal();
+      return;
+    }
+
     if (appliedPromo) {
       const productIds = cartItems.map((item) => item.id);
       const valRes = await repo.coupons.apply(appliedPromo, { subtotal: total, productIds });
@@ -281,14 +320,12 @@ export default function CheckoutPage() {
       paymentStatus: 'Pending',
     };
 
-    if (paymentMethod === 'cod') {
-      // Cash on delivery: save order immediately
-      await handlePlaceOrder(orderPayload);
-    } else {
-      // Online payment: check if Razorpay is loaded
+    // If UPI is selected, use UPI flow
+    if (paymentMethod === 'upi') {
+      // UPI payment flow
       setLoading(true);
       
-      // Check both states: razorpayLoaded flag AND window.Razorpay
+      // Check if Razorpay is loaded
       if (!razorpayLoaded || !(window as any).Razorpay) {
         dispatch(addToast({ 
           message: 'Razorpay SDK is still loading. Please try again in a moment.', 
@@ -332,9 +369,91 @@ export default function CheckoutPage() {
           description: 'Menswear Fashion Checkout',
           image: '/images/image5.jpeg',
           order_id: rzpOrder.id,
+          // UPI specific options
+          method: {
+            upi: true,
+            card: false,
+            netbanking: false,
+            wallet: false,
+          },
+          prefill: {
+            name: `${formData.firstName} ${formData.lastName}`,
+            email: formData.email,
+            contact: formData.phone,
+          },
+          notes: {
+            address: addressString,
+            payment_type: 'upi'
+          },
+          theme: {
+            color: '#000000',
+          },
+          modal: {
+            ondismiss: function () {
+              dispatch(addToast({ message: 'Payment cancelled.', type: 'info' }));
+              setLoading(false);
+            }
+          }
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.on('payment.failed', function (response: any) {
+          dispatch(addToast({ message: 'Payment failed. Please try again.', type: 'error' }));
+          setLoading(false);
+        });
+        rzp.open();
+      } catch (err: any) {
+        dispatch(addToast({ message: err.message || 'Failed to initialize UPI payment.', type: 'error' }));
+        setLoading(false);
+      }
+    } else if (paymentMethod === 'card') {
+      // Card payment flow (existing code)
+      setLoading(true);
+      
+      if (!razorpayLoaded || !(window as any).Razorpay) {
+        dispatch(addToast({ 
+          message: 'Razorpay SDK is still loading. Please try again in a moment.', 
+          type: 'error' 
+        }));
+        setLoading(false);
+        return;
+      }
+
+      if (!RAZORPAY_KEY_ID || RAZORPAY_KEY_ID.includes('placeholder') || RAZORPAY_KEY_ID.includes('demo')) {
+        dispatch(addToast({ 
+          message: 'Razorpay Key ID is not configured. Please define NEXT_PUBLIC_RAZORPAY_KEY_ID in your .env.local file.', 
+          type: 'error' 
+        }));
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const createOrderRes = await fetch('/api/razorpay/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: cartItems.map(i => ({ productId: i.id, quantity: i.quantity })),
+            couponCode: appliedPromo || null,
+          }),
+        });
+
+        const rzpOrder = await createOrderRes.json();
+        
+        if (!createOrderRes.ok) {
+          throw new Error(rzpOrder.error || 'Failed to initialize payment');
+        }
+
+        const options = {
+          key: RAZORPAY_KEY_ID,
+          amount: rzpOrder.amount,
+          currency: rzpOrder.currency,
+          name: 'GR STYLES',
+          description: 'Menswear Fashion Checkout',
+          image: '/images/image5.jpeg',
+          order_id: rzpOrder.id,
           handler: async function (response: any) {
             try {
-              // Verify payment on server
               const verifyRes = await fetch('/api/razorpay/verify-payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -350,7 +469,6 @@ export default function CheckoutPage() {
                 throw new Error(verifyData.error || 'Payment verification failed');
               }
 
-              // Success callback: update payment status and place order
               const successPayload = {
                 ...orderPayload,
                 paymentStatus: 'Paid',
@@ -402,13 +520,37 @@ export default function CheckoutPage() {
         dispatch(addToast({ message: err.message || 'Failed to initialize payment.', type: 'error' }));
         setLoading(false);
       }
+    } else {
+      // COD flow
+      await handlePlaceOrder(orderPayload);
     }
   };
 
+  // Show loading while checking auth
   if (!authChecked) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // If not authenticated, show message
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-white">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-10 py-12">
+          <h1 className="text-4xl font-bold mb-8">Checkout</h1>
+          <div className="text-center py-16">
+            <p className="text-xl text-gray-600 mb-6">Please login to continue with checkout</p>
+            <button
+              onClick={() => openAuthModal()}
+              className="inline-block bg-black text-white px-8 py-3 rounded-lg font-bold hover:bg-gray-800"
+            >
+              Login
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -430,286 +572,281 @@ export default function CheckoutPage() {
   }
 
   return (
-    <>
-      {/* Razorpay Script - Loaded after page interactive for better performance */}
-      {/* Razorpay SDK loading is handled via useEffect in this component */}
+    <div className="min-h-screen bg-white">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-10 py-12">
+        <h1 className="text-4xl font-bold mb-8">Checkout</h1>
 
-      <div className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-10 py-12">
-          <h1 className="text-4xl font-bold mb-8">Checkout</h1>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Checkout Form */}
+          <div className="lg:col-span-2">
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Shipping Information */}
+              <section className="border-b border-gray-200 pb-8">
+                <h2 className="text-2xl font-bold mb-6">Shipping Information</h2>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Checkout Form */}
-            <div className="lg:col-span-2">
-              <form onSubmit={handleSubmit} className="space-y-8">
-                {/* Shipping Information */}
-                <section className="border-b border-gray-200 pb-8">
-                  <h2 className="text-2xl font-bold mb-6">Shipping Information</h2>
-
-                  {addresses.length > 0 && (
-                    <div className="mb-6">
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Select a Saved Address</label>
-                      <select
-                        value={selectedAddressId}
-                        onChange={handleSelectAddressChange}
-                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black appearance-none cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
-                      >
-                        {addresses.map((addr) => (
-                          <option key={addr.id} value={addr.id}>
-                            {addr.fullName} - {addr.addressLine1}, {addr.city} ({addr.isDefault ? 'Default' : 'Saved'})
-                          </option>
-                        ))}
-                        <option value="new">+ Enter New Address</option>
-                      </select>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-span-2">
-                    <input
-                      type="text"
-                      name="firstName"
-                      placeholder="First Name"
-                      value={formData.firstName}
-                      onChange={handleChange}
-                      required
-                      className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
-                    />
-                    <input
-                      type="text"
-                      name="lastName"
-                      placeholder="Last Name"
-                      value={formData.lastName}
-                      onChange={handleChange}
-                      required
-                      className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
-                    />
-                    <input
-                      type="email"
-                      name="email"
-                      placeholder="Email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      required
-                      className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-2"
-                    />
-                    <input
-                      type="tel"
-                      name="phone"
-                      placeholder="Phone Number"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      required
-                      className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-1"
-                    />
-                    <input
-                      type="tel"
-                      name="alternatePhone"
-                      placeholder="Alternate Phone (Optional)"
-                      value={formData.alternatePhone}
-                      onChange={handleChange}
-                      className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-1"
-                    />
-                    <input
-                      type="text"
-                      name="address"
-                      placeholder="Street Address"
-                      value={formData.address}
-                      onChange={handleChange}
-                      required
-                      className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-2"
-                    />
-                    <input
-                      type="text"
-                      name="city"
-                      placeholder="City"
-                      value={formData.city}
-                      onChange={handleChange}
-                      required
-                      className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
-                    />
-                    <input
-                      type="text"
-                      name="state"
-                      placeholder="State/Province"
-                      value={formData.state}
-                      onChange={handleChange}
-                      required
-                      className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
-                    />
-                    <input
-                      type="text"
-                      name="zip"
-                      placeholder="Pincode"
-                      value={formData.zip}
-                      onChange={handleChange}
-                      required
-                      className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
-                    />
+                {addresses.length > 0 && (
+                  <div className="mb-6">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Select a Saved Address</label>
                     <select
-                      name="country"
-                      value={formData.country}
-                      onChange={handleChange}
-                      className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                      value={selectedAddressId}
+                      onChange={handleSelectAddressChange}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black appearance-none cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
                     >
-                      <option>India</option>
-                      <option>United States</option>
-                      <option>United Kingdom</option>
-                      <option>United Arab Emirates</option>
-                      <option>Canada</option>
+                      {addresses.map((addr) => (
+                        <option key={addr.id} value={addr.id}>
+                          {addr.fullName} - {addr.addressLine1}, {addr.city} ({addr.isDefault ? 'Default' : 'Saved'})
+                        </option>
+                      ))}
+                      <option value="new">+ Enter New Address</option>
                     </select>
-                    
-                    {selectedAddressId === 'new' && user && (
-                      <div className="md:col-span-2 flex items-center gap-2 mt-2">
-                        <input
-                          type="checkbox"
-                          id="save-address"
-                          checked={saveAddressToProfile}
-                          onChange={(e) => setSaveAddressToProfile(e.target.checked)}
-                          className="w-4 h-4 accent-black rounded focus:ring-black cursor-pointer"
-                        />
-                        <label htmlFor="save-address" className="text-xs text-gray-600 cursor-pointer select-none">
-                          Save this address to my profile for future purchases
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                </section>
-
-                {/* Payment Method */}
-                <section className="border-b border-gray-200 pb-8">
-                  <h2 className="text-2xl font-bold mb-6">Payment Method</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* UPI Option */}
-                    <label 
-                      className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
-                        paymentMethod === 'upi' 
-                          ? 'border-2 border-green-500 bg-green-50 shadow-md scale-[1.02]' 
-                          : 'border border-gray-200 hover:border-green-300 hover:bg-gray-50 hover:shadow-sm'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="payment"
-                        value="upi"
-                        checked={paymentMethod === 'upi'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="hidden"
-                      />
-                      <div className="flex items-center gap-4 w-full">
-                        <div className={`p-3 rounded-full ${paymentMethod === 'upi' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
-                          <Smartphone size={24} />
-                        </div>
-                        <div className="flex-1">
-                          <span className={`block font-bold ${paymentMethod === 'upi' ? 'text-green-800' : 'text-gray-800'}`}>UPI</span>
-                          <span className="block text-sm text-gray-500 mt-0.5">Google Pay / PhonePe / Paytm</span>
-                        </div>
-                        {paymentMethod === 'upi' && (
-                          <CheckCircle size={24} className="text-green-500 absolute top-5 right-5" />
-                        )}
-                      </div>
-                    </label>
-
-                    {/* Credit/Debit Card Option */}
-                    <label 
-                      className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
-                        paymentMethod === 'card' 
-                          ? 'border-2 border-blue-500 bg-blue-50 shadow-md scale-[1.02]' 
-                          : 'border border-gray-200 hover:border-blue-300 hover:bg-gray-50 hover:shadow-sm'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="payment"
-                        value="card"
-                        checked={paymentMethod === 'card'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="hidden"
-                      />
-                      <div className="flex items-center gap-4 w-full">
-                        <div className={`p-3 rounded-full ${paymentMethod === 'card' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
-                          <CreditCard size={24} />
-                        </div>
-                        <div className="flex-1">
-                          <span className={`block font-bold ${paymentMethod === 'card' ? 'text-blue-800' : 'text-gray-800'}`}>Credit / Debit Card</span>
-                          <span className="block text-sm text-gray-500 mt-0.5">Visa, MasterCard, RuPay</span>
-                        </div>
-                        {paymentMethod === 'card' && (
-                          <CheckCircle size={24} className="text-blue-500 absolute top-5 right-5" />
-                        )}
-                      </div>
-                    </label>
-                  </div>
-                </section>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-black text-white py-4 rounded-lg font-bold text-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Processing...' : 'Place Order'}
-                </button>
-              </form>
-            </div>
-
-            {/* Order Summary */}
-            <div className="bg-gray-50 p-6 rounded-lg h-fit sticky top-24">
-              <h3 className="text-2xl font-bold mb-6">Order Summary</h3>
-
-              {/* Items */}
-              <div className="mb-6 max-h-64 overflow-y-auto space-y-3">
-                {cartItems.map((item) => {
-                  const uniqueKey = `${item.id}-${item.size || ''}-${item.shirtSize || ''}-${item.pantSize || ''}-${item.shoeSize || ''}-${item.color || ''}`;
-                  return (
-                    <div key={uniqueKey} className="flex gap-4 text-sm pb-3 border-b border-gray-200 items-start group">
-                      {item.image ? (
-                        <img src={item.image} alt={item.title} className="w-12 h-12 object-cover rounded-lg border border-gray-100 shrink-0 group-hover:scale-105 transition-transform" />
-                      ) : (
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200 shrink-0">
-                          <Package size={16} className="text-gray-400" />
-                        </div>
-                      )}
-                      <div className="flex-1 space-y-0.5">
-                        <p className="font-medium text-gray-800 leading-tight">{item.title}</p>
-                        <p className="text-[11px] text-gray-400">
-                          Qty: {item.quantity} {item.size ? `| Size: ${item.size}` : ''} {item.shirtSize ? `| Shirt: ${item.shirtSize}` : ''} {item.pantSize ? `| Pant: ${item.pantSize}` : ''} {item.shoeSize ? `| Shoe: ${item.shoeSize}` : ''} {item.color ? `| Color: ${item.color}` : ''}
-                        </p>
-                      </div>
-                      <span className="font-semibold text-gray-800 shrink-0">{formatPrice(item.discountedPrice * item.quantity)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Totals */}
-              <div className="space-y-3 border-t border-gray-200 pt-6">
-                <div className="flex justify-between text-sm">
-                  <span>Subtotal</span>
-                  <span>{formatPrice(total)}</span>
-                </div>
-                {discount > 0 && (
-                  <div className="flex justify-between text-sm text-green-600 font-semibold">
-                    <span>Discount ({appliedPromo})</span>
-                    <span>-{formatPrice(discount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm">
-                  <span>Shipping</span>
-                  <span className="text-green-600 font-semibold">FREE</span>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-span-2">
+                  <input
+                    type="text"
+                    name="firstName"
+                    placeholder="First Name"
+                    value={formData.firstName}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  />
+                  <input
+                    type="text"
+                    name="lastName"
+                    placeholder="Last Name"
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  />
+                  <input
+                    type="email"
+                    name="email"
+                    placeholder="Email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-2"
+                  />
+                  <input
+                    type="tel"
+                    name="phone"
+                    placeholder="Phone Number"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-1"
+                  />
+                  <input
+                    type="tel"
+                    name="alternatePhone"
+                    placeholder="Alternate Phone (Optional)"
+                    value={formData.alternatePhone}
+                    onChange={handleChange}
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-1"
+                  />
+                  <input
+                    type="text"
+                    name="address"
+                    placeholder="Street Address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-2"
+                  />
+                  <input
+                    type="text"
+                    name="city"
+                    placeholder="City"
+                    value={formData.city}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  />
+                  <input
+                    type="text"
+                    name="state"
+                    placeholder="State/Province"
+                    value={formData.state}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  />
+                  <input
+                    type="text"
+                    name="zip"
+                    placeholder="Pincode"
+                    value={formData.zip}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  />
+                  <select
+                    name="country"
+                    value={formData.country}
+                    onChange={handleChange}
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  >
+                    <option>India</option>
+                    <option>United States</option>
+                    <option>United Kingdom</option>
+                    <option>United Arab Emirates</option>
+                    <option>Canada</option>
+                  </select>
+                  
+                  {selectedAddressId === 'new' && user && (
+                    <div className="md:col-span-2 flex items-center gap-2 mt-2">
+                      <input
+                        type="checkbox"
+                        id="save-address"
+                        checked={saveAddressToProfile}
+                        onChange={(e) => setSaveAddressToProfile(e.target.checked)}
+                        className="w-4 h-4 accent-black rounded focus:ring-black cursor-pointer"
+                      />
+                      <label htmlFor="save-address" className="text-xs text-gray-600 cursor-pointer select-none">
+                        Save this address to my profile for future purchases
+                      </label>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span>Tax</span>
-                  <span>{formatPrice(tax)}</span>
+              </section>
+
+              {/* Payment Method - UPI First */}
+              <section className="border-b border-gray-200 pb-8">
+                <h2 className="text-2xl font-bold mb-6">Payment Method</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* UPI Option - First */}
+                  <label 
+                    className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
+                      paymentMethod === 'upi' 
+                        ? 'border-2 border-green-500 bg-green-50 shadow-md scale-[1.02]' 
+                        : 'border border-gray-200 hover:border-green-300 hover:bg-gray-50 hover:shadow-sm'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="upi"
+                      checked={paymentMethod === 'upi'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="hidden"
+                    />
+                    <div className="flex items-center gap-4 w-full">
+                      <div className={`p-3 rounded-full ${paymentMethod === 'upi' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                        <Smartphone size={24} />
+                      </div>
+                      <div className="flex-1">
+                        <span className={`block font-bold ${paymentMethod === 'upi' ? 'text-green-800' : 'text-gray-800'}`}>UPI</span>
+                        <span className="block text-sm text-gray-500 mt-0.5">Google Pay / PhonePe / Paytm</span>
+                      </div>
+                      {paymentMethod === 'upi' && (
+                        <CheckCircle size={24} className="text-green-500 absolute top-5 right-5" />
+                      )}
+                    </div>
+                  </label>
+
+                  {/* Credit/Debit Card Option - Second */}
+                  <label 
+                    className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
+                      paymentMethod === 'card' 
+                        ? 'border-2 border-blue-500 bg-blue-50 shadow-md scale-[1.02]' 
+                        : 'border border-gray-200 hover:border-blue-300 hover:bg-gray-50 hover:shadow-sm'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="card"
+                      checked={paymentMethod === 'card'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="hidden"
+                    />
+                    <div className="flex items-center gap-4 w-full">
+                      <div className={`p-3 rounded-full ${paymentMethod === 'card' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                        <CreditCard size={24} />
+                      </div>
+                      <div className="flex-1">
+                        <span className={`block font-bold ${paymentMethod === 'card' ? 'text-blue-800' : 'text-gray-800'}`}>Credit / Debit Card</span>
+                        <span className="block text-sm text-gray-500 mt-0.5">Visa, MasterCard, RuPay</span>
+                      </div>
+                      {paymentMethod === 'card' && (
+                        <CheckCircle size={24} className="text-blue-500 absolute top-5 right-5" />
+                      )}
+                    </div>
+                  </label>
                 </div>
-                <div className="flex justify-between font-bold text-lg border-t border-gray-200 pt-3">
-                  <span>Total</span>
-                  <span>{formatPrice(finalTotal)}</span>
+              </section>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-black text-white py-4 rounded-lg font-bold text-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Processing...' : 'Place Order'}
+              </button>
+            </form>
+          </div>
+
+          {/* Order Summary */}
+          <div className="bg-gray-50 p-6 rounded-lg h-fit sticky top-24">
+            <h3 className="text-2xl font-bold mb-6">Order Summary</h3>
+
+            {/* Items */}
+            <div className="mb-6 max-h-64 overflow-y-auto space-y-3">
+              {cartItems.map((item) => {
+                const uniqueKey = `${item.id}-${item.size || ''}-${item.shirtSize || ''}-${item.pantSize || ''}-${item.shoeSize || ''}-${item.color || ''}`;
+                return (
+                  <div key={uniqueKey} className="flex gap-4 text-sm pb-3 border-b border-gray-200 items-start group">
+                    {item.image ? (
+                      <img src={item.image} alt={item.title} className="w-12 h-12 object-cover rounded-lg border border-gray-100 shrink-0 group-hover:scale-105 transition-transform" />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200 shrink-0">
+                        <Package size={16} className="text-gray-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-0.5">
+                      <p className="font-medium text-gray-800 leading-tight">{item.title}</p>
+                      <p className="text-[11px] text-gray-400">
+                        Qty: {item.quantity} {item.size ? `| Size: ${item.size}` : ''} {item.shirtSize ? `| Shirt: ${item.shirtSize}` : ''} {item.pantSize ? `| Pant: ${item.pantSize}` : ''} {item.shoeSize ? `| Shoe: ${item.shoeSize}` : ''} {item.color ? `| Color: ${item.color}` : ''}
+                      </p>
+                    </div>
+                    <span className="font-semibold text-gray-800 shrink-0">{formatPrice(item.discountedPrice * item.quantity)}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Totals */}
+            <div className="space-y-3 border-t border-gray-200 pt-6">
+              <div className="flex justify-between text-sm">
+                <span>Subtotal</span>
+                <span>{formatPrice(total)}</span>
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between text-sm text-green-600 font-semibold">
+                  <span>Discount ({appliedPromo})</span>
+                  <span>-{formatPrice(discount)}</span>
                 </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span>Shipping</span>
+                <span className="text-green-600 font-semibold">FREE</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Tax</span>
+                <span>{formatPrice(tax)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-lg border-t border-gray-200 pt-3">
+                <span>Total</span>
+                <span>{formatPrice(finalTotal)}</span>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
