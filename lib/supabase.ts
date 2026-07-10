@@ -1,27 +1,27 @@
-import { createClient } from '@supabase/supabase-js';
-import { config } from './config';
+import { createBrowserClient } from '@supabase/ssr';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config';
 
-export const isSupabaseConfigured = (): boolean => config.isSupabaseConfigured;
-
-const rawSupabase = config.isSupabaseConfigured
-  ? createClient(config.supabaseUrl, config.supabaseKey, {
-      global: {
-        fetch: (url, options) => fetch(url, { ...options, cache: 'no-store' })
-      }
-    })
-  : null;
-
-// Proxy wrapper to prevent "Cannot read properties of null (reading 'from')"
-// and provide a clear descriptive error message if config is missing.
-export const supabase = new Proxy({} as any, {
-  get(target, prop) {
-    if (!rawSupabase) {
-      throw new Error(
-        `Supabase client not initialized. Cannot read property '${String(prop)}' of null. ` +
-        `Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are configured in your Vercel project settings.`
-      );
+export const supabase = createBrowserClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  {
+    cookies: {
+      // For browser client, you need to provide these methods
+      getAll: () => {
+        return document.cookie.split('; ').map(cookie => {
+          const [name, value] = cookie.split('=');
+          return { name, value };
+        });
+      },
+      setAll: (cookies) => {
+        cookies.forEach(({ name, value, options }) => {
+          document.cookie = `${name}=${value}; path=${options?.path || '/'}`;
+        });
+      },
     }
-    const value = Reflect.get(rawSupabase, prop);
-    return typeof value === 'function' ? value.bind(rawSupabase) : value;
   }
-});
+);
+
+export const isSupabaseConfigured = (): boolean => {
+  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+};

@@ -62,6 +62,13 @@ export default function ProfilePage() {
     );
   }, [requireAuth, router]);
 
+  // When user becomes available after login (session restored), ensure authChecked is true.
+  useEffect(() => {
+    if (user) {
+      setAuthChecked(true);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!authChecked) return;
 

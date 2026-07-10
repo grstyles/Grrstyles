@@ -180,13 +180,19 @@ export default function Navbar() {
                 )}
               </Link>
 
-              <button
-                onClick={handleUserClick}
-                className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-800 -mr-1.5 sm:mr-0"
-                aria-label="User Account"
-              >
-                <User className="w-[18px] h-[18px] sm:w-5 sm:h-5 md:w-5 md:h-5" />
-              </button>
+              {user ? (
+                <button
+                  onClick={handleUserClick}
+                  className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-800 -mr-1.5 sm:mr-0"
+                  aria-label="User Account"
+                >
+                  <User className="w-[18px] h-[18px] sm:w-5 sm:h-5 md:w-5 md:h-5" />
+                </button>
+              ) : (
+                <Link href="/login" className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-800 -mr-1.5 sm:mr-0 text-sm font-medium" aria-label="Sign In">
+                  Sign In
+                </Link>
+              )}
             </div>
           </div>
         </div>

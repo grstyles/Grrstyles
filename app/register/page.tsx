@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useDispatch } from 'react-redux';
 import { addToast } from '@/lib/redux/slices/uiSlice';
+import { supabase } from '@/lib/supabase';
 import { authService } from '@/services/authService';
 
 export default function RegisterPage() {
@@ -33,7 +34,6 @@ export default function RegisterPage() {
       // Auto-assign admin role if email contains "admin" for convenience and developer demo/admin tests
       const role = email.toLowerCase().includes('admin') ? 'admin' : 'customer';
       const res = await authService.register(email, password, fullName, role);
-      
       if (res.success) {
         dispatch(addToast({ message: 'Account created successfully! Please log in.', type: 'success' }));
         router.push('/login');

@@ -2,54 +2,39 @@
 
 import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { authService } from '@/services/authService';
+import { supabase } from '@/lib/supabase';
 
 export default function AuthCallbackPage() {
   const router = useRouter();
-
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
+    if (!supabase) {
+      console.error('Supabase client not initialized – cannot complete OAuth flow');
       router.replace('/');
       return;
     }
-
-    console.log("Current Origin:", typeof window !== 'undefined' ? window.location.origin : 'unknown');
-
     const code = searchParams.get('code');
-    if (code) {
-      // PKCE Flow
-      supabase.auth.exchangeCodeForSession(code)
-        .then(({ data, error }: { data: any, error: any }) => {
-          if (error) {
-            console.error("Auth exchange error:", error);
-            router.replace('/login');
-          } else {
-            console.log("Exchanged session successfully:", data.session);
-            router.replace('/');
-          }
-        })
-        .catch((err: any) => {
-          console.error("Auth exchange exception:", err);
-          router.replace('/login');
-        });
-    } else {
-      // Implicit flow fallback
-      supabase.auth.getSession().then(({ data, error }: { data: any, error: any }) => {
-        if (data?.session) {
-          console.log("Session found directly:", data.session);
-          router.replace('/');
-        } else {
-          // It might be handled by AuthProvider's onAuthStateChange event in the background,
-          // but we shouldn't stay on the callback page forever.
-          setTimeout(() => {
-            router.replace('/');
-          }, 1500);
-        }
-      });
+    if (!code) {
+      console.warn('No code parameter in URL');
+      router.replace('/login');
+      return;
     }
+    supabase.auth
+      .exchangeCodeForSession(code)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Auth callback error:', error);
+          router.replace('/login');
+        } else {
+          console.log('Session obtained via exchangeCodeForSession:', data.session);
+          router.replace('/');
+        }
+      })
+      .catch((err) => {
+        console.error('Auth callback exception:', err);
+        router.replace('/login');
+      });
   }, [router, searchParams]);
 
   return (
