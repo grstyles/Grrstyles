@@ -31,9 +31,13 @@ import {
   MockOrder,
 } from './interfaces';
 
-// ─── Supabase Product Repository ──────────────────────────────────────────────
+// Type definition for stock columns
+type StockColumn = 'shirt_stock' | 'pant_stock' | 'shoe_stock' | 'overall_stock';
+type StockData = {
+  [K in StockColumn]?: Record<string, number> | number;
+};
 
-// Helpers removed as we use image_colors JSONB
+// ─── Supabase Product Repository ──────────────────────────────────────────────
 
 export class SupabaseProductRepository implements IProductRepository {
   async getAll(): Promise<Product[]> {
@@ -149,8 +153,6 @@ export class SupabaseProductRepository implements IProductRepository {
       throw error;
     }
 
-    // product_images table removed, using image_colors JSONB
-
     if (data && product.coupons && product.coupons.length > 0) {
       try {
         const pcRows = product.coupons.map((c: string) => ({
@@ -206,8 +208,6 @@ export class SupabaseProductRepository implements IProductRepository {
     
     console.log('[DEBUG SupabaseProvider Flow] 5. Database row immediately after update:', JSON.stringify(data.image_colors, null, 2));
 
-    // product_images table removed, using image_colors JSONB
-
     if (data && updates.coupons !== undefined) {
       try {
         await sb().from('product_coupons').delete().eq('product_id', data.id);
@@ -254,22 +254,62 @@ export class SupabaseProductRepository implements IProductRepository {
       .select('id, name, slug, category, shirt_stock, pant_stock, shoe_stock, overall_stock')
       .order('category');
     if (error) throw error;
-    return (data || []).map((d: any) => ({
-      id: d.id,
-      name: d.name,
-      slug: d.slug,
-      category: d.category,
-      shirtStock: d.shirt_stock || {},
-      pantStock: d.pant_stock || {},
-      shoeStock: d.shoe_stock || {},
-      overallStock: d.overall_stock || 0,
-    }));
+    return (data || []).map((d: any) => {
+      const categoryLower = (d.category || '').toLowerCase();
+      let rawStock: Record<string, number> = {};
+      if (categoryLower.includes('shoe')) {
+        rawStock = d.shoe_stock || {};
+      } else if (categoryLower.includes('pant') || categoryLower.includes('jean') || categoryLower.includes('trouser') || categoryLower.includes('track')) {
+        rawStock = d.pant_stock || {};
+      } else if (categoryLower.includes('shirt') || categoryLower.includes('jacket') || categoryLower.includes('t-shirt')) {
+        rawStock = d.shirt_stock || {};
+      }
+
+      let sizeStock: { size: string; stock: number }[] = [];
+      if (Object.keys(rawStock).length > 0) {
+        sizeStock = Object.entries(rawStock).map(([size, stock]) => ({
+          size,
+          stock: Number(stock) || 0,
+        }));
+      } else {
+        sizeStock = [{ size: 'One Size', stock: Number(d.overall_stock) || 0 }];
+      }
+
+      return {
+        id: d.id,
+        name: d.name,
+        slug: d.slug,
+        category: d.category,
+        sizeStock,
+      };
+    });
   }
 
-  async updateStock(productId: string, size: string, newStock: number, type: 'shirt' | 'pant' | 'shoe' | 'overall' = 'overall'): Promise<boolean> {
-    const column = type === 'shirt' ? 'shirt_stock' : type === 'pant' ? 'pant_stock' : type === 'shoe' ? 'shoe_stock' : 'overall_stock';
-    
-    if (type === 'overall') {
+  async updateStock(productId: string, size: string, newStock: number): Promise<boolean> {
+    const { data: prod, error: fetchErr } = await sb()
+      .from('products')
+      .select('category, shirt_stock, pant_stock, shoe_stock, overall_stock')
+      .eq('id', productId)
+      .maybeSingle();
+
+    if (fetchErr || !prod) throw fetchErr || new Error('Product not found');
+
+    const categoryLower = (prod.category || '').toLowerCase();
+    let column = 'overall_stock';
+    let isJson = false;
+
+    if (categoryLower.includes('shoe')) {
+      column = 'shoe_stock';
+      isJson = true;
+    } else if (categoryLower.includes('pant') || categoryLower.includes('jean') || categoryLower.includes('trouser') || categoryLower.includes('track')) {
+      column = 'pant_stock';
+      isJson = true;
+    } else if (categoryLower.includes('shirt') || categoryLower.includes('jacket') || categoryLower.includes('t-shirt')) {
+      column = 'shirt_stock';
+      isJson = true;
+    }
+
+    if (!isJson || size === 'One Size') {
       const { error: updateError } = await sb()
         .from('products')
         .update({ overall_stock: newStock })
@@ -278,21 +318,19 @@ export class SupabaseProductRepository implements IProductRepository {
       return true;
     }
 
-    const { data, error } = await sb()
-      .from('products')
-      .select(column)
-      .eq('id', productId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error('Product not found');
-
-    const current = data[column] || {};
+    const current = (prod as Record<string, any>)[column] || {};
     current[size] = Math.max(0, newStock);
+
+    const overallStock = Object.values(current).reduce((acc: number, val: any) => acc + (Number(val) || 0), 0);
 
     const { error: updateError } = await sb()
       .from('products')
-      .update({ [column]: current })
+      .update({ 
+        [column]: current,
+        overall_stock: overallStock
+      })
       .eq('id', productId);
+
     if (updateError) throw updateError;
     return true;
   }
@@ -559,7 +597,6 @@ export class SupabaseBannerRepository implements IBannerRepository {
       link_url: dbRow.link,
       is_active: dbRow.active,
       display_order: dbRow.sort_order,
-      // Optional mapping if needed, e.g. updated_at
     };
   }
 
@@ -596,11 +633,9 @@ export class SupabaseBannerRepository implements IBannerRepository {
         .order('sort_order', { ascending: true });
 
       if (error) {
-        // Return empty array on error without logging
         return [];
       }
 
-      // Filter active date bounds
       const filtered = (data || []).filter((b) => {
         if (b.start_date && new Date(b.start_date).toISOString() > now) return false;
         if (b.end_date && new Date(b.end_date).toISOString() < now) return false;
@@ -608,7 +643,6 @@ export class SupabaseBannerRepository implements IBannerRepository {
       });
       return filtered.map(this.mapToBanner);
     } catch (e) {
-      // Return empty array on exception
       return [];
     }
   }

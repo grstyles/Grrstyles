@@ -1,6 +1,8 @@
 import { Product } from '@/lib/data/products';
-import { supabase } from '@/lib/supabase';
+import { supabase, getClient } from '@/lib/supabase';
 import { normalizeSlug, matchCategory } from '@/lib/utils/categoryImageMap';
+
+const sb = () => getClient()!;
 
 // Helper to map DB columns to frontend Product schema
 export function mapDbProduct(db: any, imageRows?: any[]): Product {

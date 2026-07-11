@@ -37,7 +37,7 @@ const sanitizeItem = (item: any): CategoryCarouselItem => {
 export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepository {
   async getAll(): Promise<CategoryCarouselItem[]> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await sb()
         .from('category_carousel')
         .select('*')
         .order('priority', { ascending: true });
@@ -59,7 +59,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
 
   async getActive(): Promise<CategoryCarouselItem[]> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await sb()
         .from('category_carousel')
         .select('*')
         .eq('enabled', true)
@@ -90,7 +90,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
   }
 
   async update(id: string, updates: Partial<CategoryCarouselItem>): Promise<CategoryCarouselItem> {
-    const { data, error } = await supabase
+    const { data, error } = await sb()
       .from('category_carousel')
       .update(updates)
       .eq('id', id)
@@ -102,7 +102,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
   }
 
   async create(item: Omit<CategoryCarouselItem, 'id'>): Promise<CategoryCarouselItem> {
-    const { data, error } = await supabase
+    const { data, error } = await sb()
       .from('category_carousel')
       .insert(item)
       .select()
@@ -113,7 +113,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
   }
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase
+    const { error } = await sb()
       .from('category_carousel')
       .delete()
       .eq('id', id);
@@ -125,7 +125,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
     // Supabase doesn't have a bulk update for different rows easily without a function,
     // so we will update them sequentially.
     for (const item of items) {
-      await supabase
+      await sb()
         .from('category_carousel')
         .update({ priority: item.priority })
         .eq('id', item.id);

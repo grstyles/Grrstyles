@@ -26,7 +26,7 @@ export const searchService = {
     if (error) throw error;
     if (!data) return { products: [], total: 0 };
 
-    const products = data.map(mapDbProduct);
+    const products = data.map((p: any) => mapDbProduct(p));
     return {
       products,
       total: products.length,
@@ -54,7 +54,7 @@ export const searchService = {
     if (error) throw error;
     if (!data) return { suggestions: [], products: [] };
 
-    const products = data.map(mapDbProduct);
+    const products = data.map((p: any) => mapDbProduct(p));
     const suggestionsSet = new Set<string>();
 
     products.forEach((p: any) => {
