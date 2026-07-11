@@ -1,6 +1,6 @@
 "use client";
 
-import React, { MouseEvent as ReactMouseEvent } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { CategoryCarouselItem } from "@/lib/repositories/categoryCarouselRepository";
@@ -27,6 +27,70 @@ export default function PremiumCategoryCarousel({
   subtitle = "Discover premium essentials crafted for modern men."
 }: PremiumCategoryCarouselProps) {
   const displayCategories = categories && categories.length > 0 ? categories : FALLBACK_CATEGORIES;
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const scrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check if mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Auto-scroll logic for desktop only
+  useEffect(() => {
+    // Only run on desktop and if there are enough items
+    if (isMobile || displayCategories.length <= 4) return;
+
+    const scrollContainer = carouselRef.current;
+    if (!scrollContainer) return;
+
+    const startAutoScroll = () => {
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
+      }
+
+      scrollIntervalRef.current = setInterval(() => {
+        if (isPaused) return;
+        
+        const { scrollLeft, scrollWidth, clientWidth } = scrollContainer;
+        const maxScroll = scrollWidth - clientWidth;
+        
+        // If reached the end, scroll back to start smoothly
+        if (scrollLeft >= maxScroll - 1) {
+          scrollContainer.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          // Scroll by one item width (approximately)
+          const itemWidth = scrollContainer.querySelector('a')?.clientWidth || 180;
+          const gap = 32; // gap between items
+          const scrollAmount = itemWidth + gap;
+          scrollContainer.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+        }
+      }, 3000); // Scroll every 3 seconds
+    };
+
+    // Start auto-scroll after a small delay
+    const timeoutId = setTimeout(startAutoScroll, 1000);
+
+    // Cleanup
+    return () => {
+      clearTimeout(timeoutId);
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
+      }
+    };
+  }, [displayCategories.length, isMobile, isPaused]);
+
+  // Pause on hover/touch
+  const handleMouseEnter = () => setIsPaused(true);
+  const handleMouseLeave = () => setIsPaused(false);
 
   return (
     <section className="py-16 md:py-24 bg-white relative overflow-hidden">
@@ -40,8 +104,8 @@ export default function PremiumCategoryCarousel({
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Mobile: Vertical grid, Desktop: Horizontal scroll */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 md:gap-8 justify-items-center md:flex md:flex-nowrap md:overflow-x-auto md:gap-8 md:pb-4 md:px-2 scrollbar-hide">
+        {/* Mobile: Vertical grid */}
+        <div className="md:hidden grid grid-cols-2 sm:grid-cols-3 gap-6 md:gap-8 justify-items-center">
           {displayCategories.map((category) => (
             <CarouselItem 
               key={category.id}
@@ -49,7 +113,47 @@ export default function PremiumCategoryCarousel({
             />
           ))}
         </div>
+
+        {/* Desktop: Horizontal scroll with auto-scroll */}
+        <div 
+          ref={carouselRef}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          onTouchStart={handleMouseEnter}
+          onTouchEnd={handleMouseLeave}
+          className="hidden md:flex md:flex-nowrap md:overflow-x-auto md:gap-8 md:pb-4 md:px-2 scrollbar-hide scroll-smooth"
+          style={{
+            scrollBehavior: 'smooth',
+            msOverflowStyle: 'none',
+            scrollbarWidth: 'none'
+          }}
+        >
+          {/* Duplicate items for seamless scrolling effect */}
+          {[...displayCategories, ...displayCategories].map((category, index) => (
+            <CarouselItem 
+              key={`${category.id}-${index}`}
+              category={category}
+            />
+          ))}
+        </div>
+
+        {/* Auto-scroll indicator (desktop only) */}
+        <div className="hidden md:flex justify-center mt-8 gap-2">
+          <div className={`w-2 h-2 rounded-full transition-all duration-300 ${isPaused ? 'bg-gray-300' : 'bg-[#D4AF37]'}`} />
+          <div className={`w-2 h-2 rounded-full transition-all duration-300 ${isPaused ? 'bg-gray-300' : 'bg-[#D4AF37] opacity-50'}`} />
+          <div className={`w-2 h-2 rounded-full transition-all duration-300 ${isPaused ? 'bg-gray-300' : 'bg-[#D4AF37] opacity-25'}`} />
+        </div>
       </div>
+
+      <style jsx>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </section>
   );
 }
@@ -62,7 +166,7 @@ function CarouselItem({ category }: { category: CategoryCarouselItem }) {
   return (
     <Link 
       href={href} 
-      className="block w-full max-w-[180px] md:min-w-[140px] lg:min-w-[160px] select-none outline-none group focus-visible:ring-2 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-4 rounded-full transition-all duration-300 hover:-translate-y-2 hover:scale-105" 
+      className="block w-full max-w-[180px] md:min-w-[140px] lg:min-w-[160px] select-none outline-none group focus-visible:ring-2 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-4 rounded-full transition-all duration-300 hover:-translate-y-2 hover:scale-105 flex-shrink-0" 
       draggable={false}
       aria-label={`Shop ${category.title}`}
     >

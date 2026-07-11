@@ -1,90 +1,120 @@
+// app/auth/callback/page.tsx
 'use client';
 
 import { Suspense, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabaseAuth } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
-// ─── Spinner shared between the inner component and the Suspense fallback ─────
 function Spinner() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f9f7f5]">
       <div className="text-center space-y-4">
         <div className="w-8 h-8 border-4 border-black border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-sm font-semibold tracking-widest text-gray-500 uppercase">
-          Completing sign in...
-        </p>
+        <p className="text-sm font-semibold tracking-widest text-gray-500 uppercase">Completing sign in...</p>
       </div>
     </div>
   );
 }
 
-// ─── Inner component — uses useSearchParams so MUST be inside <Suspense> ──────
-//
-// Next.js App Router rule: any component that calls useSearchParams() must be
-// wrapped in a <Suspense> boundary. Without it:
-//   1. useSearchParams() returns empty params during the server/hydration pass,
-//      causing "No code parameter" to fire even when the ?code= IS in the URL.
-//   2. The whole page defers to client-side rendering unpredictably.
-//
-// React StrictMode (dev only) runs every useEffect TWICE. The hasExchanged ref
-// ensures exchangeCodeForSession() is called exactly once per page mount even in
-// StrictMode, preventing the "no code" warning on the phantom second run.
 function AuthCallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const hasExchanged = useRef(false);
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
-    // Guard: only run once per mount (StrictMode fires effects twice in dev)
-    if (hasExchanged.current) return;
+    if (hasProcessed.current) return;
+    hasProcessed.current = true;
 
-    if (!supabaseAuth) {
-      console.error('Supabase auth client not initialized – cannot complete OAuth flow');
-      router.replace('/');
+    const client = supabase;
+    if (!client) {
+      router.replace('/login?error=no_client');
       return;
     }
 
     const code = searchParams.get('code');
+    const errorParam = searchParams.get('error');
+    const errorDescription = searchParams.get('error_description');
 
-    if (!code) {
-      // This fires legitimately only when someone navigates to /auth/callback
-      // with no ?code= (e.g. direct URL visit or a misconfigured Supabase redirect URL).
-      // In a real OAuth flow the code is always present here.
-      console.warn('[auth/callback] No ?code= found in URL. Possible causes:\n' +
-        '  1. User visited /auth/callback directly (not via OAuth).\n' +
-        '  2. Supabase Redirect URL in Dashboard does not include /auth/callback.\n' +
-        '     → Fix: Auth → URL Configuration → add http://localhost:3000/auth/callback');
-      router.replace('/login');
+    console.log('[auth/callback] Code exists:', !!code);
+    console.log('[auth/callback] Error param:', errorParam);
+
+    // Handle OAuth errors
+    if (errorParam) {
+      console.error('[auth/callback] OAuth Error:', errorParam, errorDescription || '');
+      router.replace(`/login?error=${encodeURIComponent(errorParam)}`);
       return;
     }
 
-    // Mark as exchanged BEFORE the async call so the StrictMode second run skips
-    hasExchanged.current = true;
+    // If no code, check for existing session
+    if (!code) {
+      client.auth.getSession()
+        .then(({ data: { session } }) => {
+          if (session) {
+            console.log('[auth/callback] ✅ Already have session!');
+            router.replace('/');
+          } else {
+            router.replace('/login?error=no_code');
+          }
+        })
+        .catch(() => {
+          router.replace('/login?error=no_code');
+        });
+      return;
+    }
 
-    supabaseAuth.auth
+    console.log('[auth/callback] Exchanging code...');
+
+    client.auth
       .exchangeCodeForSession(code)
       .then(({ data, error }) => {
         if (error) {
-          console.error('[auth/callback] exchangeCodeForSession error:', error.message, error);
-          router.replace('/login');
-        } else {
-          console.log('[auth/callback] Session established for:', data.session?.user?.email);
-          // Redirect to home — NOT /profile. The /profile page has an auth guard
-          // that fires before onAuthStateChange completes, which redirects back to
-          // /login and creates a loop. Home has no guard; auth state settles there.
-          router.replace('/');
+          // ✅ Log as warning instead of error since we have recovery
+          console.warn('[auth/callback] Exchange warning:', error.message);
+          
+          // Try recovery from localStorage
+          if (error.message?.includes('PKCE')) {
+            console.log('[auth/callback] PKCE warning, attempting recovery...');
+            try {
+              const stored = localStorage.getItem('gr-styles-auth');
+              if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed?.access_token) {
+                  client.auth.setSession({
+                    access_token: parsed.access_token,
+                    refresh_token: parsed.refresh_token || '',
+                  }).then(() => {
+                    console.log('[auth/callback] ✅ Session recovered from localStorage!');
+                    router.replace('/');
+                  }).catch(() => {
+                    router.replace('/login?error=recovery_failed');
+                  });
+                  return;
+                }
+              }
+            } catch (e) {
+              console.error('[auth/callback] Recovery error:', e);
+            }
+          }
+          
+          router.replace(`/login?error=${encodeURIComponent(error.message || 'exchange_failed')}`);
+          return;
         }
+
+        console.log('[auth/callback] ✅ Session established!');
+        console.log('[auth/callback] User:', data.session?.user?.email);
+        
+        router.replace('/');
+        router.refresh();
       })
       .catch((err) => {
-        console.error('[auth/callback] Unexpected exception:', err);
-        router.replace('/login');
+        console.error('[auth/callback] Error:', err);
+        router.replace('/login?error=unexpected');
       });
   }, [router, searchParams]);
 
   return <Spinner />;
 }
 
-// ─── Page export — wraps inner component in Suspense ─────────────────────────
 export default function AuthCallbackPage() {
   return (
     <Suspense fallback={<Spinner />}>

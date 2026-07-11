@@ -1,9 +1,10 @@
+// lib/context/AuthContext.tsx
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { authService, UserProfile } from '@/services/authService';
-import { isSupabaseConfigured, supabaseAuth, supabase } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { useRouter, usePathname } from 'next/navigation';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -30,10 +32,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pendingActionRef = useRef<((user?: UserProfile) => void) | null>(null);
   const pendingCloseRef = useRef<(() => void) | null>(null);
 
-  // Sign in with Google OAuth
-  // Delegates to authService (which uses the repository) so there is only ONE
-  // code path for OAuth initiation. No prompt:consent — that forced the consent
-  // screen on every login, causing repeated popups and Supabase identity conflicts.
   const signInWithGoogle = async () => {
     try {
       const res = await authService.loginWithGoogle();
@@ -48,59 +46,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Load session on mount and listen for auth state changes
   useEffect(() => {
+    if (pathname === '/auth/callback') {
+      setLoading(false);
+      return;
+    }
+
     const initSession = async () => {
       try {
-        // Always use authService.getCurrentUser() which handles:
-        // - auth.getUser() via supabaseAuth (the session-persisting client)
-        // - profile fetch/upsert by UUID (never by email)
-        // This single path works for both new and returning users.
+        console.log('[AuthProvider] Initializing session...');
+        setLoading(true);
+
+        // Wait a bit for session to be ready
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
         const currentUser = await authService.getCurrentUser();
+        console.log('[AuthProvider] Current user:', currentUser?.email || 'None');
         setUser(currentUser);
       } catch (err) {
-        console.error('Failed to get current user session:', err);
+        console.error('[AuthProvider] Failed to get user:', err);
         setUser(null);
       } finally {
         setLoading(false);
       }
     };
-    
+
     initSession();
 
-    // If Supabase is configured, listen to auth state changes
-    if (isSupabaseConfigured() && supabaseAuth) {
-      const { data: { subscription } } = supabaseAuth.auth.onAuthStateChange(
+    if (isSupabaseConfigured() && supabase) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event: any, session: any) => {
-          console.log('Auth state changed:', event);
-          
+          console.log('[AuthProvider] Auth event:', event, session?.user?.email);
+
           if (event === 'SIGNED_IN' && session?.user) {
-            // Fetch the profile (getUser() uses auth.getUser() + profiles upsert)
+            await new Promise(resolve => setTimeout(resolve, 500));
             const currentUser = await authService.getCurrentUser();
             setUser(currentUser);
+            console.log('[AuthProvider] User set:', currentUser?.email);
 
-            // Redirect after sign-in for BOTH new and existing users.
-            // Previously the redirect only ran inside the if(!currentUser) branch,
-            // so returning users were left on the /auth/callback spinner forever.
-            const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-            if (currentPath === '/login' || currentPath === '/auth/callback') {
-              if (currentUser?.role === 'admin') {
-                router.replace('/admin');
-              } else {
-                router.replace('/');
-              }
+            if (pathname === '/login' || pathname === '/auth/callback') {
+              router.replace('/');
             }
           } else if (event === 'SIGNED_OUT') {
+            console.log('[AuthProvider] User signed out');
             setUser(null);
-          } else if (event === 'TOKEN_REFRESHED') {
-            console.log('Token refreshed');
           }
         }
       );
-      
+
       return () => subscription.unsubscribe();
     }
-  }, [router]);
+  }, [router, pathname]);
 
   const login = async (email: string, password?: string) => {
     try {
@@ -147,19 +143,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      // Clear Supabase session
-      if (supabaseAuth) {
-        await supabaseAuth.auth.signOut();
-      }
-      
-      // Clear local storage
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('gr-styles-auth');
-        sessionStorage.clear();
-      }
-      
       const success = await authService.logout();
       if (success) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('gr-styles-auth');
+        }
         setUser(null);
         router.push('/');
         router.refresh();

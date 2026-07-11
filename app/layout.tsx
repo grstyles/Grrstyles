@@ -7,7 +7,13 @@ import { Providers } from "./providers";
 import Navbar from "@/components/navbar/Navbar";
 import Footer from "@/components/footer/Footer";
 import TopBar from "@/components/navbar/TopBar";
+import BottomNavigation from "@/components/layout/BottomNavigation";
+import QuickViewWrapper from "@/components/ui/QuickViewWrapper";
+import AuthModal from "@/components/ui/AuthModal";
+import Script from "next/script";
+import { IS_PRODUCTION } from '@/lib/config';
 
+// Font configurations
 const geistSans = Geist({ 
   variable: "--font-geist-sans", 
   subsets: ["latin"] 
@@ -32,6 +38,7 @@ const inter = Inter({
   display: "swap",
 });
 
+// ✅ Metadata
 export const metadata: Metadata = {
   title: "GR STYLES - Wear Your Confidence",
   description: "Premium men's fashion and essentials designed for confidence.",
@@ -55,6 +62,7 @@ export const metadata: Metadata = {
   },
 };
 
+// ✅ Viewport
 export const viewport: Viewport = {
   colorScheme: "light dark",
   themeColor: [
@@ -63,12 +71,7 @@ export const viewport: Viewport = {
   ],
 };
 
-import { IS_PRODUCTION } from '@/lib/config';
-import QuickViewWrapper from "@/components/ui/QuickViewWrapper";
-import AuthModal from "@/components/ui/AuthModal";
-import Script from "next/script";
-import BottomNavigation from "@/components/layout/BottomNavigation";
-
+// ✅ RootLayout - Single export
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -77,6 +80,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${inter.variable}`}
     >
       <body className="font-sans antialiased bg-white text-gray-900">
@@ -89,10 +93,10 @@ export default function RootLayout({
           <QuickViewWrapper />
           <AuthModal />
         </Providers>
-          <Script
-            src="https://checkout.razorpay.com/v1/checkout.js"
-            strategy="afterInteractive"
-          />
+        <Script
+          src="https://checkout.razorpay.com/v1/checkout.js"
+          strategy="afterInteractive"
+        />
         {IS_PRODUCTION && <Analytics />}
       </body>
     </html>
