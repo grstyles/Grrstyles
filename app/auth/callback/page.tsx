@@ -69,7 +69,10 @@ function AuthCallbackInner() {
           router.replace('/login');
         } else {
           console.log('[auth/callback] Session established for:', data.session?.user?.email);
-          router.replace('/profile');
+          // Redirect to home — NOT /profile. The /profile page has an auth guard
+          // that fires before onAuthStateChange completes, which redirects back to
+          // /login and creates a loop. Home has no guard; auth state settles there.
+          router.replace('/');
         }
       })
       .catch((err) => {

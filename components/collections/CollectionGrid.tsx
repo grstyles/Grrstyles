@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import PremiumProductCard from '../new-in/PremiumProductCard';
@@ -13,20 +13,71 @@ interface CollectionGridProps {
 
 export default function CollectionGrid({ products }: CollectionGridProps) {
   const gridRef = useRef<HTMLDivElement>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Set mounted state after component mounts
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
-    const ctx = gsap.context(() => {
-      const elems = gsap.utils.toArray('.product-anim', gridRef.current);
-      gsap.fromTo(elems,
-        { y: 40, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.6, stagger: 0.1, ease: 'power2.out',
-          scrollTrigger: { trigger: gridRef.current, start: 'top 85%' }
-        }
-      );
-    }, gridRef);
+    // Don't run if not mounted, no products, or no grid ref
+    if (!isMounted || !gridRef.current || products.length === 0) return;
 
-    return () => ctx.revert();
-  }, [products]);
+    // Use a small delay to ensure DOM is fully painted
+    const timer = setTimeout(() => {
+      if (!gridRef.current) return;
+
+      // Get all product elements within the grid
+      const elements = gridRef.current.querySelectorAll('.product-anim');
+      
+      if (elements.length === 0) {
+        console.warn('No .product-anim elements found');
+        return;
+      }
+
+      // Convert NodeList to array for GSAP
+      const elems = Array.from(elements) as HTMLElement[];
+
+      // Create a GSAP context for proper cleanup
+      const ctx = gsap.context(() => {
+        // Set initial state
+        gsap.set(elems, { 
+          y: 40, 
+          opacity: 0 
+        });
+
+        // Create animation with ScrollTrigger
+        gsap.to(elems, {
+          y: 0,
+          opacity: 1,
+          duration: 0.6,
+          stagger: 0.1,
+          ease: 'power2.out',
+          scrollTrigger: {
+            trigger: gridRef.current,
+            start: 'top 85%',
+            toggleActions: 'play none none none',
+          },
+        });
+      }, gridRef.current);
+
+      return () => {
+        ctx.revert();
+      };
+    }, 100); // Small delay to ensure DOM is ready
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [products, isMounted]);
+
+  // Cleanup ScrollTriggers on unmount
+  useEffect(() => {
+    return () => {
+      ScrollTrigger.getAll().forEach(trigger => trigger.kill());
+    };
+  }, []);
 
   return (
     <div className={styles.container}>

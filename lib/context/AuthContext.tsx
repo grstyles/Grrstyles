@@ -2,15 +2,17 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { authService, UserProfile } from '@/services/authService';
-import { isSupabaseConfigured, supabaseAuth } from '@/lib/supabase';
+import { isSupabaseConfigured, supabaseAuth, supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isAuthModalOpen: boolean;
+  loading: boolean;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; user?: UserProfile }>;
   loginWithGoogle: (email?: string, name?: string, avatar?: string) => Promise<{ success: boolean; error?: string; user?: UserProfile }>;
+  signInWithGoogle: () => Promise<void>;
   logout: () => Promise<boolean>;
   openAuthModal: (onSuccess?: (user?: UserProfile) => void, onClose?: () => void) => void;
   closeAuthModal: () => void;
@@ -28,52 +30,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pendingActionRef = useRef<((user?: UserProfile) => void) | null>(null);
   const pendingCloseRef = useRef<(() => void) | null>(null);
 
+  // Sign in with Google OAuth
+  // Delegates to authService (which uses the repository) so there is only ONE
+  // code path for OAuth initiation. No prompt:consent — that forced the consent
+  // screen on every login, causing repeated popups and Supabase identity conflicts.
+  const signInWithGoogle = async () => {
+    try {
+      const res = await authService.loginWithGoogle();
+      if (!res.success) {
+        console.error('Error signing in with Google:', res.error);
+        throw new Error(res.error || 'Google sign-in failed');
+      }
+      console.log('Google sign-in initiated successfully');
+    } catch (error: any) {
+      console.error('Error signing in with Google:', error.message);
+      throw error;
+    }
+  };
+
   // Load session on mount and listen for auth state changes
   useEffect(() => {
     const initSession = async () => {
       try {
+        // Always use authService.getCurrentUser() which handles:
+        // - auth.getUser() via supabaseAuth (the session-persisting client)
+        // - profile fetch/upsert by UUID (never by email)
+        // This single path works for both new and returning users.
         const currentUser = await authService.getCurrentUser();
         setUser(currentUser);
       } catch (err) {
         console.error('Failed to get current user session:', err);
+        setUser(null);
       } finally {
         setLoading(false);
       }
     };
+    
     initSession();
 
     // If Supabase is configured, listen to auth state changes
-    if (isSupabaseConfigured()) {
-      const { data: { subscription } } = supabaseAuth!.auth.onAuthStateChange(
+    if (isSupabaseConfigured() && supabaseAuth) {
+      const { data: { subscription } } = supabaseAuth.auth.onAuthStateChange(
         async (event: any, session: any) => {
-          if (session?.user) {
+          console.log('Auth state changed:', event);
+          
+          if (event === 'SIGNED_IN' && session?.user) {
+            // Fetch the profile (getUser() uses auth.getUser() + profiles upsert)
             const currentUser = await authService.getCurrentUser();
             setUser(currentUser);
 
-            // BUG 4 FIX: The previous code checked window.location.hash for 'access_token'
-            // to detect an OAuth callback. PKCE flows use a ?code= query param — not a hash —
-            // so that check always returned false and the redirect after OAuth never fired.
-            //
-            // Correct approach: redirect on SIGNED_IN only when the user is currently on
-            // /login or /auth/callback. This handles:
-            //   1. OAuth callback redirect (user arrives at /auth/callback after Google login)
-            //   2. Re-login after logout (user is on /login, signs in, lands on /profile)
-            //   3. Does NOT redirect on page refresh (INITIAL_SESSION event, not SIGNED_IN)
-            if (event === 'SIGNED_IN') {
-              const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-              if (currentPath === '/login' || currentPath === '/auth/callback') {
-                if (currentUser?.role === 'admin') {
-                  router.replace('/admin');
-                } else {
-                  router.replace('/profile');
-                }
+            // Redirect after sign-in for BOTH new and existing users.
+            // Previously the redirect only ran inside the if(!currentUser) branch,
+            // so returning users were left on the /auth/callback spinner forever.
+            const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+            if (currentPath === '/login' || currentPath === '/auth/callback') {
+              if (currentUser?.role === 'admin') {
+                router.replace('/admin');
+              } else {
+                router.replace('/');
               }
             }
-          } else {
+          } else if (event === 'SIGNED_OUT') {
             setUser(null);
+          } else if (event === 'TOKEN_REFRESHED') {
+            console.log('Token refreshed');
           }
         }
       );
+      
       return () => subscription.unsubscribe();
     }
   }, [router]);
@@ -123,9 +147,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
+      // Clear Supabase session
+      if (supabaseAuth) {
+        await supabaseAuth.auth.signOut();
+      }
+      
+      // Clear local storage
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('gr-styles-auth');
+        sessionStorage.clear();
+      }
+      
       const success = await authService.logout();
       if (success) {
         setUser(null);
+        router.push('/');
+        router.refresh();
       }
       return success;
     } catch (err) {
@@ -163,15 +200,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         isAuthenticated: !!user,
         isAuthModalOpen,
+        loading,
         login,
         loginWithGoogle,
+        signInWithGoogle,
         logout,
         openAuthModal,
         closeAuthModal,
         requireAuth,
       }}
     >
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 }
