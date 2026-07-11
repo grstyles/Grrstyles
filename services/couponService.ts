@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { getClient } from '@/lib/supabase';
+const sb = () => getClient()!;
 
 export interface Coupon {
   code: string;
@@ -13,7 +14,7 @@ export const couponService = {
    */
   async validateCoupon(code: string): Promise<Coupon | null> {
     const cleanCode = code.toUpperCase().trim();
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('coupons')
       .select('*')
       .eq('code', cleanCode)
@@ -32,7 +33,7 @@ export const couponService = {
   },
 
   async getAvailableCoupons(): Promise<Coupon[]> {
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('coupons')
       .select('*')
       .eq('active', true);

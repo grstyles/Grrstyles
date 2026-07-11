@@ -7,7 +7,11 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function checkBanners() {
   console.log("Checking banners table...");
-  const { data, error } = await supabase.from('banners').select('*').eq('is_active', true).order('display_order', { ascending: true }).limit(1);
+  const { data, error } = await supabase
+    .from('banners')
+    .select('*')
+    .eq('active', true)
+    .order('sort_order', { ascending: true });
   if (error) {
     console.error("Banner Query Error", {
         message: error?.message,

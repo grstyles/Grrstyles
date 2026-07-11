@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { authService, UserProfile } from '@/services/authService';
-import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { isSupabaseConfigured, supabaseAuth } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
@@ -28,12 +28,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pendingActionRef = useRef<((user?: UserProfile) => void) | null>(null);
   const pendingCloseRef = useRef<(() => void) | null>(null);
 
-  // Load session on mount
+  // Load session on mount and listen for auth state changes
   useEffect(() => {
-    // Capture hash immediately on mount to detect OAuth redirect fallback
-    const hash = typeof window !== 'undefined' ? window.location.hash : '';
-    const isOAuthCallback = hash.includes('access_token') || hash.includes('error_description');
-
     const initSession = async () => {
       try {
         const currentUser = await authService.getCurrentUser();
@@ -48,25 +44,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // If Supabase is configured, listen to auth state changes
     if (isSupabaseConfigured()) {
-      const { data: { subscription } } = supabase!.auth.onAuthStateChange(
+      const { data: { subscription } } = supabaseAuth!.auth.onAuthStateChange(
         async (event: any, session: any) => {
           if (session?.user) {
             const currentUser = await authService.getCurrentUser();
             setUser(currentUser);
-            
-            // If we detected an OAuth callback hash on mount and this is a SIGNED_IN event,
-            // or if we are explicitly on the callback page, we should redirect the user.
-            // This fixes the issue where Supabase falls back to the Site URL (root) 
-            // if /auth/callback is not in the allowed Redirect URLs list.
-            if (event === 'SIGNED_IN' && isOAuthCallback) {
-              // Clean up the URL
-              if (typeof window !== 'undefined') {
-                window.history.replaceState(null, '', window.location.pathname + window.location.search);
-              }
-              if (currentUser?.role === 'admin') {
-                router.replace('/admin');
-              } else {
-                router.replace('/profile');
+
+            // BUG 4 FIX: The previous code checked window.location.hash for 'access_token'
+            // to detect an OAuth callback. PKCE flows use a ?code= query param — not a hash —
+            // so that check always returned false and the redirect after OAuth never fired.
+            //
+            // Correct approach: redirect on SIGNED_IN only when the user is currently on
+            // /login or /auth/callback. This handles:
+            //   1. OAuth callback redirect (user arrives at /auth/callback after Google login)
+            //   2. Re-login after logout (user is on /login, signs in, lands on /profile)
+            //   3. Does NOT redirect on page refresh (INITIAL_SESSION event, not SIGNED_IN)
+            if (event === 'SIGNED_IN') {
+              const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+              if (currentPath === '/login' || currentPath === '/auth/callback') {
+                if (currentUser?.role === 'admin') {
+                  router.replace('/admin');
+                } else {
+                  router.replace('/profile');
+                }
               }
             }
           } else {

@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { getClient } from '@/lib/supabase';
+const sb = () => getClient()!;
 
 export interface CategoryCarouselItem {
   id: string;

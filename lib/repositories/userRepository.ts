@@ -7,7 +7,11 @@
  */
 
 import { config } from '@/lib/config';
-import { supabase } from '@/lib/supabase';
+// BUG 2 FIX: Import supabase (the anon client) explicitly so the `supabaseAuth || supabase`
+// fallback expressions don't throw a ReferenceError when supabaseAuth is null.
+import { supabase, getClient, supabaseAuth } from '@/lib/supabase';
+// sb() is used for non-auth DB queries (products, profiles table reads, addresses, etc.).
+const sb = () => getClient()!;
 
 export interface UserProfile {
   id: string;
@@ -121,11 +125,16 @@ export interface IUserRepository {
 export class SupabaseUserRepository implements IUserRepository {
   async getUser(): Promise<UserProfile | null> {
     if (!config.isSupabaseConfigured) return null;
-    const { data: { user } } = await supabase!.auth.getUser();
+    // BUG 2+3 FIX: Always use supabaseAuth for auth.getUser().
+    // The anonymous `supabase` client (persistSession:false) has no stored session,
+    // so it will always return null for existing/returning users.
+    const authClient = supabaseAuth || supabase;
+    if (!authClient) return null;
+    const { data: { user } } = await authClient.auth.getUser();
     if (!user) return null;
 
     // Fetch details from profiles table
-    let { data: profile } = await supabase!
+    let { data: profile } = await sb()
       .from('profiles')
       .select('*')
       .eq('id', user.id)
@@ -135,8 +144,10 @@ export class SupabaseUserRepository implements IUserRepository {
     const resolvedRole = (profile?.role || user.user_metadata?.role || 'customer') as 'customer' | 'admin';
 
     if (!profile) {
-      // Auto-create profile for OAuth users to satisfy foreign key constraints
-      const { data: newProfile, error } = await supabase!
+      // BUG 3 FIX: Use authClient (which carries the user's JWT) for the profile upsert.
+      // Using the anonymous sb() client here means auth.uid() returns null and RLS
+      // rejects the insert for existing users, leaving them without a profile row.
+      const { data: newProfile, error } = await authClient
         .from('profiles')
         .upsert({
           id: user.id,
@@ -146,9 +157,11 @@ export class SupabaseUserRepository implements IUserRepository {
         })
         .select('*')
         .maybeSingle();
-      
+
       if (!error && newProfile) {
         profile = newProfile;
+      } else if (error) {
+        console.warn('Profile upsert failed (non-fatal):', error.message);
       }
     }
 
@@ -163,7 +176,11 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async login(email: string, password?: string) {
     if (!config.isSupabaseConfigured) return { success: false, error: 'Supabase not configured.' };
-    const { data, error } = await supabase!.auth.signInWithPassword({
+    // BUG 2 FIX: Use supabaseAuth directly — it has persistSession:true so the session
+    // is stored in localStorage after a successful password login.
+    const authClient = supabaseAuth || supabase;
+    if (!authClient) return { success: false, error: 'Auth client not available.' };
+    const { data, error } = await authClient.auth.signInWithPassword({
       email,
       password: password || '',
     });
@@ -176,20 +193,29 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async loginWithGoogle() {
     if (!config.isSupabaseConfigured) return { success: false, error: 'Supabase not configured.' };
-    
-    const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
-    const redirectTo = `${origin}/auth/callback`;
-    console.log("Redirect URL:", redirectTo);
 
-    const { data, error } = await supabase!.auth.signInWithOAuth({
+    // BUG 6 FIX: Use NEXT_PUBLIC_SITE_URL env var as the canonical origin fallback
+    // so the redirect URL is correct even if this runs server-side.
+    const origin =
+      typeof window !== 'undefined'
+        ? window.location.origin
+        : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
+    const redirectTo = `${origin}/auth/callback`;
+    console.log('OAuth redirectTo:', redirectTo);
+
+    // BUG 2 FIX: Use supabaseAuth — it stores the PKCE code verifier in localStorage.
+    // The callback page reads the verifier from the same storage to complete the exchange.
+    const authClient = supabaseAuth || supabase;
+    if (!authClient) return { success: false, error: 'Auth client not available.' };
+    const { data, error } = await authClient.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo,
       },
     });
-    
+
     if (error) {
-      console.error("OAuth error:", error.message);
+      console.error('OAuth error:', error.message);
       return { success: false, error: error.message };
     }
     return { success: true };
@@ -197,7 +223,10 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async register(email: string, password?: string, fullName?: string, role: 'customer' | 'admin' = 'customer') {
     if (!config.isSupabaseConfigured) return { success: false, error: 'Supabase not configured.' };
-    const { data, error } = await supabase!.auth.signUp({
+    // BUG 2 FIX: Use supabaseAuth for signUp so the new session is persisted.
+    const authClient = supabaseAuth || supabase;
+    if (!authClient) return { success: false, error: 'Auth client not available.' };
+    const { data, error } = await authClient.auth.signUp({
       email,
       password: password || '',
       options: {
@@ -208,7 +237,17 @@ export class SupabaseUserRepository implements IUserRepository {
       },
     });
     if (error || !data.user) {
-      return { success: false, error: error?.message || 'Signup failed.' };
+      // Map Supabase's raw duplicate-email error to a clear user-facing message
+      const raw = error?.message || 'Signup failed.';
+      const isDuplicate =
+        raw.toLowerCase().includes('user already registered') ||
+        raw.toLowerCase().includes('already been registered') ||
+        raw.toLowerCase().includes('email already') ||
+        raw.toLowerCase().includes('duplicate');
+      const friendlyError = isDuplicate
+        ? 'An account with this email already exists. Please log in instead.'
+        : raw;
+      return { success: false, error: friendlyError };
     }
     return {
       success: true,
@@ -223,7 +262,10 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async logout() {
     if (!config.isSupabaseConfigured) return true;
-    const { error } = await supabase!.auth.signOut();
+    // BUG 2 FIX: Use supabaseAuth for signOut so the correct stored session is cleared.
+    const authClient = supabaseAuth || supabase;
+    if (!authClient) return true;
+    const { error } = await authClient.auth.signOut();
     return !error;
   }
 
@@ -232,7 +274,7 @@ export class SupabaseUserRepository implements IUserRepository {
     const user = await this.getUser();
     if (!user) return { success: false, error: 'Not logged in.' };
 
-    const { error } = await supabase!
+    const { error } = await sb()
       .from('profiles')
       .update({
         full_name: updates.fullName,
@@ -246,7 +288,7 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async isAdmin(userId: string) {
     if (!config.isSupabaseConfigured) return false;
-    const { data } = await supabase!
+    const { data } = await sb()
       .from('profiles')
       .select('role')
       .eq('id', userId)
@@ -256,7 +298,7 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async getByEmail(email: string) {
     if (!config.isSupabaseConfigured) return null;
-    const { data } = await supabase!
+    const { data } = await sb()
       .from('profiles')
       .select('*')
       .eq('email', email)
@@ -272,7 +314,7 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async create(user: UserProfile) {
     if (!config.isSupabaseConfigured) throw new Error('Supabase not configured.');
-    await supabase!
+    await sb()
       .from('profiles')
       .insert({
         id: user.id,
@@ -285,7 +327,7 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async getAll() {
     if (!config.isSupabaseConfigured) return [];
-    const { data } = await supabase!
+    const { data } = await sb()
       .from('profiles')
       .select('*');
     if (!data) return [];
@@ -299,7 +341,7 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async getAddresses(userId: string): Promise<UserAddress[]> {
     if (!config.isSupabaseConfigured) return [];
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('user_addresses')
       .select('*')
       .eq('user_id', userId)
@@ -312,13 +354,13 @@ export class SupabaseUserRepository implements IUserRepository {
   async addAddress(address: Omit<UserAddress, 'id' | 'createdAt'>): Promise<UserAddress> {
     if (!config.isSupabaseConfigured) throw new Error('Supabase not configured.');
     if (address.isDefault) {
-      await supabase!
+      await sb()
         .from('user_addresses')
         .update({ is_default: false })
         .eq('user_id', address.userId);
     }
     const dbPayload = mapAddressToDb(address);
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('user_addresses')
       .insert(dbPayload)
       .select()
@@ -330,13 +372,13 @@ export class SupabaseUserRepository implements IUserRepository {
   async updateAddress(id: string, updates: Partial<UserAddress>): Promise<UserAddress> {
     if (!config.isSupabaseConfigured) throw new Error('Supabase not configured.');
     if (updates.isDefault && updates.userId) {
-      await supabase!
+      await sb()
         .from('user_addresses')
         .update({ is_default: false })
         .eq('user_id', updates.userId);
     }
     const dbPayload = mapAddressToDb(updates);
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('user_addresses')
       .update(dbPayload)
       .eq('id', id)
@@ -348,7 +390,7 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async deleteAddress(id: string): Promise<boolean> {
     if (!config.isSupabaseConfigured) return false;
-    const { error } = await supabase!
+    const { error } = await sb()
       .from('user_addresses')
       .delete()
       .eq('id', id);
@@ -357,11 +399,11 @@ export class SupabaseUserRepository implements IUserRepository {
 
   async setDefaultAddress(id: string, userId: string): Promise<boolean> {
     if (!config.isSupabaseConfigured) return false;
-    await supabase!
+    await sb()
       .from('user_addresses')
       .update({ is_default: false })
       .eq('user_id', userId);
-    const { error } = await supabase!
+    const { error } = await sb()
       .from('user_addresses')
       .update({ is_default: true })
       .eq('id', id)

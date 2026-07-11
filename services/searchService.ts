@@ -1,5 +1,6 @@
 import { Product } from '@/lib/data/products';
-import { supabase } from '@/lib/supabase';
+import { getClient } from '@/lib/supabase';
+const sb = () => getClient()!;
 import { mapDbProduct } from './productService';
 
 export interface SearchResult {
@@ -17,7 +18,7 @@ export const searchService = {
     }
 
     const cleanQuery = query.trim();
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .select('*')
       .or(`name.ilike.%${cleanQuery}%,description.ilike.%${cleanQuery}%,category.ilike.%${cleanQuery}%,brand.ilike.%${cleanQuery}%`);
@@ -44,7 +45,7 @@ export const searchService = {
     }
 
     const cleanQuery = query.trim();
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .select('*')
       .or(`name.ilike.%${cleanQuery}%,brand.ilike.%${cleanQuery}%,category.ilike.%${cleanQuery}%`)

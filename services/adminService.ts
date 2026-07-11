@@ -1,6 +1,10 @@
 import { Product } from '@/lib/data/products';
-import { supabase } from '@/lib/supabase';
+import { getClient } from '@/lib/supabase';
 import { mapDbProduct } from './productService';
+
+// Shorthand — always resolves to the auth-enabled client in the browser
+const sb = () => getClient()!;
+
 
 export interface AdminStats {
   totalProducts: number;
@@ -34,26 +38,26 @@ export interface InventoryItem {
 export const adminService = {
   async getDashboardStats(): Promise<AdminStats> {
     // 1. Total Products
-    const { count: prodCount, error: prodErr } = await supabase!
+    const { count: prodCount, error: prodErr } = await sb()
       .from('products')
       .select('*', { count: 'exact', head: true });
     if (prodErr) throw prodErr;
 
     // 2. Total Orders
-    const { count: orderCount, error: orderErr } = await supabase!
+    const { count: orderCount, error: orderErr } = await sb()
       .from('orders')
       .select('*', { count: 'exact', head: true });
     if (orderErr) throw orderErr;
 
     // 3. Active Coupons
-    const { count: couponCount, error: couponErr } = await supabase!
+    const { count: couponCount, error: couponErr } = await sb()
       .from('coupons')
       .select('*', { count: 'exact', head: true })
       .eq('active', true);
     if (couponErr) throw couponErr;
 
     // 4. Total Revenue
-    const { data: revenueData, error: revenueErr } = await supabase!
+    const { data: revenueData, error: revenueErr } = await sb()
       .from('orders')
       .select('total_amount')
       .neq('status', 'Cancelled');
@@ -70,7 +74,7 @@ export const adminService = {
   },
 
   async getOrders(): Promise<AdminOrder[]> {
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('orders')
       .select('*')
       .order('created_at', { ascending: false });
@@ -98,7 +102,7 @@ export const adminService = {
 
   async updateOrderStatus(orderId: string, status: AdminOrder['status']): Promise<boolean> {
     const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1);
-    const { error } = await supabase!
+    const { error } = await sb()
       .from('orders')
       .update({ status: normalizedStatus })
       .eq('id', orderId);
@@ -108,7 +112,7 @@ export const adminService = {
   },
 
   async getInventory(): Promise<InventoryItem[]> {
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .select('*')
       .order('category', { ascending: true });
@@ -127,7 +131,7 @@ export const adminService = {
 
   async updateInventoryStock(productId: string, size: string, newStock: number): Promise<boolean> {
     // 1. Fetch current product sizes array
-    const { data, error: fetchError } = await supabase!
+    const { data, error: fetchError } = await sb()
       .from('products')
       .select('sizes')
       .eq('id', productId)
@@ -147,7 +151,7 @@ export const adminService = {
     }
 
     // 2. Write updated sizes array back
-    const { error: updateError } = await supabase!
+    const { error: updateError } = await sb()
       .from('products')
       .update({ sizes: updatedSizes })
       .eq('id', productId);

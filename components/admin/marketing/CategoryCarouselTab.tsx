@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { GripVertical, Plus, Trash2, Save, X, Edit, Upload } from 'lucide-react';
 import { repo } from '@/lib/repositories';
 import { CategoryCarouselItem } from '@/lib/repositories/categoryCarouselRepository';
-import { supabase } from '@/lib/supabase';
+import { supabaseAuth } from '@/lib/supabase';
 import { useDispatch } from 'react-redux';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 
@@ -117,7 +117,7 @@ export default function CategoryCarouselTab() {
 
     setUploadingImage(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabaseAuth!.auth.getSession();
       if (!session) {
         dispatch(addToast({ message: "Please login again.", type: 'error' }));
         return;

@@ -140,10 +140,16 @@ create table if not exists public.reviews (
 create table if not exists public.banners (
   id uuid default gen_random_uuid() primary key,
   title text not null,
+  subtitle text,
   image_url text not null,
+  mobile_image_url text,
   link text,
-  position integer not null default 0,
+  button_text text,
   active boolean not null default true,
+  sort_order integer not null default 0,
+  start_date timestamp with time zone,
+  end_date timestamp with time zone,
+  target_page text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 

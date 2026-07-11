@@ -1,4 +1,5 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { getClient, isSupabaseConfigured } from '@/lib/supabase';
+const sb = () => getClient()!;
 import { getCategoryImage, normalizeSlug } from '../lib/utils/categoryImageMap';
 
 export interface Category {
@@ -100,7 +101,7 @@ export const categoryService = {
     }
 
     try {
-      const { data, error } = await supabase!
+      const { data, error } = await sb()
         .from('categories')
         .select('*')
         .order('name', { ascending: true });
@@ -134,7 +135,7 @@ export const categoryService = {
 
     try {
       const normalizedSlug = normalizeSlug(slug);
-      const { data, error } = await supabase!
+      const { data, error } = await sb()
         .from('categories')
         .select('*')
         .eq('slug', normalizedSlug)

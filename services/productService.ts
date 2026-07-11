@@ -82,13 +82,13 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
 
 export const productService = {
   async getProducts(): Promise<Product[]> {
-    const productsRes = await supabase!.from('products').select('*').order('created_at', { ascending: false });
+    const productsRes = await sb().from('products').select('*').order('created_at', { ascending: false });
     if (productsRes.error || !productsRes.data) throw productsRes.error || new Error('No data');
     return productsRes.data.map((p: any) => mapDbProduct(p));
   },
 
   async getProductBySlug(slug: string): Promise<Product | null> {
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .select('*')
       .eq('slug', slug)
@@ -102,14 +102,14 @@ export const productService = {
   async getProductsByCategory(categorySlug: string): Promise<Product[]> {
     const normalizedSlug = normalizeSlug(categorySlug);
     // Query all products and then filter dynamically via matchCategory
-    const productsRes = await supabase!.from('products').select('*');
+    const productsRes = await sb().from('products').select('*');
     if (productsRes.error || !productsRes.data) throw productsRes.error || new Error('No data');
     return productsRes.data.map((p: any) => mapDbProduct(p)).filter((p: any) => matchCategory(p, normalizedSlug));
   },
 
   async getProductsByCollection(collectionSlug: string): Promise<Product[]> {
     const slug = collectionSlug.toLowerCase().trim();
-    let query = supabase!.from('products').select('*');
+    let query = sb().from('products').select('*');
 
     const colMap: Record<string, string> = {
       'korean-collection': 'Korean Collection',
@@ -135,7 +135,7 @@ export const productService = {
 
     if (!data || data.length === 0) {
       // Fallback to text query filtering on DB products
-      const { data: allProds, error: allErr } = await supabase!.from('products').select('*');
+      const { data: allProds, error: allErr } = await sb().from('products').select('*');
       if (allErr) throw allErr;
       if (allProds) {
         return allProds.map((p: any) => mapDbProduct(p)).filter((p: any) => {
@@ -158,7 +158,7 @@ export const productService = {
 
   async getProductsByBrand(brandSlug: string): Promise<Product[]> {
     const cleanBrand = brandSlug.replace(/-/g, ' ').toLowerCase();
-    const productsRes = await supabase!.from('products').select('*').ilike('brand', `%${cleanBrand}%`);
+    const productsRes = await sb().from('products').select('*').ilike('brand', `%${cleanBrand}%`);
     if (productsRes.error) throw productsRes.error;
     return (productsRes.data || []).map((p: any) => mapDbProduct(p));
   },
@@ -175,7 +175,7 @@ export const productService = {
     const current = await this.getProductBySlug(slug);
     if (!current) return [];
 
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .select('*')
       .eq('category', current.category)
@@ -212,7 +212,7 @@ export const productService = {
       brand: p.brand || 'GR STYLES',
     };
 
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .insert(mapped)
       .select('*')
@@ -225,16 +225,16 @@ export const productService = {
   async deleteProduct(id: string): Promise<boolean> {
     // 1. Delete dependent records first to satisfy foreign key constraints
     try {
-      await supabase!.from('cart_items').delete().eq('product_id', id);
-      await supabase!.from('wishlist_items').delete().eq('product_id', id);
+      await sb().from('cart_items').delete().eq('product_id', id);
+      await sb().from('wishlist_items').delete().eq('product_id', id);
       // Optional: If order_items exist and aren't CASCADE deleted, handle them here too, 
       // but usually orders should be immutable. For safety:
-      await supabase!.from('order_items').delete().eq('product_id', id);
+      await sb().from('order_items').delete().eq('product_id', id);
     } catch (e) {
       console.warn('Failed to delete dependent records, but continuing:', e);
     }
 
-    const { error } = await supabase!
+    const { error } = await sb()
       .from('products')
       .delete()
       .eq('id', id);
@@ -252,7 +252,7 @@ export const productService = {
     const orderNumber = `GR-2026-${Math.floor(100000 + Math.random() * 900000)}`;
     
     // 1. Insert order
-    const { data: orderRow, error: orderError } = await supabase!
+    const { data: orderRow, error: orderError } = await sb()
       .from('orders')
       .insert({
         order_number: orderNumber,
@@ -278,7 +278,7 @@ export const productService = {
 
     // 2. Decrement stock
     for (const item of items) {
-      const { data: prod, error: prodErr } = await supabase!
+      const { data: prod, error: prodErr } = await sb()
         .from('products')
         .select('id, sizes')
         .eq('id', item.id)
@@ -296,7 +296,7 @@ export const productService = {
           return s;
         });
 
-        const { error: updateErr } = await supabase!
+        const { error: updateErr } = await sb()
           .from('products')
           .update({ sizes: updatedSizes })
           .eq('id', prod.id);
@@ -312,7 +312,7 @@ export const productService = {
   },
 
   async getReviews(productId: string): Promise<any[]> {
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('product_reviews')
       .select('*, profiles(full_name)')
       .eq('product_id', productId)
@@ -332,7 +332,7 @@ export const productService = {
     reviewText: string;
     reviewImages: string[];
   }): Promise<any> {
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('product_reviews')
       .insert({
         product_id: review.productId,
@@ -347,7 +347,7 @@ export const productService = {
     if (error) throw error;
 
     try {
-      const { data: allReviews } = await supabase!
+      const { data: allReviews } = await sb()
         .from('product_reviews')
         .select('rating')
         .eq('product_id', review.productId);
@@ -355,7 +355,7 @@ export const productService = {
       if (allReviews && allReviews.length > 0) {
         const count = allReviews.length;
         const avg = allReviews.reduce((sum: number, r: any) => sum + r.rating, 0) / count;
-        await supabase!
+        await sb()
           .from('products')
           .update({
             rating: Number(avg.toFixed(2)),
@@ -373,18 +373,18 @@ export const productService = {
   async uploadReviewImage(file: File): Promise<string> {
     const ext = file.name.split('.').pop();
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await supabase!.storage.from('reviews').upload(path, file);
+    const { error } = await sb().storage.from('reviews').upload(path, file);
     if (error) throw error;
-    const { data } = supabase!.storage.from('reviews').getPublicUrl(path);
+    const { data } = sb().storage.from('reviews').getPublicUrl(path);
     return data.publicUrl;
   },
 
   async uploadCustomImage(file: File): Promise<string> {
     const ext = file.name.split('.').pop();
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await supabase!.storage.from('custom_uploads').upload(path, file);
+    const { error } = await sb().storage.from('custom_uploads').upload(path, file);
     if (error) throw error;
-    const { data } = supabase!.storage.from('custom_uploads').getPublicUrl(path);
+    const { data } = sb().storage.from('custom_uploads').getPublicUrl(path);
     return data.publicUrl;
   }
 };;

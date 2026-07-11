@@ -1,4 +1,8 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseAuth, isSupabaseConfigured } from '@/lib/supabase';
+
+// syncService is browser-only (called from useEffect). We use supabaseAuth
+// so that all requests carry the user's JWT — required for RLS auth.uid() checks.
+const sb = () => supabaseAuth;
 import { CartItem } from '@/lib/redux/slices/cartSlice';
 import { Product } from '@/lib/data/products';
 
@@ -7,7 +11,7 @@ export const syncService = {
   async getOrCreateCartId(userId: string): Promise<string | null> {
     if (!isSupabaseConfigured()) return null;
     try {
-      const { data, error } = await supabase!
+      const { data, error } = await sb()!
         .from('carts')
         .upsert({ user_id: userId }, { onConflict: 'user_id' })
         .select('id')
@@ -28,7 +32,7 @@ export const syncService = {
   async getOrCreateWishlistId(userId: string): Promise<string | null> {
     if (!isSupabaseConfigured()) return null;
     try {
-      const { data, error } = await supabase!
+      const { data, error } = await sb()!
         .from('wishlists')
         .upsert({ user_id: userId }, { onConflict: 'user_id' })
         .select('id')
@@ -54,7 +58,7 @@ export const syncService = {
       const cartId = await this.getOrCreateCartId(userId);
       if (!cartId) return [];
 
-      const { data, error } = await supabase!
+      const { data, error } = await sb()!
         .from('cart_items')
         .select(`
           quantity,
@@ -95,7 +99,7 @@ export const syncService = {
       if (!cartId) return;
 
       // Find database UUID for the product
-      const { data: prod, error: prodError } = await supabase!
+      const { data: prod, error: prodError } = await sb()!
         .from('products')
         .select('id')
         .eq('id', item.id)
@@ -106,7 +110,7 @@ export const syncService = {
         return;
       }
 
-      let query = supabase!
+      let query = sb()!
         .from('cart_items')
         .select('id')
         .eq('cart_id', cartId)
@@ -120,7 +124,7 @@ export const syncService = {
       const { data: existing } = await query.maybeSingle();
 
       if (existing) {
-        const { error } = await supabase!
+        const { error } = await sb()!
           .from('cart_items')
           .update({
             quantity: item.quantity,
@@ -130,7 +134,7 @@ export const syncService = {
           .eq('id', existing.id);
         if (error) console.error('Error updating cart item in DB:', error.message);
       } else {
-        const { error } = await supabase!
+        const { error } = await sb()!
           .from('cart_items')
           .insert({
             cart_id: cartId,
@@ -166,7 +170,7 @@ export const syncService = {
       const cartId = await this.getOrCreateCartId(userId);
       if (!cartId) return;
 
-      const { data: prod } = await supabase!
+      const { data: prod } = await sb()!
         .from('products')
         .select('id')
         .eq('id', productId)
@@ -174,7 +178,7 @@ export const syncService = {
 
       if (!prod) return;
 
-      let query = supabase!
+      let query = sb()!
         .from('cart_items')
         .delete()
         .eq('cart_id', cartId)
@@ -199,7 +203,7 @@ export const syncService = {
       const cartId = await this.getOrCreateCartId(userId);
       if (!cartId) return;
 
-      const { error } = await supabase!
+      const { error } = await sb()!
         .from('cart_items')
         .delete()
         .eq('cart_id', cartId);
@@ -218,7 +222,7 @@ export const syncService = {
       const wishlistId = await this.getOrCreateWishlistId(userId);
       if (!wishlistId) return [];
 
-      const { data, error } = await supabase!
+      const { data, error } = await sb()!
         .from('wishlist_items')
         .select('product_id')
         .eq('wishlist_id', wishlistId);
@@ -237,7 +241,7 @@ export const syncService = {
       const wishlistId = await this.getOrCreateWishlistId(userId);
       if (!wishlistId) return;
 
-      const { data: prod } = await supabase!
+      const { data: prod } = await sb()!
         .from('products')
         .select('id')
         .eq('id', productId)
@@ -245,7 +249,7 @@ export const syncService = {
 
       if (!prod) return;
 
-      const { data: existing } = await supabase!
+      const { data: existing } = await sb()!
         .from('wishlist_items')
         .select('id')
         .eq('wishlist_id', wishlistId)
@@ -253,7 +257,7 @@ export const syncService = {
         .maybeSingle();
 
       if (!existing) {
-        const { error } = await supabase!
+        const { error } = await sb()!
           .from('wishlist_items')
           .insert({
             wishlist_id: wishlistId,
@@ -273,7 +277,7 @@ export const syncService = {
       const wishlistId = await this.getOrCreateWishlistId(userId);
       if (!wishlistId) return;
 
-      const { data: prod } = await supabase!
+      const { data: prod } = await sb()!
         .from('products')
         .select('id')
         .eq('id', productId)
@@ -281,7 +285,7 @@ export const syncService = {
 
       if (!prod) return;
 
-      const { error } = await supabase!
+      const { error } = await sb()!
         .from('wishlist_items')
         .delete()
         .eq('wishlist_id', wishlistId)

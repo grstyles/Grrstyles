@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useDispatch } from 'react-redux';
 import { addToast } from '@/lib/redux/slices/uiSlice';
-import { supabase } from '@/lib/supabase';
 import { authService } from '@/services/authService';
+
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -38,7 +38,18 @@ export default function RegisterPage() {
         dispatch(addToast({ message: 'Account created successfully! Please log in.', type: 'success' }));
         router.push('/login');
       } else {
-        dispatch(addToast({ message: res.error || 'Failed to register account.', type: 'error' }));
+        // Map Supabase's raw error strings to friendly messages
+        const rawError = res.error || '';
+        let friendlyError = rawError;
+        if (
+          rawError.toLowerCase().includes('user already registered') ||
+          rawError.toLowerCase().includes('already been registered') ||
+          rawError.toLowerCase().includes('email already') ||
+          rawError.toLowerCase().includes('duplicate')
+        ) {
+          friendlyError = 'An account with this email already exists. Please log in or use a different email.';
+        }
+        dispatch(addToast({ message: friendlyError || 'Failed to register account.', type: 'error' }));
       }
     } catch (err: any) {
       dispatch(addToast({ message: err.message || 'An error occurred during registration.', type: 'error' }));

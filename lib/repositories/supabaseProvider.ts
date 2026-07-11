@@ -11,7 +11,8 @@
  */
 
 import { Product } from '@/lib/data/products';
-import { supabase } from '@/lib/supabase';
+import { getClient } from '@/lib/supabase';
+const sb = () => getClient()!;
 import { mapDbProduct } from '@/services/productService';
 import { normalizeCategory, normalizeSlug, normalizeCollection } from '../utils/categoryImageMap';
 import {
@@ -36,13 +37,13 @@ import {
 
 export class SupabaseProductRepository implements IProductRepository {
   async getAll(): Promise<Product[]> {
-    const productsRes = await supabase!.from('products').select('*').order('created_at', { ascending: false });
+    const productsRes = await sb().from('products').select('*').order('created_at', { ascending: false });
     if (productsRes.error) throw productsRes.error;
     return (productsRes.data || []).map((p: any) => mapDbProduct(p));
   }
 
   async getById(id: string): Promise<Product | null> {
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .select('*, product_coupons(coupon_code)')
       .eq('id', id)
@@ -57,7 +58,7 @@ export class SupabaseProductRepository implements IProductRepository {
   }
 
   async getBySlug(slug: string): Promise<Product | null> {
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .select('*')
       .eq('slug', slug)
@@ -68,13 +69,13 @@ export class SupabaseProductRepository implements IProductRepository {
   }
 
   async getByCategory(category: string): Promise<Product[]> {
-    const productsRes = await supabase!.from('products').select('*').ilike('category', category).order('created_at', { ascending: false });
+    const productsRes = await sb().from('products').select('*').ilike('category', category).order('created_at', { ascending: false });
     if (productsRes.error) throw productsRes.error;
     return (productsRes.data || []).map((p: any) => mapDbProduct(p));
   }
 
   async getByCollection(collection: string): Promise<Product[]> {
-    const productsRes = await supabase!.from('products').select('*').ilike('collection', collection).order('created_at', { ascending: false });
+    const productsRes = await sb().from('products').select('*').ilike('collection', collection).order('created_at', { ascending: false });
     if (productsRes.error) throw productsRes.error;
     return (productsRes.data || []).map((p: any) => mapDbProduct(p));
   }
@@ -89,7 +90,7 @@ export class SupabaseProductRepository implements IProductRepository {
     let counter = 1;
 
     while (true) {
-      const { data, error } = await supabase!
+      const { data, error } = await sb()
         .from('products')
         .select('id')
         .eq('slug', candidate)
@@ -135,7 +136,7 @@ export class SupabaseProductRepository implements IProductRepository {
       brand: product.brand || 'GR STYLES',
     };
 
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .insert(mapped)
       .select('*')
@@ -156,7 +157,7 @@ export class SupabaseProductRepository implements IProductRepository {
           product_id: data.id,
           coupon_id: c
         }));
-        await supabase!.from('product_coupons').insert(pcRows);
+        await sb().from('product_coupons').insert(pcRows);
       } catch (err) {
         console.warn('Failed to save product_coupons in repo on create:', err);
       }
@@ -195,7 +196,7 @@ export class SupabaseProductRepository implements IProductRepository {
 
     console.log('[DEBUG SupabaseProvider Flow] 4. Payload sent to Supabase (update):', JSON.stringify(mapped.image_colors, null, 2));
 
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .update(mapped)
       .eq('id', id)
@@ -209,13 +210,13 @@ export class SupabaseProductRepository implements IProductRepository {
 
     if (data && updates.coupons !== undefined) {
       try {
-        await supabase!.from('product_coupons').delete().eq('product_id', data.id);
+        await sb().from('product_coupons').delete().eq('product_id', data.id);
         if (updates.coupons.length > 0) {
           const pcRows = updates.coupons.map((c: string) => ({
             product_id: data.id,
             coupon_code: c
           }));
-          await supabase!.from('product_coupons').insert(pcRows);
+          await sb().from('product_coupons').insert(pcRows);
         }
       } catch (err) {
         console.warn('Failed to update product_coupons in repo:', err);
@@ -226,14 +227,14 @@ export class SupabaseProductRepository implements IProductRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const { error } = await supabase!
+    const { error } = await sb()
       .from('products')
       .delete()
       .eq('id', id);
     if (error) throw error;
 
     try {
-      await supabase!.from('product_coupons').delete().eq('product_id', id);
+      await sb().from('product_coupons').delete().eq('product_id', id);
     } catch (err) {
       console.warn('Failed to delete product references in repo on delete:', err);
     }
@@ -242,13 +243,13 @@ export class SupabaseProductRepository implements IProductRepository {
   }
 
   async search(query: string): Promise<Product[]> {
-    const productsRes = await supabase!.from('products').select('*').or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`);
+    const productsRes = await sb().from('products').select('*').or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`);
     if (productsRes.error) throw productsRes.error;
     return (productsRes.data || []).map((p: any) => mapDbProduct(p));
   }
 
   async getInventory(): Promise<InventoryEntry[]> {
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .select('id, name, slug, category, shirt_stock, pant_stock, shoe_stock, overall_stock')
       .order('category');
@@ -269,7 +270,7 @@ export class SupabaseProductRepository implements IProductRepository {
     const column = type === 'shirt' ? 'shirt_stock' : type === 'pant' ? 'pant_stock' : type === 'shoe' ? 'shoe_stock' : 'overall_stock';
     
     if (type === 'overall') {
-      const { error: updateError } = await supabase!
+      const { error: updateError } = await sb()
         .from('products')
         .update({ overall_stock: newStock })
         .eq('id', productId);
@@ -277,7 +278,7 @@ export class SupabaseProductRepository implements IProductRepository {
       return true;
     }
 
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('products')
       .select(column)
       .eq('id', productId)
@@ -288,7 +289,7 @@ export class SupabaseProductRepository implements IProductRepository {
     const current = data[column] || {};
     current[size] = Math.max(0, newStock);
 
-    const { error: updateError } = await supabase!
+    const { error: updateError } = await sb()
       .from('products')
       .update({ [column]: current })
       .eq('id', productId);
@@ -301,7 +302,7 @@ export class SupabaseProductRepository implements IProductRepository {
 
 export class SupabaseOrderRepository implements IOrderRepository {
   async getAll(): Promise<MockOrder[]> {
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('orders')
       .select('*')
       .order('created_at', { ascending: false });
@@ -336,7 +337,7 @@ export class SupabaseOrderRepository implements IOrderRepository {
   }
 
   async getById(id: string): Promise<MockOrder | null> {
-    const { data } = await supabase!
+    const { data } = await sb()
       .from('orders')
       .select('*')
       .eq('id', id)
@@ -400,7 +401,7 @@ export class SupabaseOrderRepository implements IOrderRepository {
   }
 
   async updateStatus(id: string, status: MockOrder['status']): Promise<boolean> {
-    const { error } = await supabase!
+    const { error } = await sb()
       .from('orders')
       .update({ status })
       .eq('id', id);
@@ -408,7 +409,7 @@ export class SupabaseOrderRepository implements IOrderRepository {
   }
 
   async updateShipping(id: string, shippingData: Partial<MockOrder>): Promise<boolean> {
-    const { error } = await supabase!
+    const { error } = await sb()
       .from('orders')
       .update({
         tracking_id: shippingData.tracking_id,
@@ -427,7 +428,7 @@ export class SupabaseOrderRepository implements IOrderRepository {
 
 export class SupabaseCouponRepository implements ICouponRepository {
   async getAll(): Promise<MockCoupon[]> {
-    const { data, error } = await supabase!.from('coupons').select('*, product_coupons(product_id)');
+    const { data, error } = await sb().from('coupons').select('*, product_coupons(product_id)');
     if (error || !data) return [];
     return data.map((c: any) => ({
       code: c.code,
@@ -445,7 +446,7 @@ export class SupabaseCouponRepository implements ICouponRepository {
   }
 
   async apply(code: string, validationData?: { subtotal: number; productIds: string[] }): Promise<{ valid: boolean; discountValue: number; discountType: 'percentage' | 'flat'; message: string }> {
-    const { data } = await supabase!
+    const { data } = await sb()
       .from('coupons')
       .select('*, product_coupons(product_id)')
       .eq('code', code.toUpperCase().trim())
@@ -493,7 +494,7 @@ export class SupabaseCouponRepository implements ICouponRepository {
   }
 
   async create(coupon: Omit<MockCoupon, 'usageCount'>): Promise<MockCoupon | null> {
-    const { data, error } = await supabase!
+    const { data, error } = await sb()
       .from('coupons')
       .insert({
         code: coupon.code.toUpperCase().trim(),
@@ -519,7 +520,7 @@ export class SupabaseCouponRepository implements ICouponRepository {
         coupon_code: data.code,
         product_id: pid
       }));
-      await supabase!.from('product_coupons').insert(pcRows);
+      await sb().from('product_coupons').insert(pcRows);
     }
     
     return { 
@@ -538,12 +539,12 @@ export class SupabaseCouponRepository implements ICouponRepository {
   }
 
   async toggle(code: string, isActive: boolean): Promise<boolean> {
-    const { error } = await supabase!.from('coupons').update({ active: isActive }).eq('code', code);
+    const { error } = await sb().from('coupons').update({ active: isActive }).eq('code', code);
     return !error;
   }
 
   async delete(code: string): Promise<boolean> {
-    const { error } = await supabase!.from('coupons').delete().eq('code', code);
+    const { error } = await sb().from('coupons').delete().eq('code', code);
     return !error;
   }
 }
@@ -572,49 +573,56 @@ export class SupabaseBannerRepository implements IBannerRepository {
   }
 
   async getAll(): Promise<Banner[]> {
-    const { data, error } = await supabase!.from('banners').select('*').order('sort_order', { ascending: true });
-    if (error) {
-      console.error('Error fetching banners:', error);
+    try {
+      const { data, error } = await sb().from('banners').select('*').order('sort_order', { ascending: true });
+      if (error) {
+        console.error('Error fetching banners:', error);
+        return [];
+      }
+      return (data || []).map(this.mapToBanner);
+    } catch (e) {
+      console.error('Exception fetching banners:', e);
       return [];
     }
-    return data.map(this.mapToBanner);
   }
 
   async getActive(): Promise<Banner[]> {
-    const now = new Date().toISOString();
-    const { data, error } = await supabase!.from('banners')
-      .select('*')
-      .eq('active', true)
-      .order('sort_order', { ascending: true });
-      
-    if (error) {
-      console.error("Banner Query Error", {
-        message: error?.message,
-        details: error?.details,
-        hint: error?.hint,
-        code: error?.code,
-        error
+    try {
+      const now = new Date().toISOString();
+      const { data, error } = await sb()
+        .from('banners')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order', { ascending: true });
+
+      if (error) {
+        // Return empty array on error without logging
+        return [];
+      }
+
+      // Filter active date bounds
+      const filtered = (data || []).filter((b) => {
+        if (b.start_date && new Date(b.start_date).toISOString() > now) return false;
+        if (b.end_date && new Date(b.end_date).toISOString() < now) return false;
+        return true;
       });
+      return filtered.map(this.mapToBanner);
+    } catch (e) {
+      // Return empty array on exception
       return [];
     }
-    
-    // Filter active date bounds
-    return data.filter((b: any) => {
-      if (b.start_date && new Date(b.start_date).toISOString() > now) return false;
-      if (b.end_date && new Date(b.end_date).toISOString() < now) return false;
-      return true;
-    }).map(this.mapToBanner);
   }
+  
 
   async getById(id: string): Promise<Banner | null> {
-    const { data, error } = await supabase!.from('banners').select('*').eq('id', id).single();
+    const { data, error } = await sb().from('banners').select('*').eq('id', id).single();
     if (error) return null;
     return this.mapToBanner(data);
   }
 
   async create(banner: Omit<Banner, 'id' | 'created_at' | 'updated_at'>): Promise<Banner | null> {
     const dbRow = this.mapToDbRow(banner);
-    const { data, error } = await supabase!.from('banners').insert([dbRow]).select('*').single();
+    const { data, error } = await sb().from('banners').insert([dbRow]).select('*').single();
     if (error) {
       console.error('Error creating banner:', error);
       return null;
@@ -624,7 +632,7 @@ export class SupabaseBannerRepository implements IBannerRepository {
 
   async update(id: string, banner: Partial<Banner>): Promise<Banner | null> {
     const dbRow = this.mapToDbRow(banner);
-    const { data, error } = await supabase!.from('banners').update(dbRow).eq('id', id).select('*').single();
+    const { data, error } = await sb().from('banners').update(dbRow).eq('id', id).select('*').single();
     if (error) {
       console.error('Error updating banner:', error);
       return null;
@@ -633,7 +641,7 @@ export class SupabaseBannerRepository implements IBannerRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const { error } = await supabase!.from('banners').delete().eq('id', id);
+    const { error } = await sb().from('banners').delete().eq('id', id);
     if (error) {
       console.error('Error deleting banner:', error);
       return false;
@@ -666,24 +674,24 @@ export class SupabaseStorageRepository implements IStorageRepository {
     }
 
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await supabase!.storage.from(bucket).upload(path, file);
+    const { error } = await sb().storage.from(bucket).upload(path, file);
     if (error) {
       console.error('Supabase upload error:', error);
       throw error;
     }
-    const { data } = supabase!.storage.from(bucket).getPublicUrl(path);
+    const { data } = sb().storage.from(bucket).getPublicUrl(path);
     return data.publicUrl;
   }
 
   async deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections'): Promise<boolean> {
     const path = url.split(`/${bucket}/`)[1];
     if (!path) return false;
-    const { error } = await supabase!.storage.from(bucket).remove([path]);
+    const { error } = await sb().storage.from(bucket).remove([path]);
     return !error;
   }
 
   getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections'): string {
-    const { data } = supabase!.storage.from(bucket).getPublicUrl(path);
+    const { data } = sb().storage.from(bucket).getPublicUrl(path);
     return data.publicUrl;
   }
 }
@@ -709,9 +717,9 @@ export class SupabaseAnalyticsRepository implements IAnalyticsRepository {
       { data: ordersData, error: ordersError },
       { count: couponCount, error: couponError },
     ] = await Promise.all([
-      supabase!.from('products').select('id, name, shirt_stock, pant_stock, shoe_stock, overall_stock, category, sku'),
-      supabase!.from('orders').select('id, order_number, customer_name, total_amount, status, created_at, items'),
-      supabase!.from('coupons').select('*', { count: 'exact', head: true }).eq('active', true),
+      sb().from('products').select('id, name, shirt_stock, pant_stock, shoe_stock, overall_stock, category, sku'),
+      sb().from('orders').select('id, order_number, customer_name, total_amount, status, created_at, items'),
+      sb().from('coupons').select('*', { count: 'exact', head: true }).eq('active', true),
     ]);
 
     if (productsError) throw productsError;
