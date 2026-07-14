@@ -1,6 +1,5 @@
 // services/userRepository.ts
-import { config } from '@/lib/config';
-import { supabase, supabaseClient, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export interface UserProfile {
   id: string;
@@ -29,7 +28,7 @@ export interface UserAddress {
 export interface IUserRepository {
   getUser(): Promise<UserProfile | null>;
   login(email: string, password?: string): Promise<{ success: boolean; error?: string; user?: UserProfile }>;
-  loginWithGoogle(email?: string, name?: string, avatar?: string): Promise<{ success: boolean; error?: string; user?: UserProfile }>;
+  loginWithGoogle(): Promise<{ success: boolean; error?: string; user?: UserProfile }>;
   register(email: string, password?: string, fullName?: string, role?: 'customer' | 'admin'): Promise<{ success: boolean; error?: string; user?: UserProfile }>;
   logout(): Promise<boolean>;
   updateProfile(updates: Partial<Pick<UserProfile, 'fullName' | 'email'>>): Promise<{ success: boolean; error?: string; user?: UserProfile }>;
@@ -45,110 +44,99 @@ export interface IUserRepository {
 }
 
 export class SupabaseUserRepository implements IUserRepository {
-  private getAuthClient() {
-    return supabaseClient || supabase;
+private getAuthClient() {
+    // Supabase client is initialized when configuration is present.
+    // Cast to any to avoid nullability concerns; callers guard with isSupabaseConfigured.
+    return supabase as any;
   }
 
-  private async buildUserProfile(user: any, authClient: any): Promise<UserProfile | null> {
-    try {
-      console.log('[buildUserProfile] Building profile for:', user.email);
-      
-      // Try to get existing profile
-      let { data: profile } = await authClient
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+// Refactored buildUserProfile: ensure id and email uniqueness without conflicts
+private async buildUserProfile(user: any, authClient: any): Promise<UserProfile | null> {
+  try {
+    // 1. Try to fetch profile by Supabase auth user ID
+    const { data: profileById } = await authClient
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
 
-      const fullName = user.user_metadata?.full_name || 
-                       user.user_metadata?.name || 
-                       user.email?.split('@')[0] || 
-                       'User';
-
-      // If profile doesn't exist, try to find by email (for existing users)
-      if (!profile) {
-        console.log('[buildUserProfile] No profile by ID, checking email...');
-        
-        const { data: emailProfile } = await authClient
-          .from('profiles')
-          .select('*')
-          .eq('email', user.email)
-          .maybeSingle();
-        
-        if (emailProfile) {
-          profile = emailProfile;
-          console.log('[buildUserProfile] Found existing profile by email');
-          
-          // Update the profile with the correct user ID
-          const { error: updateError } = await authClient
-            .from('profiles')
-            .update({ id: user.id })
-            .eq('email', user.email);
-            
-          if (updateError) {
-            console.warn('[buildUserProfile] Failed to update profile ID:', updateError.message);
-          }
-        }
-      }
-
-      // If still no profile, try upsert
-      if (!profile) {
-        console.log('[buildUserProfile] Creating new profile...');
-        
-        const { data: newProfile, error: createError } = await authClient
-          .from('profiles')
-          .upsert({
-            id: user.id,
-            email: user.email || '',
-            full_name: fullName,
-            role: 'customer',
-            avatar_url: user.user_metadata?.avatar_url || '',
-          }, {
-            onConflict: 'id',
-            ignoreDuplicates: true
-          })
-          .select('*')
-          .maybeSingle();
-
-        if (!createError && newProfile) {
-          profile = newProfile;
-          console.log('[buildUserProfile] Profile created/updated successfully');
-        } else if (createError) {
-          console.warn('[buildUserProfile] Upsert had issue:', createError.message);
-          
-          // Try to fetch existing profile
-          const { data: existingProfile } = await authClient
-            .from('profiles')
-            .select('*')
-            .eq('email', user.email)
-            .maybeSingle();
-          
-          if (existingProfile) {
-            profile = existingProfile;
-            console.log('[buildUserProfile] Found existing profile after conflict');
-          }
-        }
-      }
-
-      // Always return user info
+    if (profileById) {
       return {
         id: user.id,
-        email: user.email || '',
-        fullName: profile?.full_name || fullName,
-        role: profile?.role || 'customer',
-        avatar: profile?.avatar_url || user.user_metadata?.avatar_url || '',
-      };
-    } catch (error) {
-      console.error('[buildUserProfile] Error:', error);
-      return {
-        id: user.id,
-        email: user.email || '',
-        fullName: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-        role: 'customer',
-        avatar: user.user_metadata?.avatar_url || '',
+        email: user.email ?? '',
+        fullName: profileById.full_name ?? user.email?.split('@')[0] ?? 'User',
+        role: profileById.role ?? 'customer',
+        avatar: profileById.avatar_url ?? user.user_metadata?.avatar_url ?? '',
       };
     }
+
+    // 2. If not found by ID, check if a profile already exists for this email
+    if (user.email) {
+      const { data: profileByEmail } = await authClient
+        .from('profiles')
+        .select('*')
+        .eq('email', user.email)
+        .maybeSingle();
+
+      if (profileByEmail) {
+        // Existing profile with same email – reuse it (id may differ)
+        return {
+          id: profileByEmail.id,
+          email: profileByEmail.email,
+          fullName: profileByEmail.full_name ?? user.email.split('@')[0],
+          role: profileByEmail.role ?? 'customer',
+          avatar: profileByEmail.avatar_url ?? user.user_metadata?.avatar_url ?? '',
+        };
+      }
+    }
+
+    // 3. No existing profile – create a new one (idempotent)
+    const fullName =
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      user.email?.split('@')[0] ||
+      'User';
+    const { data: newProfile, error } = await authClient
+      .from('profiles')
+      .insert([
+        {
+          id: user.id,
+          email: user.email ?? '',
+          full_name: fullName,
+          role: 'customer',
+          avatar_url: user.user_metadata?.avatar_url || '',
+        },
+      ])
+      .select('*')
+      .single();
+
+    if (error) {
+      console.warn('[buildUserProfile] Insert error', error.message);
+    }
+
+    if (newProfile) {
+      return {
+        id: newProfile.id,
+        email: newProfile.email ?? '',
+        fullName: newProfile.full_name ?? fullName,
+        role: newProfile.role ?? 'customer',
+        avatar: newProfile.avatar_url ?? '',
+      };
+    }
+
+    // Fallback – return minimal profile
+    return {
+      id: user.id,
+      email: user.email ?? '',
+      fullName,
+      role: 'customer',
+      avatar: '',
+    };
+  } catch (error) {
+    console.error('[buildUserProfile] Error:', error);
+    return null;
   }
+}
 
   async getUser(): Promise<UserProfile | null> {
     if (!isSupabaseConfigured()) {
@@ -225,7 +213,7 @@ export class SupabaseUserRepository implements IUserRepository {
 
     const origin = typeof window !== 'undefined'
       ? window.location.origin
-      : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
+        : (process.env.NEXT_PUBLIC_SITE_URL || '');
     const redirectTo = `${origin}/auth/callback`;
     
     console.log('[loginWithGoogle] Redirect URL:', redirectTo);
@@ -585,3 +573,4 @@ export class SupabaseUserRepository implements IUserRepository {
     }
   }
 }
+

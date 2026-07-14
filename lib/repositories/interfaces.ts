@@ -196,8 +196,24 @@ export interface IStorageRepository {
   getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections'): string;
 }
 
-// ─── Analytics Repository ─────────────────────────────────────────────────────
+export interface ShippingSettings {
+  shippingCharge: number; // Base shipping charge per order
+  freeShippingAbove: number;
+  // New fields for detailed shipping configuration
+  singleProductCharge: number; // Charge for a single product delivery
+  pantCharge: number; // Charge for pant delivery
+  comboCharge: number; // Charge for combo delivery
+  freeDelivery: boolean; // Toggle for free delivery
+  estimatedDelivery: string; // Estimated delivery time label (e.g., "3-5 days")
+  shippingMessage: string; // Message displayed to users, may contain {remaining} placeholder
+}
 
+export interface IShippingRepository {
+  /** Get current shipping settings */
+  getSettings(): Promise<ShippingSettings>;
+  /** Update shipping settings */
+  updateSettings(settings: ShippingSettings): Promise<boolean>;
+}
 export interface IAnalyticsRepository {
   getDashboardStats(): Promise<DashboardStats>;
   getFullAnalytics(): Promise<FullAnalytics>;

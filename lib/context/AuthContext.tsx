@@ -47,56 +47,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+  // Initialize session once on mount
+  const initOnce = async () => {
     if (pathname === '/auth/callback') {
       setLoading(false);
       return;
     }
+    console.log('[AuthProvider] Initializing session...');
+    setLoading(true);
+    // Small delay for session readiness
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const currentUser = await authService.getCurrentUser();
+    console.log('[AuthProvider] Current user:', currentUser?.email || 'None');
+    setUser(currentUser);
+    setLoading(false);
+  };
+  initOnce();
 
-    const initSession = async () => {
-      try {
-        console.log('[AuthProvider] Initializing session...');
-        setLoading(true);
-
-        // Wait a bit for session to be ready
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
+  if (isSupabaseConfigured() && supabase) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AuthProvider] Auth event:', event, session?.user?.email);
+      if (event === 'SIGNED_IN' && session?.user) {
+        // Refresh user profile after sign‑in
         const currentUser = await authService.getCurrentUser();
-        console.log('[AuthProvider] Current user:', currentUser?.email || 'None');
         setUser(currentUser);
-      } catch (err) {
-        console.error('[AuthProvider] Failed to get user:', err);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initSession();
-
-    if (isSupabaseConfigured() && supabase) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event: any, session: any) => {
-          console.log('[AuthProvider] Auth event:', event, session?.user?.email);
-
-          if (event === 'SIGNED_IN' && session?.user) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            const currentUser = await authService.getCurrentUser();
-            setUser(currentUser);
-            console.log('[AuthProvider] User set:', currentUser?.email);
-
-            if (pathname === '/login' || pathname === '/auth/callback') {
-              router.replace('/');
-            }
-          } else if (event === 'SIGNED_OUT') {
-            console.log('[AuthProvider] User signed out');
-            setUser(null);
-          }
+        console.log('[AuthProvider] User set:', currentUser?.email);
+        if (pathname === '/login' || pathname === '/auth/callback') {
+          router.replace('/');
         }
-      );
-
-      return () => subscription.unsubscribe();
-    }
-  }, [router, pathname]);
+      } else if (event === 'SIGNED_OUT') {
+        console.log('[AuthProvider] User signed out');
+        setUser(null);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }
+}, []);
 
   const login = async (email: string, password?: string) => {
     try {

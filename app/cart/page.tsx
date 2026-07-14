@@ -91,9 +91,18 @@ export default function CartPage() {
 
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
+  const [shippingConfig, setShippingConfig] = useState({ shippingCharge: 100, freeShippingAbove: 2000 });
 
-  // Shipping logic: Free over ₹2,000, else ₹100
-  const shipping = subtotal >= 2000 ? 0 : subtotal > 0 ? 100 : 0;
+  useEffect(() => {
+    repo.shipping.getSettings().then(cfg => {
+      setShippingConfig(cfg);
+    }).catch(err => {
+      console.error('Failed to load shipping settings in cart:', err);
+    });
+  }, []);
+
+  // Shipping logic: Free over dynamic threshold, else dynamic charge
+  const shipping = subtotal >= shippingConfig.freeShippingAbove ? 0 : subtotal > 0 ? shippingConfig.shippingCharge : 0;
   // Tax logic: GST 12%
   const tax = Math.round(subtotal * 0.12);
   // Promo discount
@@ -235,8 +244,8 @@ export default function CartPage() {
             <RewardsProgressBar subtotal={subtotal} unlockedRewards={unlockedRewards} />
 
             <AnimatePresence mode="popLayout">
-              {cartItems.map((item) => {
-                const uniqueKey = `${item.id}-${item.size || ''}-${item.shirtSize || ''}-${item.pantSize || ''}-${item.shoeSize || ''}-${item.color || ''}`;
+              {cartItems.map((item, index) => {
+                const uniqueKey = `${item.id}-${index}-${item.size || ''}-${item.shirtSize || ''}-${item.pantSize || ''}-${item.shoeSize || ''}-${item.color || ''}`;
                 return (
                   <motion.div
                     key={uniqueKey}
@@ -428,7 +437,7 @@ export default function CartPage() {
               {shipping > 0 && (
                 <div className="bg-[#fcfbf9] border border-gray-100 rounded-xl p-3 text-[11px] text-[#6b5b4b] flex items-center gap-2 leading-relaxed">
                   <Truck size={14} className="text-[#8b7b6b] flex-shrink-0" />
-                  <span>Add <strong className="text-gray-800">{formatPrice(2000 - subtotal)}</strong> more for free standard delivery.</span>
+                  <span>Add <strong className="text-gray-800">{formatPrice(shippingConfig.freeShippingAbove - subtotal)}</strong> more for free standard delivery.</span>
                 </div>
               )}
 

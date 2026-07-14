@@ -9,7 +9,7 @@ import Footer from "@/components/footer/Footer";
 import TopBar from "@/components/navbar/TopBar";
 import BottomNavigation from "@/components/layout/BottomNavigation";
 import QuickViewWrapper from "@/components/ui/QuickViewWrapper";
-import AuthModal from "@/components/ui/AuthModal";
+
 import Script from "next/script";
 import { IS_PRODUCTION } from '@/lib/config';
 
@@ -91,7 +91,7 @@ export default function RootLayout({
           <Footer />
           <BottomNavigation />
           <QuickViewWrapper />
-          <AuthModal />
+          
         </Providers>
         <Script
           src="https://checkout.razorpay.com/v1/checkout.js"

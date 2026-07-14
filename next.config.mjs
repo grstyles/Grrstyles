@@ -10,6 +10,11 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
+  experimental: {
+    cpus: 1,
+    workerThreads: false,
+  },
+
   images: {
     unoptimized: true,
     qualities: [75, 95],

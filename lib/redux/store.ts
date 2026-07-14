@@ -9,6 +9,11 @@ export const store = configureStore({
     wishlist: wishlistSlice,
     ui: uiSlice,
   },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: false,
+      immutableCheck: false,
+    }),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

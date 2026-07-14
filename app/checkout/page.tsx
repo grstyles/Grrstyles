@@ -116,11 +116,21 @@ export default function CheckoutPage() {
   const discountType = useSelector((state: RootState) => state.cart.discountType);
   const appliedPromo = useSelector((state: RootState) => state.cart.appliedPromo);
 
+  const [shippingConfig, setShippingConfig] = useState({ shippingCharge: 100, freeShippingAbove: 2000 });
+
+  useEffect(() => {
+    repo.shipping.getSettings().then(cfg => {
+      setShippingConfig(cfg);
+    }).catch(err => {
+      console.error('Failed to load shipping settings in checkout:', err);
+    });
+  }, []);
+
   const discount = discountType === 'percentage' 
     ? Math.round((total * discountValue) / 100) 
     : discountValue;
   const tax = Math.round((total - discount) * 0.08);
-  const shipping = 0;
+  const shipping = total >= shippingConfig.freeShippingAbove ? 0 : total > 0 ? shippingConfig.shippingCharge : 0;
   const finalTotal = total - discount + tax + shipping;
 
   useEffect(() => {
@@ -772,7 +782,11 @@ export default function CheckoutPage() {
               )}
               <div className="flex justify-between text-sm">
                 <span>Shipping</span>
-                <span className="text-green-600 font-semibold">FREE</span>
+                {shipping === 0 ? (
+                  <span className="text-green-600 font-semibold">FREE</span>
+                ) : (
+                  <span className="text-gray-800 font-medium">{formatPrice(shipping)}</span>
+                )}
               </div>
               <div className="flex justify-between text-sm">
                 <span>Tax</span>

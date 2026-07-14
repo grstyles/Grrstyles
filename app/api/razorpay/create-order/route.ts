@@ -75,8 +75,9 @@ export async function POST(req: Request) {
 
     // Apply GST (12% tax used in frontend)
     const tax = Math.round((calculatedSubtotal - calculatedDiscount) * 0.12);
-    // Shipping logic used in frontend: Free over ₹2,000, else ₹100
-    const shipping = calculatedSubtotal >= 2000 ? 0 : calculatedSubtotal > 0 ? 100 : 0;
+    // Shipping logic used in frontend: Free over dynamic threshold, else dynamic charge
+    const shippingConfig = await repo.shipping.getSettings();
+    const shipping = calculatedSubtotal >= shippingConfig.freeShippingAbove ? 0 : calculatedSubtotal > 0 ? shippingConfig.shippingCharge : 0;
     
     const finalAmount = calculatedSubtotal - calculatedDiscount + tax + shipping;
 

@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Settings, Store, Mail, Phone, Image, Upload,
   Save, CheckCircle2, Globe, MapPin, Clock, X
 } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { addToast } from '@/lib/redux/slices/uiSlice';
+import { repo } from '@/lib/repositories';
 
 interface StoreSettings {
   storeName: string;
@@ -24,6 +25,7 @@ interface StoreSettings {
   currency: string;
   taxPercent: string;
   freeShippingAbove: string;
+  shippingCharge: string;
 }
 
 const defaultSettings: StoreSettings = {
@@ -42,7 +44,31 @@ const defaultSettings: StoreSettings = {
   currency: 'INR (₹)',
   taxPercent: '18',
   freeShippingAbove: '999',
+  shippingCharge: '100',
 };
+
+const SectionCard = ({ title, icon: Icon, children }: {
+  title: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
+}) => (
+  <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm space-y-5">
+    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+      <Icon size={13} className="text-gray-400" />
+      {title}
+    </h3>
+    <div className="border-t border-gray-50 pt-4 space-y-4">
+      {children}
+    </div>
+  </div>
+);
+
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="space-y-1.5">
+    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</label>
+    {children}
+  </div>
+);
 
 export default function AdminSettingsPage() {
   const dispatch = useDispatch();
@@ -53,6 +79,17 @@ export default function AdminSettingsPage() {
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const data = await repo.shipping.getSettings();
+      setSettings((prev) => ({
+        ...prev,
+        freeShippingAbove: String(data.freeShippingAbove),
+        shippingCharge: String(data.shippingCharge),
+      }));
+    })();
+  }, []);
 
   const handleChange = (field: keyof StoreSettings, value: string) => {
     setSettings((prev) => ({ ...prev, [field]: value }));
@@ -83,40 +120,33 @@ export default function AdminSettingsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Preserve scroll position
+    const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
     setSaving(true);
-    // Simulate save delay
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    // Update shipping settings in Supabase
+    const success = await repo.shipping.updateSettings({
+      shippingCharge: Number(settings.shippingCharge),
+      freeShippingAbove: Number(settings.freeShippingAbove),
+    });
+    // Simulate brief delay
+    await new Promise((resolve) => setTimeout(resolve, 300));
     setSaving(false);
     setSaved(true);
-    dispatch(addToast({ message: '✓ Store settings saved successfully!', type: 'success' }));
-    // Save to localStorage for demo persistence
+    dispatch(
+      addToast({
+        message: success
+          ? '✓ Store settings saved successfully!'
+          : '⚠️ Failed to save shipping settings',
+        type: success ? 'success' : 'error',
+      })
+    );
+    // Restore scroll position
     if (typeof window !== 'undefined') {
-      localStorage.setItem('gr_styles_store_settings', JSON.stringify(settings));
+      window.scrollTo(0, scrollY);
     }
   };
 
-  const SectionCard = ({ title, icon: Icon, children }: {
-    title: string;
-    icon: React.ElementType;
-    children: React.ReactNode;
-  }) => (
-    <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm space-y-5">
-      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-        <Icon size={13} className="text-gray-400" />
-        {title}
-      </h3>
-      <div className="border-t border-gray-50 pt-4 space-y-4">
-        {children}
-      </div>
-    </div>
-  );
 
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="space-y-1.5">
-      <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</label>
-      {children}
-    </div>
-  );
 
   const inputClass = "w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm text-gray-800 placeholder-gray-300 transition-colors";
 
@@ -135,7 +165,7 @@ export default function AdminSettingsPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-6">
+      <div className="space-y-6">
 
         {/* Store Information */}
         <SectionCard title="Store Information" icon={Store}>
@@ -275,32 +305,9 @@ export default function AdminSettingsPage() {
           </div>
         </SectionCard>
 
-        {/* Commerce Settings */}
-        <SectionCard title="Commerce Settings" icon={Settings}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="GST / Tax (%)">
-              <input
-                type="number"
-                value={settings.taxPercent}
-                onChange={(e) => handleChange('taxPercent', e.target.value)}
-                className={inputClass}
-                placeholder="18"
-                min="0"
-                max="100"
-              />
-            </Field>
-            <Field label="Free Shipping Above (₹)">
-              <input
-                type="number"
-                value={settings.freeShippingAbove}
-                onChange={(e) => handleChange('freeShippingAbove', e.target.value)}
-                className={inputClass}
-                placeholder="999"
-                min="0"
-              />
-            </Field>
-          </div>
-        </SectionCard>
+
+
+
 
         {/* Logo Upload */}
         <SectionCard title="Store Logo" icon={Image}>
@@ -402,7 +409,8 @@ export default function AdminSettingsPage() {
             )}
             <button
               id="settings-save-btn"
-              type="submit"
+              type="button"
+              onClick={handleSave}
               disabled={saving}
               className="flex items-center gap-2 px-6 py-3 bg-black hover:bg-gray-900 text-white rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
@@ -420,7 +428,7 @@ export default function AdminSettingsPage() {
             </button>
           </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

@@ -29,7 +29,7 @@ export const authService = {
     name?: string,
     avatar?: string
   ): Promise<{ success: boolean; error?: string; user?: UserProfile }> {
-    return repo.users.loginWithGoogle(email, name, avatar);
+    return repo.users.loginWithGoogle();
   },
 
   async logout(): Promise<boolean> {

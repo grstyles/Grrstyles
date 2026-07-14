@@ -62,6 +62,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
     { name: 'Marketing', href: '/admin/marketing', icon: Megaphone },
     { name: 'Settings', href: '/admin/settings', icon: Settings },
+    { name: 'Shipping Settings', href: '/admin/shipping-settings', icon: Settings },
   ];
 
   if (!authChecked) {

@@ -22,6 +22,8 @@ import {
   IStorageRepository,
   IAnalyticsRepository,
   IBannerRepository,
+  IShippingRepository,
+  ShippingSettings,
   Banner,
   InventoryEntry,
   CreateOrderInput,
@@ -678,6 +680,65 @@ export class SupabaseBannerRepository implements IBannerRepository {
     const { error } = await sb().from('banners').delete().eq('id', id);
     if (error) {
       console.error('Error deleting banner:', error);
+      return false;
+    }
+    return true;
+  }
+}
+
+// ─── Supabase Shipping Repository ────────────────────────────────────────────
+
+export class SupabaseShippingRepository implements IShippingRepository {
+  async getSettings(): Promise<ShippingSettings> {
+    try {
+      const { data, error } = await sb()
+        .from('shipping_settings')
+        .select('*')
+        .maybeSingle();
+        if (error) {
+          // Return defaults on Supabase error
+          return { shippingCharge: 100, freeShippingAbove: 0 };
+        }
+      const charge = data?.shipping_charge ?? 100;
+      const freeAbove = data?.free_shipping_above ?? 0;
+      const singleProd = data?.single_product_charge ?? 80;
+      const pant = data?.pant_charge ?? 60;
+      const combo = data?.combo_charge ?? 120;
+      const freeDel = data?.free_delivery ?? false;
+      const estDel = data?.estimated_delivery ?? '3-5 days';
+      const shipMsg = data?.shipping_message ?? 'Free delivery for orders above {remaining}.';
+      return {
+        shippingCharge: Number(charge),
+        freeShippingAbove: Number(freeAbove),
+        singleProductCharge: Number(singleProd),
+        pantCharge: Number(pant),
+        comboCharge: Number(combo),
+        freeDelivery: Boolean(freeDel),
+        estimatedDelivery: String(estDel),
+        shippingMessage: String(shipMsg),
+      };
+    } catch (e) {
+      console.error('Unexpected error loading shipping settings:', e);
+      return { shippingCharge: 100, freeShippingAbove: 0 };
+    }
+  }
+
+  async updateSettings(settings: ShippingSettings): Promise<boolean> {
+    // Assume a single row with id = 1. Use upsert to insert if missing.
+      const payload = {
+        id: 1,
+        shipping_charge: settings.shippingCharge,
+        free_shipping_above: settings.freeShippingAbove,
+        single_product_charge: settings.singleProductCharge,
+        pant_charge: settings.pantCharge,
+        combo_charge: settings.comboCharge,
+        free_delivery: settings.freeDelivery,
+        estimated_delivery: settings.estimatedDelivery,
+        shipping_message: settings.shippingMessage,
+      };
+    const { error } = await sb().from('shipping_settings').upsert([payload]);
+    if (error) {
+      console.error('Failed to update shipping settings:', error);
       return false;
     }
     return true;

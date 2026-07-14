@@ -1,8 +1,8 @@
-import { supabaseAuth, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // syncService is browser-only (called from useEffect). We use supabaseAuth
 // so that all requests carry the user's JWT — required for RLS auth.uid() checks.
-const sb = () => supabaseAuth;
+const sb = () => supabase;
 import { CartItem } from '@/lib/redux/slices/cartSlice';
 import { Product } from '@/lib/data/products';
 
