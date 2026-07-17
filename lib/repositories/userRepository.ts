@@ -3,7 +3,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export interface UserProfile {
   id: string;
-  email: string;
+  email: string;  
   fullName: string;
   role: 'customer' | 'admin';
   avatar?: string;

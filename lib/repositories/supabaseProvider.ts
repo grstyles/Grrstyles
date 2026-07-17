@@ -340,6 +340,8 @@ export class SupabaseProductRepository implements IProductRepository {
 
 // ─── Supabase Order Repository ────────────────────────────────────────────────
 
+// ─── Supabase Order Repository ────────────────────────────────────────────────
+
 export class SupabaseOrderRepository implements IOrderRepository {
   async getAll(): Promise<MockOrder[]> {
     const { data, error } = await sb()
@@ -415,27 +417,55 @@ export class SupabaseOrderRepository implements IOrderRepository {
 
   async create(input: CreateOrderInput): Promise<string | null> {
     try {
-      const res = await fetch('/api/orders/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(input)
-      });
-      if (!res.ok) {
-        console.error('Failed to create order securely', await res.text());
+      // Generate order number
+      const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+      
+      // Calculate items count
+      const itemsCount = input.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+
+      // Prepare order data
+      const orderData = {
+        order_number: orderNumber,
+        customer_name: input.customerName,
+        customer_email: input.email || '',
+        customer_phone: input.phone || '',
+        total_amount: input.totalAmount || 0,
+        status: input.status || 'Pending',
+        payment_status: input.paymentStatus || 'Pending',
+        payment_method: input.paymentMethod || 'Prepaid',
+        shipping_address: input.shippingAddress || {},
+        items: input.items || [],
+        razorpay_order_id: input.razorpay_order_id || null,
+        razorpay_payment_id: input.razorpay_payment_id || null,
+        payment_signature: input.payment_signature || null,
+        gateway: input.gateway || 'razorpay',
+        transaction_time: input.transaction_time || new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      // Insert into Supabase
+      const { data, error } = await sb()
+        .from('orders')
+        .insert([orderData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Failed to create order in Supabase:', error);
         return null;
       }
-      const data = await res.json();
-      const orderNumber = data.orderNumber;
-      if (!orderNumber) return null;
 
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('gr_last_order_number', orderNumber);
+      if (!data) {
+        console.error('No data returned from Supabase after insert');
+        return null;
       }
+
+      console.log('✅ Order created successfully:', orderNumber);
       return orderNumber;
+
     } catch (err) {
-      console.error('Network error creating order securely', err);
+      console.error('Error creating order:', err);
       return null;
     }
   }

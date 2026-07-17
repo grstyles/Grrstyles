@@ -110,7 +110,7 @@ export default function CheckoutPage() {
     }
   };
 
-  const [paymentMethod, setPaymentMethod] = useState('upi'); // Changed from 'card' to 'upi'
+  const [paymentMethod, setPaymentMethod] = useState('upi');
   const [loading, setLoading] = useState(false);
   const discountValue = useSelector((state: RootState) => state.cart.discountValue);
   const discountType = useSelector((state: RootState) => state.cart.discountType);
@@ -320,8 +320,25 @@ export default function CheckoutPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: cartItems.map(i => ({ productId: i.id, quantity: i.quantity })),
+            items: cartItems.map(i => ({ 
+              productId: i.id, 
+              quantity: i.quantity,
+              size: i.size || i.shirtSize || i.pantSize || i.shoeSize || null,
+              color: i.color || null
+            })),
             couponCode: appliedPromo || null,
+            customerName: `${formData.firstName} ${formData.lastName}`,
+            email: formData.email,
+            phone: formData.phone,
+            userId: user?.id,
+            shippingAddress: {
+              address: formData.address,
+              city: formData.city,
+              state: formData.state,
+              zip: formData.zip,
+              country: formData.country,
+              fullAddressString: addressString
+            }
           }),
         });
 
@@ -337,7 +354,6 @@ export default function CheckoutPage() {
           currency: rzpOrder.currency,
           name: 'GR STYLES',
           description: 'Menswear Fashion Checkout',
-          image: '/images/image5.jpeg',
           order_id: rzpOrder.id,
           // UPI specific options
           method: {
@@ -368,16 +384,18 @@ export default function CheckoutPage() {
 
         const rzp = new (window as any).Razorpay(options);
         rzp.on('payment.failed', function (response: any) {
+          console.error('Payment failed:', response);
           dispatch(addToast({ message: 'Payment failed. Please try again.', type: 'error' }));
           setLoading(false);
         });
         rzp.open();
       } catch (err: any) {
+        console.error('UPI Error:', err);
         dispatch(addToast({ message: err.message || 'Failed to initialize UPI payment.', type: 'error' }));
         setLoading(false);
       }
     } else if (paymentMethod === 'card') {
-      // Card payment flow (existing code)
+      // Card payment flow
       setLoading(true);
       
       if (!razorpayLoaded || !(window as any).Razorpay) {
@@ -403,8 +421,25 @@ export default function CheckoutPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: cartItems.map(i => ({ productId: i.id, quantity: i.quantity })),
+            items: cartItems.map(i => ({ 
+              productId: i.id, 
+              quantity: i.quantity,
+              size: i.size || i.shirtSize || i.pantSize || i.shoeSize || null,
+              color: i.color || null
+            })),
             couponCode: appliedPromo || null,
+            customerName: `${formData.firstName} ${formData.lastName}`,
+            email: formData.email,
+            phone: formData.phone,
+            userId: user?.id,
+            shippingAddress: {
+              address: formData.address,
+              city: formData.city,
+              state: formData.state,
+              zip: formData.zip,
+              country: formData.country,
+              fullAddressString: addressString
+            }
           }),
         });
 
@@ -420,10 +455,11 @@ export default function CheckoutPage() {
           currency: rzpOrder.currency,
           name: 'GR STYLES',
           description: 'Menswear Fashion Checkout',
-          image: '/images/image5.jpeg',
           order_id: rzpOrder.id,
           handler: async function (response: any) {
             try {
+              console.log('Payment success, verifying...', response);
+              
               const verifyRes = await fetch('/api/razorpay/verify-payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -431,6 +467,7 @@ export default function CheckoutPage() {
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_signature: response.razorpay_signature,
+                  userId: user?.id,
                 }),
               });
 
@@ -457,6 +494,7 @@ export default function CheckoutPage() {
               
               await handlePlaceOrder(successPayload);
             } catch (err: any) {
+              console.error('Verification error:', err);
               dispatch(addToast({ message: err.message || 'Payment Verification Failed.', type: 'error' }));
               router.push('/payment-failed');
             }
@@ -482,11 +520,13 @@ export default function CheckoutPage() {
 
         const rzp = new (window as any).Razorpay(options);
         rzp.on('payment.failed', function (response: any) {
-          dispatch(addToast({ message: 'Payment cancelled or failed.', type: 'error' }));
-          router.push('/payment-failed');
+          console.error('Payment failed:', response);
+          dispatch(addToast({ message: 'Payment failed. Please try again.', type: 'error' }));
+          setLoading(false);
         });
         rzp.open();
       } catch (err: any) {
+        console.error('Card payment error:', err);
         dispatch(addToast({ message: err.message || 'Failed to initialize payment.', type: 'error' }));
         setLoading(false);
       }
