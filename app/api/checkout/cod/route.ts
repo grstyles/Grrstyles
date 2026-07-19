@@ -3,11 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { repo } from '@/lib/repositories';
 import { calculateOrderTotals } from '@/lib/utils/shipping';
 
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
 export async function POST(req: Request) {
   try {
     const { orderPayload, cartItems, userId } = await req.json();
@@ -85,8 +85,8 @@ export async function POST(req: Request) {
         order_number: orderNumber,
         user_id: userId || null,
         customer_name: orderPayload.customerName,
-        email: orderPayload.email,
-        phone: orderPayload.phone,
+        customer_email: orderPayload.email,
+        customer_phone: orderPayload.phone,
         shipping_address: orderPayload.shippingAddress,
         payment_method: 'cod',
         total_amount: verifiedTotalAmount,
@@ -96,7 +96,7 @@ export async function POST(req: Request) {
         payment_status: 'Pending'
       })
       .select('id')
-      .single();
+      .single();  
 
     if (orderError || !orderData) {
       console.error('Order Insert Error:', orderError);

@@ -4,11 +4,11 @@ import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import { createClient } from '@supabase/supabase-js';
 
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -101,25 +101,26 @@ export async function POST(req: Request) {
     const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 
     // 1. Insert Order
-    const dbOrderData = {
-      order_number: orderNumber,
-      user_id: userId || null,
-      customer_name: orderPayload.customerName,
-      email: orderPayload.email,
-      phone: orderPayload.phone,
-      shipping_address: orderPayload.shippingAddress,
-      payment_method: orderPayload.paymentMethod,
-      total_amount: orderPayload.totalAmount,
-      discount_amount: orderPayload.discountAmount || 0,
-      coupon_code: orderPayload.couponCode || null,
-      status: 'Confirmed',
-      payment_status: 'Paid',
-      razorpay_order_id: razorpay_order_id,
-      razorpay_payment_id: razorpay_payment_id,
-      payment_signature: razorpay_signature,
-      gateway: 'razorpay',
-      transaction_time: new Date().toISOString()
-    };
+    // 1. Insert Order
+const dbOrderData = {
+  order_number: orderNumber,
+  user_id: userId || null,
+  customer_name: orderPayload.customerName,
+  customer_email: orderPayload.email,
+  customer_phone: orderPayload.phone,
+  shipping_address: orderPayload.shippingAddress,
+  payment_method: orderPayload.paymentMethod,
+  total_amount: orderPayload.totalAmount,
+  discount_amount: orderPayload.discountAmount || 0,
+  coupon_code: orderPayload.couponCode || null,
+  status: 'Confirmed',
+  payment_status: 'Paid',
+  razorpay_order_id: razorpay_order_id,
+  razorpay_payment_id: razorpay_payment_id,
+  payment_signature: razorpay_signature,
+  payment_gateway: 'razorpay',
+  transaction_time: new Date().toISOString()
+};
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -128,9 +129,20 @@ export async function POST(req: Request) {
       .single();
 
     if (orderError || !order) {
-      console.error('Order Insert Error:', orderError);
-      return NextResponse.json({ success: false, error: 'Failed to create order' }, { status: 500 });
-    }
+  console.error("========== ORDER INSERT ERROR ==========");
+  console.error(JSON.stringify(orderError, null, 2));
+  console.error("Payload:", JSON.stringify(dbOrderData, null, 2));
+  console.error("========================================");
+
+  return NextResponse.json(
+    {
+      success: false,
+      error: orderError?.message,
+      details: orderError,
+    },
+    { status: 500 }
+  );
+}
 
     // 2. Insert Order Items
     const orderItems = items.map((item: any) => ({
