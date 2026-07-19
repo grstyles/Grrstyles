@@ -96,9 +96,7 @@ create policy "Allow users to read own orders"
   using (customer_email = (auth.jwt() ->> 'email') or public.is_admin());
 
 drop policy if exists "Allow anyone to insert orders" on public.orders;
-create policy "Allow anyone to insert orders"
-  on public.orders for insert
-  with check (true);
+-- REMOVED: Insecure policy allowing anyone to insert orders. All inserts are now done via secure API routes using Service Role.
 
 drop policy if exists "Allow admin to update or delete orders" on public.orders;
 create policy "Allow admin to update or delete orders"

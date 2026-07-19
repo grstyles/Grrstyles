@@ -1,21 +1,31 @@
+// app/api/razorpay/verify-payment/route.ts
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import Razorpay from 'razorpay';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client directly in this file
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId } = body;
+    const { 
+      razorpay_order_id, 
+      razorpay_payment_id, 
+      razorpay_signature, 
+      userId,
+      orderPayload,
+      items
+    } = body;
 
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    console.log('📥 Verify payment request:', { razorpay_order_id, razorpay_payment_id, userId });
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !orderPayload || !items) {
       return NextResponse.json(
-        { error: 'Missing required parameters' },
+        { success: false, error: 'Missing required parameters' },
         { status: 400 }
       );
     }
@@ -23,136 +33,176 @@ export async function POST(req: Request) {
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
     if (!key_secret) {
       return NextResponse.json(
-        { error: 'Razorpay configuration error' },
+        { success: false, error: 'Razorpay configuration error' },
         { status: 500 }
       );
     }
 
+    // Verify Razorpay signature
     const generated_signature = crypto
       .createHmac('sha256', key_secret)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest('hex');
 
     if (generated_signature !== razorpay_signature) {
+      console.warn('⚠️ Signature mismatch');
       return NextResponse.json(
-        { error: 'Payment verification failed' },
+        { success: false, error: 'Payment verification failed' },
         { status: 400 }
       );
     }
 
-    console.log('✅ Payment verified:', { razorpay_order_id, razorpay_payment_id });
-
-    // Check if order already exists
-    const { data: existingOrder } = await supabase
-      .from('orders')
-      .select('id')
-      .eq('razorpay_order_id', razorpay_order_id)
-      .single();
-
-    if (existingOrder) {
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Order already exists',
-        order_id: existingOrder.id
-      });
-    }
-
-    // Get temp order
-    const { data: tempOrder, error: tempError } = await supabase
-      .from('temp_orders')
-      .select('*')
-      .eq('razorpay_order_id', razorpay_order_id)
-      .single();
-
-    if (tempError || !tempOrder) {
+    // Fetch the Razorpay order to validate the amount matches the previously calculated total amount
+    const key_id = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    if (!key_id) {
       return NextResponse.json(
-        { error: 'Order data not found' },
-        { status: 404 }
+        { success: false, error: 'Razorpay Key ID is not configured' },
+        { status: 500 }
+      );
+    }
+    const razorpay = new Razorpay({ 
+      key_id, 
+      key_secret 
+    });
+
+    const rzpOrder = await razorpay.orders.fetch(razorpay_order_id);
+    if (!rzpOrder) {
+      return NextResponse.json(
+        { success: false, error: 'Razorpay order not found' },
+        { status: 400 }
       );
     }
 
-    // Create order
-    const orderData = {
-      user_id: userId || tempOrder.user_id,
-      razorpay_order_id,
-      razorpay_payment_id,
-      order_status: 'processing',
-      payment_status: 'paid',
-      shipping_address: tempOrder.shipping_address || {},
-      subtotal: tempOrder.subtotal || 0,
-      shipping_charge: tempOrder.shipping_charge || 0,
-      tax: tempOrder.tax || 0,
-      discount: tempOrder.discount || 0,
-      grand_total: tempOrder.grand_total || 0,
-      coupon_code: tempOrder.coupon_code || null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+    // Razorpay amount is in paise, convert to rupees for validation
+    const expectedAmount = (rzpOrder as any).amount / 100;
+    if (Math.round(orderPayload.totalAmount) !== Math.round(expectedAmount)) {
+      console.warn(`⚠️ Total amount mismatch. Payload: ${orderPayload.totalAmount}, Razorpay Order: ${expectedAmount}`);
+      return NextResponse.json(
+        { success: false, error: 'Order amount verification failed due to mismatch' },
+        { status: 400 }
+      );
+    }
+
+    // Check if payment already exists
+    const { data: existingPayment } = await supabase
+      .from('payments')
+      .select('id, order_id')
+      .eq('razorpay_payment_id', razorpay_payment_id)
+      .maybeSingle();
+
+    if (existingPayment) {
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Payment already processed',
+        order_id: existingPayment.order_id
+      });
+    }
+
+    const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+
+    // 1. Insert Order
+    const dbOrderData = {
+      order_number: orderNumber,
+      user_id: userId || null,
+      customer_name: orderPayload.customerName,
+      email: orderPayload.email,
+      phone: orderPayload.phone,
+      shipping_address: orderPayload.shippingAddress,
+      payment_method: orderPayload.paymentMethod,
+      total_amount: orderPayload.totalAmount,
+      discount_amount: orderPayload.discountAmount || 0,
+      coupon_code: orderPayload.couponCode || null,
+      status: 'Confirmed',
+      payment_status: 'Paid',
+      razorpay_order_id: razorpay_order_id,
+      razorpay_payment_id: razorpay_payment_id,
+      payment_signature: razorpay_signature,
+      gateway: 'razorpay',
+      transaction_time: new Date().toISOString()
     };
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .insert([orderData])
+      .insert([dbOrderData])
       .select()
       .single();
 
-    if (orderError) {
-      console.error('Order error:', orderError);
-      return NextResponse.json(
-        { error: 'Failed to create order', details: orderError.message },
-        { status: 500 }
-      );
+    if (orderError || !order) {
+      console.error('Order Insert Error:', orderError);
+      return NextResponse.json({ success: false, error: 'Failed to create order' }, { status: 500 });
     }
 
-    // Insert order items
-    if (tempOrder.items && tempOrder.items.length > 0) {
-      const orderItems = tempOrder.items.map((item: any) => ({
-        order_id: order.id,
-        product_id: item.productId || null,
-        product_name: item.productName || 'Product',
-        quantity: item.quantity,
-        price: item.price || 0,
-        size: item.size || null,
-        color: item.color || null,
-        subtotal: (item.price || 0) * item.quantity,
-        created_at: new Date().toISOString()
-      }));
+    // 2. Insert Order Items
+    const orderItems = items.map((item: any) => ({
+      order_id: order.id,
+      product_id: item.productId || item.id,
+      product_name: item.productName || item.title || 'Product',
+      size: item.size || item.shirtSize || item.pantSize || item.shoeSize || 'N/A',
+      color: item.color || null,
+      quantity: item.quantity,
+      price: item.price || item.discountedPrice || 0
+    }));
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
+    const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+    
+    if (itemsError) {
+      console.error('Items Insert Error:', itemsError);
+      // Optional: Rollback logic if needed, but since payment is verified, we should probably keep the order and flag for manual review.
+    }
 
-      if (itemsError) {
-        // Rollback: Delete the order if items fail
-        await supabase.from('orders').delete().eq('id', order.id);
-        console.error('Items error:', itemsError);
-        return NextResponse.json(
-          { error: 'Failed to create order items', details: itemsError.message },
-          { status: 500 }
-        );
+    // 3. Insert Payment
+    const { error: paymentError } = await supabase.from('payments').insert([{
+      razorpay_payment_id,
+      razorpay_order_id,
+      order_id: order.id,
+      signature: razorpay_signature,
+      amount: orderPayload.totalAmount,
+      currency: 'INR',
+      status: 'Success'
+    }]);
+
+    if (paymentError) {
+      console.error('Payment Insert Error:', paymentError);
+    }
+
+    // 4. Reduce Inventory to prevent overselling
+    for (const item of items) {
+      // Determine category (it might not be passed in items, so we fetch it)
+      const { data: productData } = await supabase
+        .from('products')
+        .select('category')
+        .eq('id', item.productId || item.id)
+        .single();
+        
+      if (productData) {
+        const { error: stockError } = await supabase.rpc('reduce_stock', {
+          p_product_id: item.productId || item.id,
+          p_size: item.size || item.shirtSize || item.pantSize || item.shoeSize || '',
+          p_quantity: item.quantity,
+          p_category: productData.category
+        });
+        
+        if (stockError) {
+          console.error('Stock Reduction Error:', stockError);
+        }
       }
     }
 
-    // Clear cart
-    await supabase
-      .from('carts')
-      .delete()
-      .eq('user_id', userId || tempOrder.user_id);
-
-    // Delete temp order
-    await supabase
-      .from('temp_orders')
-      .delete()
-      .eq('razorpay_order_id', razorpay_order_id);
+    // 5. Clear User's Cart if userId exists
+    if (userId) {
+      await supabase.from('cart').delete().eq('user_id', userId);
+    }
 
     return NextResponse.json({ 
       success: true, 
-      order_id: order.id
+      order_id: order.id,
+      order_number: orderNumber
     });
 
   } catch (error: any) {
-    console.error('❌ Verification Error:', error);
+    console.error('❌ Verification error:', error);
     return NextResponse.json(
-      { error: 'Failed to verify payment', details: error.message },
+      { success: false, error: 'Verification failed', details: error.message },
       { status: 500 }
     );
   }

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/lib/redux/store';
 import { formatPrice } from '@/lib/utils/helpers';
+import { calculateOrderTotals } from '@/lib/utils/shipping';
 import { clearSelectedItems, setDirectCheckoutItem } from '@/lib/redux/slices/cartSlice';
 import { repo, UserAddress } from '@/lib/repositories';
 import { RAZORPAY_KEY_ID } from '@/lib/config';
@@ -116,22 +117,42 @@ export default function CheckoutPage() {
   const discountType = useSelector((state: RootState) => state.cart.discountType);
   const appliedPromo = useSelector((state: RootState) => state.cart.appliedPromo);
 
-  const [shippingConfig, setShippingConfig] = useState({ shippingCharge: 100, freeShippingAbove: 2000 });
+  // ✅ Fixed: Added freeDelivery to initial state
+  const [shippingConfig, setShippingConfig] = useState({
+    shippingCharge: 100,
+    freeShippingAbove: 2000,
+    freeDelivery: false,
+  });
 
   useEffect(() => {
-    repo.shipping.getSettings().then(cfg => {
-      setShippingConfig(cfg);
-    }).catch(err => {
-      console.error('Failed to load shipping settings in checkout:', err);
-    });
+    fetch('/api/admin/shipping')
+      .then((res) => res.json())
+      .then((cfg) => {
+        setShippingConfig({
+          shippingCharge: cfg.shippingCharge,
+          freeShippingAbove: cfg.freeShippingAbove,
+          freeDelivery: cfg.freeDelivery,
+        });
+      })
+      .catch((err) => {
+        console.error('Failed to load shipping settings in checkout:', err);
+      });
   }, []);
 
+  // ✅ Fixed: Use centralized calculateOrderTotals
   const discount = discountType === 'percentage' 
     ? Math.round((total * discountValue) / 100) 
     : discountValue;
-  const tax = Math.round((total - discount) * 0.08);
-  const shipping = total >= shippingConfig.freeShippingAbove ? 0 : total > 0 ? shippingConfig.shippingCharge : 0;
-  const finalTotal = total - discount + tax + shipping;
+
+  const totals = calculateOrderTotals(
+    cartItems,
+    shippingConfig,
+    discount
+  );
+
+  const shipping = totals.shipping;
+  const tax = totals.tax;
+  const finalTotal = totals.total;
 
   useEffect(() => {
     requireAuth(
@@ -188,44 +209,30 @@ export default function CheckoutPage() {
   const handlePlaceOrder = async (orderPayload: any) => {
     setLoading(true);
     try {
-      const orderNumber = await repo.orders.create({
-        customerName: orderPayload.customerName,
-        email: orderPayload.email,
-        phone: orderPayload.phone,
-
-        shippingAddress: orderPayload.shippingAddress,
-        paymentMethod: orderPayload.paymentMethod,
-        paymentStatus: orderPayload.paymentStatus || 'Pending',
-        status: orderPayload.status || 'Pending',
-        totalAmount: orderPayload.totalAmount,
-        discountAmount: orderPayload.discountAmount,
-        couponCode: orderPayload.couponCode || undefined,
-        razorpay_order_id: orderPayload.razorpay_order_id,
-        razorpay_payment_id: orderPayload.razorpay_payment_id,
-        payment_signature: orderPayload.payment_signature,
-        items: cartItems.map((item) => ({
-          productId: item.id,
-          productName: item.title,
-          size: item.size || '', shirtSize: item.shirtSize || '', pantSize: item.pantSize || '', shoeSize: item.shoeSize || '',
-          quantity: item.quantity,
-          price: item.discountedPrice,
-          color: item.color,
-          image: item.image,
-          slug: item.slug,
-          sku: item.sku
-        })),
+      const response = await fetch('/api/checkout/cod', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderPayload,
+          cartItems,
+          userId: user?.id,
+        }),
       });
 
-      if (orderNumber) {
+      const data = await response.json();
+
+      if (data.success && data.orderNumber) {
         if (directCheckoutItem) {
           dispatch(setDirectCheckoutItem(null));
         } else {
           dispatch(clearSelectedItems());
         }
-        dispatch(addToast({ message: `Order ${orderNumber} placed successfully!`, type: 'success' }));
+        dispatch(addToast({ message: `Order ${data.orderNumber} placed successfully!`, type: 'success' }));
         router.push('/order-success');
       } else {
-        dispatch(addToast({ message: 'Failed to create order. Please try again.', type: 'error' }));
+        dispatch(addToast({ message: data.error || 'Failed to create order. Please try again.', type: 'error' }));
       }
     } catch (err: any) {
       dispatch(addToast({ message: err.message || 'Order registration failed.', type: 'error' }));
@@ -362,6 +369,47 @@ export default function CheckoutPage() {
             netbanking: false,
             wallet: false,
           },
+          handler: async function (response: any) {
+            try {
+              console.log('Payment success, verifying...', response);
+              
+              const verifyRes = await fetch('/api/razorpay/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                  userId: user?.id,
+                  orderPayload,
+                  items: cartItems
+                }),
+              });
+
+              const verifyData = await verifyRes.json();
+              if (!verifyRes.ok) {
+                throw new Error(verifyData.error || 'Payment verification failed');
+              }
+              
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem('gr_last_payment_id', response.razorpay_payment_id);
+                sessionStorage.setItem('gr_last_amount', finalTotal.toString());
+              }
+              
+              if (directCheckoutItem) {
+                dispatch(setDirectCheckoutItem(null));
+              } else {
+                dispatch(clearSelectedItems());
+              }
+              
+              dispatch(addToast({ message: `Order ${verifyData.order_number} placed successfully!`, type: 'success' }));
+              router.push('/order-success');
+            } catch (err: any) {
+              console.error('Verification error:', err);
+              dispatch(addToast({ message: err.message || 'Payment Verification Failed.', type: 'error' }));
+              router.push('/payment-failed');
+            }
+          },
           prefill: {
             name: `${formData.firstName} ${formData.lastName}`,
             email: formData.email,
@@ -468,6 +516,8 @@ export default function CheckoutPage() {
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_signature: response.razorpay_signature,
                   userId: user?.id,
+                  orderPayload,
+                  items: cartItems
                 }),
               });
 
@@ -475,24 +525,20 @@ export default function CheckoutPage() {
               if (!verifyRes.ok) {
                 throw new Error(verifyData.error || 'Payment verification failed');
               }
-
-              const successPayload = {
-                ...orderPayload,
-                paymentStatus: 'Paid',
-                status: 'Confirmed',
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id,
-                payment_signature: response.razorpay_signature,
-                gateway: 'razorpay',
-                transaction_time: new Date().toISOString()
-              };
               
               if (typeof window !== 'undefined') {
                 sessionStorage.setItem('gr_last_payment_id', response.razorpay_payment_id);
                 sessionStorage.setItem('gr_last_amount', finalTotal.toString());
               }
               
-              await handlePlaceOrder(successPayload);
+              if (directCheckoutItem) {
+                dispatch(setDirectCheckoutItem(null));
+              } else {
+                dispatch(clearSelectedItems());
+              }
+              
+              dispatch(addToast({ message: `Order ${verifyData.order_number} placed successfully!`, type: 'success' }));
+              router.push('/order-success');
             } catch (err: any) {
               console.error('Verification error:', err);
               dispatch(addToast({ message: err.message || 'Payment Verification Failed.', type: 'error' }));
@@ -837,6 +883,29 @@ export default function CheckoutPage() {
                 <span>{formatPrice(finalTotal)}</span>
               </div>
             </div>
+
+            {/* ✅ Added: Free Delivery Status Message */}
+            {shippingConfig.freeDelivery && (
+              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-xs text-green-700 font-medium">
+                  ✅ Free Delivery is enabled. No shipping charges applied.
+                </p>
+              </div>
+            )}
+            {!shippingConfig.freeDelivery && shipping === 0 && total > 0 && (
+              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-xs text-green-700 font-medium">
+                  ✅ Free Shipping Applied (Order above ₹{shippingConfig.freeShippingAbove})
+                </p>
+              </div>
+            )}
+            {!shippingConfig.freeDelivery && shipping > 0 && (
+              <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <p className="text-xs text-gray-600">
+                  Add ₹{formatPrice(shippingConfig.freeShippingAbove - total)} more for free shipping.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

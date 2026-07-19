@@ -1,12 +1,14 @@
+// app/api/razorpay/create-order/route.ts
 import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
 import { repo } from '@/lib/repositories';
+import { calculateOrderTotals } from '@/lib/utils/shipping';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client directly in this file
+// Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 export async function POST(req: Request) {
@@ -14,16 +16,14 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { items, couponCode, receipt, customerName, email, phone, shippingAddress, userId } = body;
     
-    console.log('🔔 Received create-order request:', { 
+    console.log('🔔 Create order request:', { 
       itemsCount: items?.length, 
       couponCode, 
-      receipt,
       customerName,
-      email,
-      phone,
       userId 
     });
 
+    // Validate items
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { error: "Invalid items" },
@@ -31,109 +31,169 @@ export async function POST(req: Request) {
       );
     }
 
-    let calculatedSubtotal = 0;
-    const productIds = [];
-    const orderItems = [];
+    // Fetch product details for pricing
+    const productIds = items.map((i: any) => i.productId);
+    const productPromises = productIds.map((id) => repo.products.getById(id));
+    const products = await Promise.all(productPromises);
+    const productMap: Record<string, any> = {};
+    products.forEach((p) => {
+      if (p) productMap[p.id] = p;
+    });
 
-    for (const item of items) {
-      let product = await repo.products.getById(item.productId);
-      if (!product) {
-        product = await repo.products.getBySlug(item.productId);
+    // Prepare items with correct database product prices
+    const itemsForCalculation = items.map((item: any) => {
+      const product = productMap[item.productId];
+      if (!product || typeof product.sellingPrice !== 'number') {
+        throw new Error(`Product price unavailable for productId ${item.productId}`);
       }
-      if (!product) {
-        return NextResponse.json(
-          { error: "Product not found", productId: item.productId },
-          { status: 400 }
-        );
-      }
-      
-      const price = product.discountedPrice || product.price || 0;
-      calculatedSubtotal += price * item.quantity;
-      productIds.push(item.productId);
-      
-      orderItems.push({
-        productId: item.productId,
-        productName: product.title || product.name || 'Product',
+      return {
+        ...product,
+        id: product.id,
+        title: product.name,
+        discountedPrice: product.sellingPrice,
         quantity: item.quantity,
-        price: price,
-        size: item.size || null,
-        color: item.color || null,
-      });
-    }
+        size: item.size,
+        shirtSize: item.shirtSize,
+        pantSize: item.pantSize,
+        shoeSize: item.shoeSize,
+        color: item.color,
+      };
+    });
 
-    let calculatedDiscount = 0;
+    const calculatedSubtotal = itemsForCalculation.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+
+    // Apply coupon if provided
+    let discount = 0;
     if (couponCode) {
-      const valRes = await repo.coupons.apply(couponCode, { subtotal: calculatedSubtotal, productIds });
-      if (valRes.valid) {
-        calculatedDiscount = valRes.discountType === 'percentage' 
-          ? Math.round((calculatedSubtotal * valRes.discountValue) / 100)
-          : valRes.discountValue;
+      try {
+        const couponResult = await repo.coupons.apply(couponCode, { subtotal: calculatedSubtotal, productIds });
+        if (couponResult.valid) {
+          if (couponResult.discountType === 'percentage') {
+            discount = Math.round((calculatedSubtotal * couponResult.discountValue) / 100);
+          } else {
+            discount = couponResult.discountValue;
+          }
+        }
+      } catch (err) {
+        console.warn('Coupon validation failed:', err);
       }
     }
 
-    const tax = Math.round((calculatedSubtotal - calculatedDiscount) * 0.12);
-    const shippingConfig = await repo.shipping.getSettings();
-    const shipping = calculatedSubtotal >= shippingConfig.freeShippingAbove ? 0 : shippingConfig.shippingCharge;
-    const finalAmount = calculatedSubtotal - calculatedDiscount + tax + shipping;
+    // ✅ Get shipping configuration
+    const shippingCfg = await repo.shipping.getSettings();
+    
+    console.log("========== SHIPPING DEBUG ==========");
+    console.log('Shipping Config:', JSON.stringify(shippingCfg, null, 2));
+    console.log('Items for calculation:', JSON.stringify(itemsForCalculation.map(i => ({
+      id: i.id,
+      title: i.title,
+      discountedPrice: i.discountedPrice,
+      quantity: i.quantity
+    })), null, 2));
+    console.log('Subtotal:', calculatedSubtotal);
+    console.log('Discount:', discount);
 
+    // ✅ Calculate totals using the centralized function
+    const totals = calculateOrderTotals(
+      itemsForCalculation,
+      {
+        shippingCharge: shippingCfg.shippingCharge,
+        freeShippingAbove: shippingCfg.freeShippingAbove,
+        freeDelivery: shippingCfg.freeDelivery,
+      },
+      discount
+    );
+
+    console.log('Totals:', JSON.stringify(totals, null, 2));
+    console.log("====================================");
+
+    // ✅ Use totals.total instead of undefined finalAmount
+    const finalAmount = totals.total;
+
+    // Validate final amount
     if (finalAmount < 1) {
+      console.error('❌ Invalid final amount:', finalAmount);
       return NextResponse.json(
         { error: "Invalid final amount" },
         { status: 400 }
       );
     }
 
+    // Log the amount being sent to Razorpay
+    console.log('💰 Razorpay Order Amount:', {
+      subtotal: totals.subtotal,
+      discount: totals.discount,
+      shipping: totals.shipping,
+      tax: totals.tax,
+      finalAmount: finalAmount,
+      razorpayAmountInPaise: Math.round(finalAmount * 100),
+      freeDelivery: shippingCfg.freeDelivery,
+      freeShippingAbove: shippingCfg.freeShippingAbove,
+    });
+
+    // Get Razorpay credentials
     const key_id = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     const key_secret = process.env.RAZORPAY_KEY_SECRET;
     
+    console.log('🔑 Razorpay credentials check:', {
+      hasKeyId: !!key_id,
+      hasKeySecret: !!key_secret,
+      keyIdPrefix: key_id ? key_id.substring(0, 8) : 'none'
+    });
+    
     if (!key_id || !key_secret) {
+      console.error('❌ Razorpay credentials missing');
       return NextResponse.json(
-        { error: 'Razorpay configuration error' },
+        { error: 'Razorpay configuration error', details: 'Missing API keys' },
         { status: 500 }
       );
     }
 
-    const razorpay = new Razorpay({ key_id, key_secret });
+    // Initialize Razorpay
+    const razorpay = new Razorpay({ 
+      key_id, 
+      key_secret 
+    });
+
+    // Create order
     const order = await razorpay.orders.create({
-      amount: Math.round(finalAmount * 100),
+      amount: Math.round(finalAmount * 100), // Convert to paise
       currency: 'INR',
       receipt: receipt || `rcpt_${Date.now()}`,
+      notes: {
+        subtotal: totals.subtotal,
+        shipping: totals.shipping,
+        tax: totals.tax,
+        discount: totals.discount,
+        freeDelivery: shippingCfg.freeDelivery ? 'Yes' : 'No',
+        freeShippingAbove: shippingCfg.freeShippingAbove,
+      }
     });
     
-    console.log('✅ Razorpay order created:', order.id);
+    console.log('✅ Razorpay order created:', {
+      id: order.id,
+      amount: order.amount,
+      currency: order.currency,
+    });
 
-    const tempOrderData = {
-      user_id: userId || '00000000-0000-0000-0000-000000000000',
-      razorpay_order_id: order.id,
-      customer_name: customerName || 'Customer',
-      email: email || '',
-      phone: phone || '',
-      shipping_address: shippingAddress || {},
-      subtotal: calculatedSubtotal,
-      shipping_charge: shipping,
-      tax: tax,
-      discount: calculatedDiscount,
-      grand_total: finalAmount,
-      coupon_code: couponCode || null,
-      items: orderItems,
-    };
-
-    const { error: tempError } = await supabase
-      .from('temp_orders')
-      .insert([tempOrderData]);
-
-    if (tempError) {
-      console.error('❌ Failed to store temp order:', tempError);
-    } else {
-      console.log('✅ Temp order stored successfully');
-    }
-
-    return NextResponse.json(order);
+    // Return the Razorpay order
+    return NextResponse.json({
+      id: order.id,
+      amount: order.amount,
+      currency: order.currency
+    });
     
   } catch (error: any) {
-    console.error('❌ Razorpay Order Error:', error);
+    console.error('❌ Create order error:', error);
+    console.error('Error stack:', error.stack);
+    
+    // Always return JSON, never HTML
     return NextResponse.json(
-      { error: 'Failed to create order', details: error.message },
+      { 
+        error: 'Failed to create order', 
+        details: error.message || 'Unknown error',
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

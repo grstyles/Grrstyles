@@ -18,6 +18,9 @@ import {
   LogOut,
   Shield,
   Megaphone,
+  Users,
+  FolderTree,
+  Truck,
 } from 'lucide-react';
 import { authService, UserProfile } from '@/services/authService';
 import { addToast } from '@/lib/redux/slices/uiSlice';
@@ -54,15 +57,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const menuItems = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'Products', href: '/admin/products', icon: ShoppingBag },
-    { name: 'Banners', href: '/admin/banners', icon: LayoutDashboard }, // Assuming LayoutDashboard or another icon for Banners
+    { name: 'Categories', href: '/admin/categories', icon: FolderTree },
     { name: 'Inventory', href: '/admin/inventory', icon: Package },
     { name: 'Orders', href: '/admin/orders', icon: ClipboardList },
+    { name: 'Customers', href: '/admin/customers', icon: Users },
+    { name: 'Banners', href: '/admin/banners', icon: LayoutDashboard },
     { name: 'Coupons', href: '/admin/coupons', icon: Tag },
     { name: 'Payments', href: '/admin/payments', icon: CreditCard },
+    { name: 'Shipping', href: '/admin/shipping', icon: Truck },
     { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
     { name: 'Marketing', href: '/admin/marketing', icon: Megaphone },
+    { name: 'Users', href: '/admin/users', icon: Shield },
     { name: 'Settings', href: '/admin/settings', icon: Settings },
-    { name: 'Shipping Settings', href: '/admin/shipping-settings', icon: Settings },
   ];
 
   if (!authChecked) {

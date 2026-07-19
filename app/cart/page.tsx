@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -10,10 +10,12 @@ import { RootState } from '@/lib/redux/store';
 import { removeFromCart, updateQuantity, applyPromo, removePromo, toggleSelectItem, toggleSelectAllItems, setDirectCheckoutItem } from '@/lib/redux/slices/cartSlice';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { formatPrice } from '@/lib/utils/helpers';
+import { calculateOrderTotals } from '@/lib/utils/shipping';
 import { repo } from '@/lib/repositories';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Reward } from '@/lib/redux/slices/cartSlice';
 
+// Extracted component for better readability
 function RewardsProgressBar({ subtotal, unlockedRewards }: { subtotal: number, unlockedRewards: Reward[] }) {
   const tiers = [2000, 5000, 10000];
   const maxTier = 10000;
@@ -71,6 +73,30 @@ function RewardsProgressBar({ subtotal, unlockedRewards }: { subtotal: number, u
   );
 }
 
+// Type definitions
+interface CartItem {
+  id: string;
+  title: string;
+  brand: string;
+  slug: string;
+  price: number;
+  discountedPrice: number;
+  quantity: number;
+  image: string;
+  size?: string;
+  shirtSize?: string;
+  pantSize?: string;
+  shoeSize?: string;
+  color?: string;
+  selected?: boolean;
+}
+
+interface ShippingConfig {
+  shippingCharge: number;
+  freeShippingAbove: number;
+  freeDelivery?: boolean;
+}
+
 export default function CartPage() {
   const dispatch = useDispatch();
 
@@ -81,9 +107,7 @@ export default function CartPage() {
 
   const router = useRouter();
   
-  const cartItems = useSelector((state: RootState) => state.cart.items);
-  const selectedItems = cartItems.filter(item => item.selected !== false);
-  const subtotal = selectedItems.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+  const cartItems = useSelector((state: RootState) => state.cart.items) as CartItem[];
   const discountValue = useSelector((state: RootState) => state.cart.discountValue);
   const discountType = useSelector((state: RootState) => state.cart.discountType);
   const appliedCode = useSelector((state: RootState) => state.cart.appliedPromo);
@@ -91,7 +115,10 @@ export default function CartPage() {
 
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
-  const [shippingConfig, setShippingConfig] = useState({ shippingCharge: 100, freeShippingAbove: 2000 });
+  const [shippingConfig, setShippingConfig] = useState<ShippingConfig>({ 
+    shippingCharge: 100, 
+    freeShippingAbove: 2000 
+  });
 
   useEffect(() => {
     repo.shipping.getSettings().then(cfg => {
@@ -101,21 +128,47 @@ export default function CartPage() {
     });
   }, []);
 
-  // Shipping logic: Free over dynamic threshold, else dynamic charge
-  const shipping = subtotal >= shippingConfig.freeShippingAbove ? 0 : subtotal > 0 ? shippingConfig.shippingCharge : 0;
-  // Tax logic: GST 12%
-  const tax = Math.round(subtotal * 0.12);
-  // Promo discount
-  const discount = discountType === 'percentage' 
-    ? Math.round((subtotal * discountValue) / 100) 
-    : discountValue;
-  // Final total
-  const finalTotal = subtotal - discount + shipping + tax;
+  // Memoized calculations for performance
+  const selectedItems = useMemo(() => 
+    cartItems.filter(item => item.selected !== false),
+    [cartItems]
+  );
 
-  const handleToggleSelect = (item: any) => {
+  const subtotal = useMemo(() => 
+    selectedItems.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0),
+    [selectedItems]
+  );
+
+  const totalItems = useMemo(() => 
+    cartItems.reduce((acc, i) => acc + i.quantity, 0),
+    [cartItems]
+  );
+
+  // Centralized totals calculation (single source of truth)
+  const promoDiscountValue = useMemo(() => 
+    discountType === 'percentage' 
+      ? Math.round((subtotal * discountValue) / 100) 
+      : discountValue,
+    [discountType, discountValue, subtotal]
+  );
+
+  const totals = useMemo(() => 
+    calculateOrderTotals(selectedItems, shippingConfig, promoDiscountValue),
+    [selectedItems, shippingConfig, promoDiscountValue]
+  );
+
+  const shipping = subtotal > 0 ? totals.shipping : 0;
+  const tax = totals.tax;
+  const discount = totals.discount;
+  const finalTotal = subtotal > 0 ? totals.total : 0;
+
+  const handleToggleSelect = (item: CartItem) => {
     dispatch(toggleSelectItem({
       id: item.id,
-      size: item.size, shirtSize: item.shirtSize, pantSize: item.pantSize, shoeSize: item.shoeSize,
+      size: item.size, 
+      shirtSize: item.shirtSize, 
+      pantSize: item.pantSize, 
+      shoeSize: item.shoeSize,
       color: item.color
     }));
   };
@@ -157,25 +210,33 @@ export default function CartPage() {
     dispatch(addToast({ message: 'Coupon removed.', type: 'info' }));
   };
 
-  const handleQuantityChange = (item: any, newQty: number) => {
+  const handleQuantityChange = (item: CartItem, newQty: number) => {
     if (newQty < 1) return;
     dispatch(updateQuantity({
       id: item.id,
-      size: item.size, shirtSize: item.shirtSize, pantSize: item.pantSize, shoeSize: item.shoeSize,
+      size: item.size, 
+      shirtSize: item.shirtSize, 
+      pantSize: item.pantSize, 
+      shoeSize: item.shoeSize,
       color: item.color,
       quantity: newQty
     }));
     dispatch(addToast({ message: `Updated quantity for ${item.title}`, type: 'info' }));
   };
 
-  const handleRemoveItem = (item: any) => {
+  const handleRemoveItem = (item: CartItem) => {
     dispatch(removeFromCart({
       id: item.id,
-      size: item.size, shirtSize: item.shirtSize, pantSize: item.pantSize, shoeSize: item.shoeSize,
+      size: item.size, 
+      shirtSize: item.shirtSize, 
+      pantSize: item.pantSize, 
+      shoeSize: item.shoeSize,
       color: item.color
     }));
     dispatch(addToast({ message: `${item.title} removed from bag`, type: 'info' }));
   };
+
+  const allSelected = cartItems.length > 0 && cartItems.every((item) => item.selected !== false);
 
   if (cartItems.length === 0) {
     return (
@@ -212,6 +273,7 @@ export default function CartPage() {
         <Link 
           href="/collections" 
           className="inline-flex items-center gap-2 text-[#6b5b4b] hover:text-[#1a1a1a] text-sm mb-6 sm:mb-8 transition-colors group"
+          aria-label="Continue shopping"
         >
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
           Continue Shopping
@@ -219,16 +281,17 @@ export default function CartPage() {
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 sm:mb-12">
           <h1 className="text-3xl font-light tracking-tight text-[#1a1a1a]">
-            Shopping Bag <span className="text-base text-gray-400 font-normal">({cartItems.reduce((acc, i) => acc + i.quantity, 0)} items)</span>
+            Shopping Bag <span className="text-base text-gray-400 font-normal">({totalItems} items)</span>
           </h1>
           
           <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl border border-gray-100 shadow-sm w-fit self-start sm:self-center">
             <input
               type="checkbox"
               id="select-all"
-              checked={cartItems.length > 0 && cartItems.every((item) => item.selected !== false)}
+              checked={allSelected}
               onChange={(e) => handleToggleSelectAll(e.target.checked)}
               className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black accent-black cursor-pointer"
+              aria-label="Select all items"
             />
             <label htmlFor="select-all" className="text-xs font-semibold text-gray-700 cursor-pointer select-none">
               Select All (Option B)
@@ -264,6 +327,7 @@ export default function CartPage() {
                         checked={item.selected !== false}
                         onChange={() => handleToggleSelect(item)}
                         className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black accent-black cursor-pointer flex-shrink-0 mr-1"
+                        aria-label={`Select ${item.title}`}
                         title="Select for checkout (Option A)"
                       />
                       <div className="relative w-20 h-24 sm:w-24 sm:h-32 bg-[#f5f0eb] rounded-xl overflow-hidden flex-shrink-0">
@@ -342,7 +406,7 @@ export default function CartPage() {
                         <button
                           onClick={() => handleRemoveItem(item)}
                           className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                          aria-label="Remove item"
+                          aria-label={`Remove ${item.title}`}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -374,6 +438,7 @@ export default function CartPage() {
                   <button 
                     onClick={handleRemovePromo}
                     className="text-xs text-red-600 hover:underline font-semibold"
+                    aria-label="Remove promo code"
                   >
                     Remove
                   </button>
@@ -386,17 +451,19 @@ export default function CartPage() {
                     onChange={(e) => setPromoCode(e.target.value)}
                     placeholder="e.g. WELCOME10"
                     className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-black uppercase placeholder-gray-400"
+                    aria-label="Promo code"
                   />
                   <button
                     type="submit"
                     className="px-4 py-2.5 bg-black hover:bg-gray-900 text-white rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors"
+                    aria-label="Apply promo code"
                   >
                     Apply
                   </button>
                 </form>
               )}
               {promoError && (
-                <p className="text-[10px] text-red-500 mt-2 font-medium">{promoError}</p>
+                <p className="text-[10px] text-red-500 mt-2 font-medium" role="alert">{promoError}</p>
               )}
               <div className="mt-3 text-[10px] text-gray-400 leading-normal">
                 Tip: Use code <strong className="text-gray-500">WELCOME10</strong> (10% off), <strong className="text-gray-500">WEEKEND10</strong> (10% off), or <strong className="text-gray-500">FESTIVAL20</strong> (20% off).
@@ -404,7 +471,7 @@ export default function CartPage() {
             </div>
 
             {/* Calculations Card */}
-            <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
               <h3 className="text-base font-semibold text-gray-800 pb-3 border-b border-gray-100">
                 Order Summary
               </h3>
@@ -420,7 +487,8 @@ export default function CartPage() {
                     <span>-{formatPrice(discount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
+                {/* Shipping Fee */}
+                <div className="flex justify-between items-center">
                   <span>Shipping Fee</span>
                   {shipping === 0 ? (
                     <span className="text-green-600 font-medium">FREE</span>
@@ -428,20 +496,24 @@ export default function CartPage() {
                     <span className="text-gray-800 font-medium">{formatPrice(shipping)}</span>
                   )}
                 </div>
+                {/* Shipping Message */}
+                {shipping === 0 && (
+                  <p className="text-sm text-green-600 mt-1">
+                    {shippingConfig.freeDelivery ? 'Free Delivery Applied' : 'Free Shipping Applied'}
+                  </p>
+                )}
+                {shipping > 0 && !shippingConfig.freeDelivery && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Add {formatPrice(shippingConfig.freeShippingAbove - subtotal)} more for free standard delivery.
+                  </p>
+                )}
                 <div className="flex justify-between">
                   <span>Estimated GST (12%)</span>
                   <span className="text-gray-800 font-medium">{formatPrice(tax)}</span>
                 </div>
               </div>
 
-              {shipping > 0 && (
-                <div className="bg-[#fcfbf9] border border-gray-100 rounded-xl p-3 text-[11px] text-[#6b5b4b] flex items-center gap-2 leading-relaxed">
-                  <Truck size={14} className="text-[#8b7b6b] flex-shrink-0" />
-                  <span>Add <strong className="text-gray-800">{formatPrice(shippingConfig.freeShippingAbove - subtotal)}</strong> more for free standard delivery.</span>
-                </div>
-              )}
-
-              <div className="border-t border-gray-100 pt-4 flex justify-between items-baseline">
+              <div className="border-t border-gray-100 pt-4 mt-4 flex justify-between items-baseline">
                 <span className="text-base font-medium text-gray-800">Total Price</span>
                 <span className="text-2xl font-bold text-gray-900">{formatPrice(finalTotal)}</span>
               </div>
@@ -449,12 +521,13 @@ export default function CartPage() {
               <button
                 onClick={() => router.push('/checkout')}
                 disabled={selectedItems.length === 0}
-                className="block w-full py-4 bg-black text-white rounded-xl text-sm font-semibold uppercase tracking-wider hover:bg-gray-900 transition-colors shadow-md text-center pt-4 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                className="block w-full py-4 mt-4 bg-black text-white rounded-xl text-sm font-semibold uppercase tracking-wider hover:bg-gray-900 transition-colors shadow-md text-center disabled:bg-gray-300 disabled:cursor-not-allowed"
+                aria-label="Proceed to checkout"
               >
                 Proceed to Checkout ({selectedItems.length})
               </button>
 
-              <div className="pt-3 border-t border-gray-100 flex items-center justify-center gap-1.5 text-[10px] text-gray-400 font-medium">
+              <div className="pt-4 mt-3 border-t border-gray-100 flex items-center justify-center gap-1.5 text-[10px] text-gray-400 font-medium">
                 <ShieldCheck size={14} className="text-green-600" />
                 <span>100% Secure Shopping Guarantee</span>
               </div>

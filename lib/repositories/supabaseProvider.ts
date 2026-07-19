@@ -11,7 +11,7 @@
  */
 
 import { Product } from '@/lib/data/products';
-import { getClient } from '@/lib/supabase';
+import { getClient, getAdminClient } from '@/lib/supabase';
 const sb = () => getClient()!;
 import { mapDbProduct } from '@/services/productService';
 import { normalizeCategory, normalizeSlug, normalizeCollection } from '../utils/categoryImageMap';
@@ -340,22 +340,20 @@ export class SupabaseProductRepository implements IProductRepository {
 
 // ─── Supabase Order Repository ────────────────────────────────────────────────
 
-// ─── Supabase Order Repository ────────────────────────────────────────────────
-
 export class SupabaseOrderRepository implements IOrderRepository {
   async getAll(): Promise<MockOrder[]> {
     const { data, error } = await sb()
       .from('orders')
-      .select('*')
+      .select('*, order_items(*)')
       .order('created_at', { ascending: false });
     if (error || !data) throw error;
     return data.map((d: any) => ({
       id: d.id,
       orderNumber: d.order_number,
       customerName: d.customer_name,
-      email: d.customer_email || '',
-      phone: d.customer_phone || '',
-      itemsCount: (d.items || []).reduce((s: number, i: any) => s + i.quantity, 0),
+      email: d.email || '',
+      phone: d.phone || '',
+      itemsCount: (d.order_items || []).reduce((s: number, i: any) => s + i.quantity, 0),
       totalAmount: Number(d.total_amount),
       status: d.status as MockOrder['status'],
       paymentStatus: d.payment_status as MockOrder['paymentStatus'],
@@ -375,13 +373,21 @@ export class SupabaseOrderRepository implements IOrderRepository {
       dispatch_date: d.dispatch_date,
       expected_delivery_date: d.expected_delivery_date,
       delivered_date: d.delivered_date,
+      items: (d.order_items || []).map((item: any) => ({
+        productId: item.product_id,
+        productName: item.product_name,
+        size: item.size,
+        color: item.color,
+        quantity: item.quantity,
+        price: Number(item.price)
+      }))
     }));
   }
 
   async getById(id: string): Promise<MockOrder | null> {
     const { data } = await sb()
       .from('orders')
-      .select('*')
+      .select('*, order_items(*)')
       .eq('id', id)
       .maybeSingle();
     if (!data) return null;
@@ -389,14 +395,21 @@ export class SupabaseOrderRepository implements IOrderRepository {
       id: data.id,
       orderNumber: data.order_number,
       customerName: data.customer_name,
-      email: data.customer_email || '',
-      itemsCount: (data.items || []).reduce((s: number, i: any) => s + i.quantity, 0),
+      email: data.email || '',
+      itemsCount: (data.order_items || []).reduce((s: number, i: any) => s + i.quantity, 0),
       totalAmount: Number(data.total_amount),
       status: data.status,
       paymentStatus: data.payment_status,
       paymentMethod: data.payment_method || 'Prepaid',
       date: new Date(data.created_at).toISOString().split('T')[0],
-      items: data.items,
+      items: (data.order_items || []).map((item: any) => ({
+        productId: item.product_id,
+        productName: item.product_name,
+        size: item.size,
+        color: item.color,
+        quantity: item.quantity,
+        price: Number(item.price)
+      })),
       shippingAddress: data.shipping_address,
       razorpay_order_id: data.razorpay_order_id,
       razorpay_payment_id: data.razorpay_payment_id,
@@ -413,61 +426,6 @@ export class SupabaseOrderRepository implements IOrderRepository {
       expected_delivery_date: data.expected_delivery_date,
       delivered_date: data.delivered_date,
     };
-  }
-
-  async create(input: CreateOrderInput): Promise<string | null> {
-    try {
-      // Generate order number
-      const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
-      
-      // Calculate items count
-      const itemsCount = input.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-
-      // Prepare order data
-      const orderData = {
-        order_number: orderNumber,
-        customer_name: input.customerName,
-        customer_email: input.email || '',
-        customer_phone: input.phone || '',
-        total_amount: input.totalAmount || 0,
-        status: input.status || 'Pending',
-        payment_status: input.paymentStatus || 'Pending',
-        payment_method: input.paymentMethod || 'Prepaid',
-        shipping_address: input.shippingAddress || {},
-        items: input.items || [],
-        razorpay_order_id: input.razorpay_order_id || null,
-        razorpay_payment_id: input.razorpay_payment_id || null,
-        payment_signature: input.payment_signature || null,
-        gateway: input.gateway || 'razorpay',
-        transaction_time: input.transaction_time || new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      // Insert into Supabase
-      const { data, error } = await sb()
-        .from('orders')
-        .insert([orderData])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Failed to create order in Supabase:', error);
-        return null;
-      }
-
-      if (!data) {
-        console.error('No data returned from Supabase after insert');
-        return null;
-      }
-
-      console.log('✅ Order created successfully:', orderNumber);
-      return orderNumber;
-
-    } catch (err) {
-      console.error('Error creating order:', err);
-      return null;
-    }
   }
 
   async updateStatus(id: string, status: MockOrder['status']): Promise<boolean> {
@@ -719,59 +677,111 @@ export class SupabaseBannerRepository implements IBannerRepository {
 // ─── Supabase Shipping Repository ────────────────────────────────────────────
 
 export class SupabaseShippingRepository implements IShippingRepository {
+  // The service-role (admin) client bypasses RLS and is needed for WRITES.
+  // Reads use the public anon client (sb()) because the SELECT policy is USING(true).
+  // IMPORTANT: getAdminClient() only works server-side (SUPABASE_SERVICE_ROLE_KEY has no
+  // NEXT_PUBLIC_ prefix), so never call it from browser code such as useEffect in pages.
+  private adminDb = () => {
+    const client = getAdminClient();
+    if (!client) {
+      throw new Error('[ShippingRepo] Admin client missing – SUPABASE_SERVICE_ROLE_KEY not set');
+    }
+    return client;
+  };
+
   async getSettings(): Promise<ShippingSettings> {
+
+    const defaultSettings: ShippingSettings = {
+      shippingCharge: 100,
+      freeShippingAbove: 999,
+      freeDelivery: false,
+    };
+
     try {
-      const { data, error } = await sb()
+      // Fetch settings, ensuring we handle cases where multiple rows exist.
+      const { data, error } = await this.adminDb()
         .from('shipping_settings')
         .select('*')
-        .maybeSingle();
-        if (error) {
-          // Return defaults on Supabase error
-          return { shippingCharge: 100, freeShippingAbove: 0 };
-        }
-      const charge = data?.shipping_charge ?? 100;
-      const freeAbove = data?.free_shipping_above ?? 0;
-      const singleProd = data?.single_product_charge ?? 80;
-      const pant = data?.pant_charge ?? 60;
-      const combo = data?.combo_charge ?? 120;
-      const freeDel = data?.free_delivery ?? false;
-      const estDel = data?.estimated_delivery ?? '3-5 days';
-      const shipMsg = data?.shipping_message ?? 'Free delivery for orders above {remaining}.';
-      return {
-        shippingCharge: Number(charge),
-        freeShippingAbove: Number(freeAbove),
-        singleProductCharge: Number(singleProd),
-        pantCharge: Number(pant),
-        comboCharge: Number(combo),
-        freeDelivery: Boolean(freeDel),
-        estimatedDelivery: String(estDel),
-        shippingMessage: String(shipMsg),
+        .eq('id', 1)
+        .limit(1);
+
+      if (error) {
+        console.error('[ShippingRepo] getSettings error (code=%s): %s', error.code, error.message);
+        return defaultSettings;
+      }
+
+      // data is an array due to limit(1); take first element if exists.
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row) {
+        // No row found – return defaults (row should have been created via Admin API)
+        console.warn('[ShippingRepo] No shipping settings row found, returning defaults');
+        // Log raw data for debugging
+        console.debug('[ShippingRepo] Raw data from query:', data);
+        return defaultSettings;
+      }
+
+      console.log('Shipping settings loaded:', row);
+
+      const mappedSettings: ShippingSettings = {
+        shippingCharge: Number(row.shipping_charge ?? defaultSettings.shippingCharge),
+        freeShippingAbove: Number(row.free_shipping_above ?? defaultSettings.freeShippingAbove),
+        freeDelivery: Boolean(row.free_delivery ?? defaultSettings.freeDelivery),
       };
+
+      console.log('Shipping settings after mapping:', mappedSettings);
+
+      return mappedSettings;
     } catch (e) {
-      console.error('Unexpected error loading shipping settings:', e);
-      return { shippingCharge: 100, freeShippingAbove: 0 };
+      console.error('[ShippingRepo] Unexpected error in getSettings:', e);
+      return defaultSettings;
     }
   }
 
-  async updateSettings(settings: ShippingSettings): Promise<boolean> {
-    // Assume a single row with id = 1. Use upsert to insert if missing.
+  async updateSettings(settings: Partial<ShippingSettings>): Promise<boolean> {
+    try {
+      // Resolve values: use what was passed, fall back to current DB values.
+      const current = await this.getSettings();
+
       const payload = {
-        id: 1,
-        shipping_charge: settings.shippingCharge,
-        free_shipping_above: settings.freeShippingAbove,
-        single_product_charge: settings.singleProductCharge,
-        pant_charge: settings.pantCharge,
-        combo_charge: settings.comboCharge,
-        free_delivery: settings.freeDelivery,
-        estimated_delivery: settings.estimatedDelivery,
-        shipping_message: settings.shippingMessage,
+        shipping_charge:
+          settings.shippingCharge !== undefined
+            ? Number(settings.shippingCharge)
+            : current.shippingCharge,
+        free_shipping_above:
+          settings.freeShippingAbove !== undefined
+            ? Number(settings.freeShippingAbove)
+            : current.freeShippingAbove,
+        free_delivery:
+          settings.freeDelivery !== undefined
+            ? Boolean(settings.freeDelivery)
+            : current.freeDelivery,
+        updated_at: new Date().toISOString(),
       };
-    const { error } = await sb().from('shipping_settings').upsert([payload]);
-    if (error) {
-      console.error('Failed to update shipping settings:', error);
+
+      console.log('[ShippingRepo] updateSettings payload:', payload);
+
+      // Always update the singleton row (id = 1). Never insert.
+      const { error } = await this.adminDb()
+        .from('shipping_settings')
+        .update(payload)
+        .eq('id', 1);
+
+      if (error) {
+        console.error('[ShippingRepo] updateSettings error:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        });
+        return false;
+      }
+
+      console.log('[ShippingRepo] ✅ Shipping settings updated successfully (id=1)');
+      return true;
+    } catch (e) {
+      console.error('[ShippingRepo] Unexpected error in updateSettings:', e);
       return false;
     }
-    return true;
   }
 }
 

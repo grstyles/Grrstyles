@@ -124,8 +124,8 @@ export interface IOrderRepository {
   /** Get order by ID */
   getById(id: string): Promise<MockOrder | null>;
 
-  /** Create a new order from checkout */
-  create(orderData: CreateOrderInput): Promise<string | null>; // returns order number
+  /** Deprecated: Use secure API routes instead */
+  // create(orderData: CreateOrderInput): Promise<string | null>;
 
   /** Update order status */
   updateStatus(id: string, status: MockOrder['status']): Promise<boolean>;
@@ -138,6 +138,7 @@ export interface CreateOrderInput {
   customerName: string;
   email: string;
   phone?: string;
+  userId?: string;
   shippingAddress?: any;
   paymentMethod: string;
   paymentStatus?: string;
@@ -197,22 +198,16 @@ export interface IStorageRepository {
 }
 
 export interface ShippingSettings {
-  shippingCharge: number; // Base shipping charge per order
+   shippingCharge: number;
   freeShippingAbove: number;
-  // New fields for detailed shipping configuration
-  singleProductCharge: number; // Charge for a single product delivery
-  pantCharge: number; // Charge for pant delivery
-  comboCharge: number; // Charge for combo delivery
-  freeDelivery: boolean; // Toggle for free delivery
-  estimatedDelivery: string; // Estimated delivery time label (e.g., "3-5 days")
-  shippingMessage: string; // Message displayed to users, may contain {remaining} placeholder
+  freeDelivery: boolean;
 }
 
 export interface IShippingRepository {
   /** Get current shipping settings */
   getSettings(): Promise<ShippingSettings>;
   /** Update shipping settings */
-  updateSettings(settings: ShippingSettings): Promise<boolean>;
+  updateSettings(settings: Partial<ShippingSettings>): Promise<boolean>;
 }
 export interface IAnalyticsRepository {
   getDashboardStats(): Promise<DashboardStats>;
