@@ -117,7 +117,6 @@ export default function CheckoutPage() {
   const discountType = useSelector((state: RootState) => state.cart.discountType);
   const appliedPromo = useSelector((state: RootState) => state.cart.appliedPromo);
 
-  // ✅ Fixed: Added freeDelivery to initial state
   const [shippingConfig, setShippingConfig] = useState({
     shippingCharge: 100,
     freeShippingAbove: 2000,
@@ -139,7 +138,6 @@ export default function CheckoutPage() {
       });
   }, []);
 
-  // ✅ Fixed: Use centralized calculateOrderTotals
   const discount = discountType === 'percentage' 
     ? Math.round((total * discountValue) / 100) 
     : discountValue;
@@ -362,17 +360,17 @@ export default function CheckoutPage() {
           name: 'GR STYLES',
           description: 'Menswear Fashion Checkout',
           order_id: rzpOrder.id,
-          // UPI specific options
-          method: {
-            upi: true,
-            card: false,
-            netbanking: false,
-            wallet: false,
+          config: {
+            display: {
+              hide: [
+                { method: 'netbanking' },
+                { method: 'wallet' }
+              ]
+            }
           },
           handler: async function (response: any) {
+            console.log("✅ Payment success, verifying...", response);
             try {
-              console.log('Payment success, verifying...', response);
-              
               const verifyRes = await fetch('/api/razorpay/verify-payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -387,6 +385,7 @@ export default function CheckoutPage() {
               });
 
               const verifyData = await verifyRes.json();
+              
               if (!verifyRes.ok) {
                 throw new Error(verifyData.error || 'Payment verification failed');
               }
@@ -403,6 +402,9 @@ export default function CheckoutPage() {
               }
               
               dispatch(addToast({ message: `Order ${verifyData.order_number} placed successfully!`, type: 'success' }));
+              if (verifyData.order_number) {
+                sessionStorage.setItem('gr_last_order_number', verifyData.order_number);
+              }
               router.push('/order-success');
             } catch (err: any) {
               console.error('Verification error:', err);
@@ -431,11 +433,13 @@ export default function CheckoutPage() {
         };
 
         const rzp = new (window as any).Razorpay(options);
+        
         rzp.on('payment.failed', function (response: any) {
           console.error('Payment failed:', response);
           dispatch(addToast({ message: 'Payment failed. Please try again.', type: 'error' }));
           setLoading(false);
         });
+        
         rzp.open();
       } catch (err: any) {
         console.error('UPI Error:', err);
@@ -884,7 +888,7 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* ✅ Added: Free Delivery Status Message */}
+            {/* Free Delivery Status Message */}
             {shippingConfig.freeDelivery && (
               <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-xs text-green-700 font-medium">
