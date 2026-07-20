@@ -32,14 +32,15 @@ export default function OrdersPage() {
     if (!authChecked) return;
 
     async function loadOrders() {
-      const email = user?.email;
-      if (!email) {
+      if (!user) {
         setLoading(false);
         return;
       }
       try {
-        const allOrders = await repo.orders.getAll();
-        const userOrders = allOrders.filter((o) => o.email.toLowerCase() === email.toLowerCase());
+        // RLS policy on the orders table already filters rows to the logged-in
+        // user (via customer_email = auth.jwt()->>'email'), so getAll() returns
+        // only this user's orders — no client-side filter needed.
+        const userOrders = await repo.orders.getAll();
         setOrders(userOrders);
         if (userOrders.length > 0) {
           setExpandedOrderId(userOrders[0].id);
@@ -219,21 +220,50 @@ export default function OrdersPage() {
                       </div>
 
                       {/* Tracking Information */}
-                      {order.tracking_id && (
-                        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                          <div className="space-y-1">
-                            <p className="text-xs font-bold text-gray-800 uppercase">Tracking ID: {order.tracking_id}</p>
-                            <p className="text-[10px] text-gray-500 font-medium">Courier: {order.courier_partner || 'Not Specified'}</p>
+                      {(order.tracking_id || order.dispatch_date || order.expected_delivery_date || order.delivered_date) && (
+                        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm space-y-4">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-50 pb-3">
+                            <div className="space-y-1">
+                              {order.tracking_id && (
+                                <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Tracking ID: {order.tracking_id}</p>
+                              )}
+                              {order.courier_partner && (
+                                <p className="text-[10px] text-gray-500 font-medium">Courier: {order.courier_partner}</p>
+                              )}
+                            </div>
+                            {order.tracking_url && (
+                              <a 
+                                href={order.tracking_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-gray-800 transition-colors shrink-0"
+                              >
+                                Track Shipment
+                              </a>
+                            )}
                           </div>
-                          {order.tracking_url && (
-                            <a 
-                              href={order.tracking_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-gray-800 transition-colors shrink-0"
-                            >
-                              Track Shipment
-                            </a>
+                          
+                          {(order.dispatch_date || order.expected_delivery_date || order.delivered_date) && (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                              {order.dispatch_date && (
+                                <div>
+                                  <p className="text-gray-400 uppercase tracking-wider text-[9px] font-bold">Dispatched Date</p>
+                                  <p className="font-semibold text-xs mt-0.5 text-gray-800">{new Date(order.dispatch_date).toLocaleDateString()}</p>
+                                </div>
+                              )}
+                              {order.expected_delivery_date && (
+                                <div>
+                                  <p className="text-gray-400 uppercase tracking-wider text-[9px] font-bold">Expected Delivery</p>
+                                  <p className="font-semibold text-xs mt-0.5 text-gray-800">{new Date(order.expected_delivery_date).toLocaleDateString()}</p>
+                                </div>
+                              )}
+                              {order.delivered_date && (
+                                <div>
+                                  <p className="text-gray-400 uppercase tracking-wider text-[9px] font-bold">Delivered Date</p>
+                                  <p className="font-semibold text-xs mt-0.5 text-gray-800">{new Date(order.delivered_date).toLocaleDateString()}</p>
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       )}

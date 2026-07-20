@@ -85,20 +85,46 @@ export default function AdminOrderDetailsPage() {
   const handleShippingUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!order) return;
+
+    // 1. Validation: delivered date cannot be before dispatch date
+    if (shippingForm.dispatch_date && shippingForm.delivered_date) {
+      const dispatchDate = new Date(shippingForm.dispatch_date);
+      const deliveredDate = new Date(shippingForm.delivered_date);
+      if (deliveredDate < dispatchDate) {
+        dispatch(addToast({ message: 'Delivered date cannot be before dispatch date', type: 'error' }));
+        return;
+      }
+    }
+
+    // 2. Validation and auto-correction of tracking URL
+    let validatedUrl = shippingForm.tracking_url || '';
+    if (validatedUrl) {
+      // Prepend https:// if protocol is missing
+      if (!/^https?:\/\//i.test(validatedUrl)) {
+        validatedUrl = `https://${validatedUrl}`;
+      }
+      try {
+        new URL(validatedUrl);
+      } catch (err) {
+        dispatch(addToast({ message: 'Please enter a valid tracking URL', type: 'error' }));
+        return;
+      }
+    }
+
     try {
       const updateData = {
-        courier_partner: shippingForm.courier_partner || undefined,
-        tracking_id: shippingForm.tracking_id || undefined,
-        tracking_url: shippingForm.tracking_url || undefined,
-        dispatch_date: shippingForm.dispatch_date ? new Date(shippingForm.dispatch_date).toISOString() : undefined,
-        expected_delivery_date: shippingForm.expected_delivery_date ? new Date(shippingForm.expected_delivery_date).toISOString() : undefined,
-        delivered_date: shippingForm.delivered_date ? new Date(shippingForm.delivered_date).toISOString() : undefined,
+        courier_partner: shippingForm.courier_partner || null,
+        tracking_id: shippingForm.tracking_id || null,
+        tracking_url: validatedUrl || null,
+        dispatch_date: shippingForm.dispatch_date ? new Date(shippingForm.dispatch_date).toISOString() : null,
+        expected_delivery_date: shippingForm.expected_delivery_date ? new Date(shippingForm.expected_delivery_date).toISOString() : null,
+        delivered_date: shippingForm.delivered_date ? new Date(shippingForm.delivered_date).toISOString() : null,
       };
       const success = await repo.orders.updateShipping(order.id, updateData);
       if (success) {
         setOrder({ ...order, ...updateData });
         setIsEditingShipping(false);
-        dispatch(addToast({ message: 'Shipping info updated', type: 'success' }));
+        dispatch(addToast({ message: 'Shipping info updated successfully', type: 'success' }));
       }
     } catch (err) {
       dispatch(addToast({ message: 'Failed to update shipping info', type: 'error' }));

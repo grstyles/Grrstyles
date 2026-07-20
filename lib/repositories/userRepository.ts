@@ -98,20 +98,21 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
       'User';
     const { data: newProfile, error } = await authClient
       .from('profiles')
-      .insert([
-        {
+      .upsert(
+        [{
           id: user.id,
           email: user.email ?? '',
           full_name: fullName,
           role: 'customer',
           avatar_url: user.user_metadata?.avatar_url || '',
-        },
-      ])
+        }],
+        { onConflict: 'id', ignoreDuplicates: false }
+      )
       .select('*')
       .single();
 
     if (error) {
-      console.warn('[buildUserProfile] Insert error', error.message);
+      console.warn('[buildUserProfile] Upsert error', error.message);
     }
 
     if (newProfile) {

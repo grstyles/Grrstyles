@@ -94,20 +94,7 @@ export default function LoginPage() {
 
             <div className="px-8 py-8 space-y-5">
               {/* Demo Admin Banner */}
-              <button
-                type="button"
-                onClick={fillDemoCredentials}
-                className="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-left group hover:border-amber-400 transition-colors"
-              >
-                <div className="p-2 bg-amber-100 rounded-xl text-amber-600 flex-shrink-0">
-                  <ShieldCheck size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-amber-800 uppercase tracking-wider">Demo Admin Mode</p>
-                  <p className="text-[11px] text-amber-600 mt-0.5">Click to auto-fill admin email</p>
-                </div>
-                <ArrowRight size={14} className="text-amber-400 group-hover:translate-x-1 transition-transform flex-shrink-0" />
-              </button>
+              
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Email */}

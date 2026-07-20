@@ -351,14 +351,15 @@ export class SupabaseOrderRepository implements IOrderRepository {
       id: d.id,
       orderNumber: d.order_number,
       customerName: d.customer_name,
-      email: d.email || '',
-      phone: d.phone || '',
+      email: d.customer_email || '',
+      phone: d.customer_phone || '',
       itemsCount: (d.order_items || []).reduce((s: number, i: any) => s + i.quantity, 0),
       totalAmount: Number(d.total_amount),
       status: d.status as MockOrder['status'],
       paymentStatus: d.payment_status as MockOrder['paymentStatus'],
       paymentMethod: d.payment_method || 'Prepaid',
       date: new Date(d.created_at).toISOString().split('T')[0],
+      shippingAddress: d.shipping_address,
       razorpay_order_id: d.razorpay_order_id,
       razorpay_payment_id: d.razorpay_payment_id,
       payment_signature: d.payment_signature,
@@ -395,7 +396,8 @@ export class SupabaseOrderRepository implements IOrderRepository {
       id: data.id,
       orderNumber: data.order_number,
       customerName: data.customer_name,
-      email: data.email || '',
+      email: data.customer_email || '',
+      phone: data.customer_phone || '',
       itemsCount: (data.order_items || []).reduce((s: number, i: any) => s + i.quantity, 0),
       totalAmount: Number(data.total_amount),
       status: data.status,
@@ -433,7 +435,8 @@ export class SupabaseOrderRepository implements IOrderRepository {
       .from('orders')
       .update({ status })
       .eq('id', id);
-    return !error;
+    if (error) throw error;
+    return true;
   }
 
   async updateShipping(id: string, shippingData: Partial<MockOrder>): Promise<boolean> {
@@ -448,7 +451,8 @@ export class SupabaseOrderRepository implements IOrderRepository {
         delivered_date: shippingData.delivered_date,
       })
       .eq('id', id);
-    return !error;
+    if (error) throw error;
+    return true;
   }
 }
 
@@ -698,8 +702,11 @@ export class SupabaseShippingRepository implements IShippingRepository {
     };
 
     try {
-      // Fetch settings, ensuring we handle cases where multiple rows exist.
-      const { data, error } = await this.adminDb()
+      // Fetch settings using the public anon client – the SELECT policy on
+      // shipping_settings is USING(true) so no service-role key is needed here.
+      // IMPORTANT: adminDb() requires SUPABASE_SERVICE_ROLE_KEY which is only
+      // available server-side; calling it from browser code throws an error.
+      const { data, error } = await sb()
         .from('shipping_settings')
         .select('*')
         .eq('id', 1)

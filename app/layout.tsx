@@ -6,7 +6,6 @@ import { Providers } from "./providers";
 
 import Navbar from "@/components/navbar/Navbar";
 import Footer from "@/components/footer/Footer";
-import TopBar from "@/components/navbar/TopBar";
 import BottomNavigation from "@/components/layout/BottomNavigation";
 import QuickViewWrapper from "@/components/ui/QuickViewWrapper";
 
@@ -85,7 +84,7 @@ export default function RootLayout({
     >
       <body className="font-sans antialiased bg-white text-gray-900">
         <Providers>
-          <TopBar />
+        
           <Navbar />
           <main className="min-h-screen">{children}</main>
           <Footer />

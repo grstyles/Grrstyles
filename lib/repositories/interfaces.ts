@@ -48,12 +48,12 @@ export interface MockOrder {
   invoice_number?: string;
   payment_verified?: boolean;
   gateway_response?: any;
-  tracking_id?: string;
-  tracking_url?: string;
-  courier_partner?: string;
-  dispatch_date?: string;
-  expected_delivery_date?: string;
-  delivered_date?: string;
+  tracking_id?: string | null;
+  tracking_url?: string | null;
+  courier_partner?: string | null;
+  dispatch_date?: string | null;
+  expected_delivery_date?: string | null;
+  delivered_date?: string | null;
 }
 
 export interface MockCoupon {
