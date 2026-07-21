@@ -26,6 +26,7 @@ interface StoreSettings {
   taxPercent: string;
   freeShippingAbove: string;
   shippingCharge: string;
+  freeDelivery: boolean; // Added freeDelivery
 }
 
 const defaultSettings: StoreSettings = {
@@ -45,6 +46,7 @@ const defaultSettings: StoreSettings = {
   taxPercent: '18',
   freeShippingAbove: '999',
   shippingCharge: '100',
+  freeDelivery: false, // Added default
 };
 
 const SectionCard = ({ title, icon: Icon, children }: {
@@ -87,11 +89,12 @@ export default function AdminSettingsPage() {
         ...prev,
         freeShippingAbove: String(data.freeShippingAbove),
         shippingCharge: String(data.shippingCharge),
+        freeDelivery: data.freeDelivery, // Load freeDelivery
       }));
     })();
   }, []);
 
-  const handleChange = (field: keyof StoreSettings, value: string) => {
+  const handleChange = (field: keyof StoreSettings, value: string | boolean) => {
     setSettings((prev) => ({ ...prev, [field]: value }));
     setSaved(false);
   };
@@ -127,6 +130,7 @@ export default function AdminSettingsPage() {
     const success = await repo.shipping.updateSettings({
       shippingCharge: Number(settings.shippingCharge),
       freeShippingAbove: Number(settings.freeShippingAbove),
+      freeDelivery: settings.freeDelivery, // Save freeDelivery
     });
     // Simulate brief delay
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -145,8 +149,6 @@ export default function AdminSettingsPage() {
       window.scrollTo(0, scrollY);
     }
   };
-
-
 
   const inputClass = "w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm text-gray-800 placeholder-gray-300 transition-colors";
 
@@ -305,9 +307,45 @@ export default function AdminSettingsPage() {
           </div>
         </SectionCard>
 
-
-
-
+        {/* Shipping Settings */}
+        <SectionCard title="Shipping Settings" icon={Settings}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Field label="Free Shipping Above (₹)">
+              <input
+                type="number"
+                value={settings.freeShippingAbove}
+                onChange={(e) => handleChange('freeShippingAbove', e.target.value)}
+                className={inputClass}
+                placeholder="999"
+              />
+            </Field>
+            <Field label="Shipping Charge (₹)">
+              <input
+                type="number"
+                value={settings.shippingCharge}
+                onChange={(e) => handleChange('shippingCharge', e.target.value)}
+                className={inputClass}
+                placeholder="100"
+              />
+            </Field>
+            <Field label="Free Delivery">
+              <div className="flex items-center gap-3 pt-2">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.freeDelivery}
+                    onChange={(e) => handleChange('freeDelivery', e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black"></div>
+                  <span className="ml-3 text-sm text-gray-600">
+                    {settings.freeDelivery ? 'Enabled' : 'Disabled'}
+                  </span>
+                </label>
+              </div>
+            </Field>
+          </div>
+        </SectionCard>
 
         {/* Logo Upload */}
         <SectionCard title="Store Logo" icon={Image}>

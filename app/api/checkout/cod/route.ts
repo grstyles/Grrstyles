@@ -61,14 +61,23 @@ export async function POST(req: Request) {
       }
     }
 
-    // Shipping configuration
-    const shippingCfg = await repo.shipping.getSettings() || {
-      shippingCharge: 0,
-      freeShippingAbove: 0,
-      freeDelivery: true,
-      singleProductCharge: 0,
-      pantCharge: 0,
-      comboCharge: 0
+    // Shipping configuration — use the service-role client (bypasses RLS).
+    // repo.shipping.getSettings() uses the anon key and gets filtered by RLS,
+    // returning [] and falling back to hardcoded defaults.
+    const { data: shippingRow, error: shippingErr } = await supabase
+      .from('shipping_settings')
+      .select('shipping_charge, free_shipping_above, free_delivery')
+      .eq('id', 1)
+      .single();
+
+    if (shippingErr) {
+      console.warn('[cod] shipping_settings query error, using safe defaults:', shippingErr.message);
+    }
+
+    const shippingCfg = {
+      shippingCharge:    Number(shippingRow?.shipping_charge    ?? 0),
+      freeShippingAbove: Number(shippingRow?.free_shipping_above ?? 0),
+      freeDelivery:     Boolean(shippingRow?.free_delivery       ?? true),
     };
 
     // Calculate totals using centralized utility

@@ -115,17 +115,32 @@ export default function CartPage() {
 
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
-  const [shippingConfig, setShippingConfig] = useState<ShippingConfig>({ 
-    shippingCharge: 100, 
-    freeShippingAbove: 2000 
+  // Initialise with freeDelivery=true / charge=0 so we don't flash a wrong
+  // shipping fee before the API responds.
+  const [shippingConfig, setShippingConfig] = useState<ShippingConfig>({
+    shippingCharge: 0,
+    freeShippingAbove: 0,
+    freeDelivery: true,
   });
 
   useEffect(() => {
-    repo.shipping.getSettings().then(cfg => {
-      setShippingConfig(cfg);
-    }).catch(err => {
-      console.error('Failed to load shipping settings in cart:', err);
-    });
+    // Use the dedicated public shipping route (service-role key, bypasses RLS).
+    fetch('/api/shipping')
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((cfg) => {
+        console.log('[Cart] Shipping settings loaded:', cfg);
+        setShippingConfig({
+          shippingCharge: Number(cfg.shippingCharge ?? 0),
+          freeShippingAbove: Number(cfg.freeShippingAbove ?? 0),
+          freeDelivery: Boolean(cfg.freeDelivery ?? false),
+        });
+      })
+      .catch((err) => {
+        console.error('[Cart] Failed to load shipping settings:', err);
+      });
   }, []);
 
   // Memoized calculations for performance

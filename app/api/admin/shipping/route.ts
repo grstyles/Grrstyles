@@ -28,9 +28,9 @@ export async function GET() {
       if (error.code === 'PGRST116') {
         console.log('📋 No shipping settings found, returning defaults');
         return NextResponse.json({
-          shipping_charge: 100,
-          free_shipping_above: 999,
-          free_delivery: false,
+          shippingCharge: 100,
+          freeShippingAbove: 999,
+          freeDelivery: false,
         });
       }
       
@@ -41,7 +41,16 @@ export async function GET() {
     }
 
     console.log('✅ GET shipping_settings success:', data);
-    return NextResponse.json(data);
+    // Return camelCase so every client consumer can use the same field names
+    // without having to remap snake_case DB columns.
+    return NextResponse.json({
+      id: data.id,
+      shippingCharge: Number(data.shipping_charge ?? 100),
+      freeShippingAbove: Number(data.free_shipping_above ?? 0),
+      freeDelivery: Boolean(data.free_delivery ?? false),
+      estimatedDelivery: data.estimated_delivery ?? '3-5 days',
+      shippingMessage: data.shipping_message ?? '',
+    });
   } catch (e: any) {
     console.error('Unexpected error in GET /api/admin/shipping:', e);
     return NextResponse.json(

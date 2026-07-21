@@ -117,24 +117,49 @@ export default function CheckoutPage() {
   const discountType = useSelector((state: RootState) => state.cart.discountType);
   const appliedPromo = useSelector((state: RootState) => state.cart.appliedPromo);
 
+  // Shipping config — initialise with freeDelivery=true (show ₹0) until the
+  // API responds.  The real values overwrite this inside the useEffect below.
   const [shippingConfig, setShippingConfig] = useState({
-    shippingCharge: 100,
-    freeShippingAbove: 2000,
-    freeDelivery: false,
+    shippingCharge: 0,
+    freeShippingAbove: 0,
+    freeDelivery: true,
   });
 
   useEffect(() => {
-    fetch('/api/admin/shipping')
-      .then((res) => res.json())
+    fetch('/api/shipping')
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
       .then((cfg) => {
+        console.log('[Checkout] Raw /api/shipping response:', cfg);
+
+        // Validate that the response contains the expected camelCase fields.
+        if (
+          cfg.shippingCharge === undefined ||
+          cfg.freeShippingAbove === undefined ||
+          cfg.freeDelivery === undefined
+        ) {
+          console.error(
+            '[Checkout] ⚠️  /api/shipping response is missing expected camelCase fields.' +
+            ' Got:', JSON.stringify(cfg)
+          );
+        }
+
         setShippingConfig({
-          shippingCharge: cfg.shippingCharge,
-          freeShippingAbove: cfg.freeShippingAbove,
-          freeDelivery: cfg.freeDelivery,
+          shippingCharge: Number(cfg.shippingCharge ?? 0),
+          freeShippingAbove: Number(cfg.freeShippingAbove ?? 0),
+          freeDelivery: Boolean(cfg.freeDelivery ?? false),
+        });
+
+        console.log('[Checkout] ✅ shippingConfig updated:', {
+          shippingCharge: Number(cfg.shippingCharge ?? 0),
+          freeShippingAbove: Number(cfg.freeShippingAbove ?? 0),
+          freeDelivery: Boolean(cfg.freeDelivery ?? false),
         });
       })
       .catch((err) => {
-        console.error('Failed to load shipping settings in checkout:', err);
+        console.error('[Checkout] Failed to load shipping settings:', err);
       });
   }, []);
 

@@ -79,8 +79,25 @@ export async function POST(req: Request) {
       }
     }
 
-    // ✅ Get shipping configuration
-    const shippingCfg = await repo.shipping.getSettings();
+    // ✅ Get shipping configuration using the service-role client (bypasses RLS).
+    // repo.shipping.getSettings() uses the anon key whose RLS query returns []
+    // on this table, falling back to hardcoded defaults. The service-role client
+    // that is already initialised at the top of this file always reads the real row.
+    const { data: shippingRow, error: shippingErr } = await supabase
+      .from('shipping_settings')
+      .select('shipping_charge, free_shipping_above, free_delivery')
+      .eq('id', 1)
+      .single();
+
+    if (shippingErr) {
+      console.warn('[create-order] shipping_settings query error, using safe defaults:', shippingErr.message);
+    }
+
+    const shippingCfg = {
+      shippingCharge:    Number(shippingRow?.shipping_charge   ?? 0),
+      freeShippingAbove: Number(shippingRow?.free_shipping_above ?? 0),
+      freeDelivery:     Boolean(shippingRow?.free_delivery      ?? true),
+    };
     
     console.log("========== SHIPPING DEBUG ==========");
     console.log('Shipping Config:', JSON.stringify(shippingCfg, null, 2));
