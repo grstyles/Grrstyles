@@ -2,10 +2,14 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { ShoppingBag, CheckCircle, ShieldCheck, Truck } from 'lucide-react';
 import { motion } from 'framer-motion';
-import ScratchCard from '@/components/ui/ScratchCard';
-import confetti from 'canvas-confetti';
+
+const ScratchCard = dynamic(() => import('@/components/ui/ScratchCard'), {
+  ssr: false,
+  loading: () => <div className="h-40 bg-gray-50 rounded-2xl animate-pulse flex items-center justify-center text-xs text-gray-400">Loading your gift...</div>
+});
 
 export default function OrderSuccessPage() {
   const [orderId, setOrderId] = useState('');
@@ -64,7 +68,9 @@ export default function OrderSuccessPage() {
           <ScratchCard 
             rewardText="₹500 CASHBACK" 
             onReveal={() => {
-              confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+              import('canvas-confetti').then((confettiModule) => {
+                confettiModule.default({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+              });
             }} 
           />
         </div>

@@ -21,7 +21,8 @@ export async function POST(req: Request) {
       items
     } = body;
 
-    console.log('📥 Verify payment request:', { razorpay_order_id, razorpay_payment_id, userId });
+    // [STEP 4] verify-payment API called
+    console.log('[STEP 4] verify-payment API called', { razorpay_order_id, razorpay_payment_id, userId });
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !orderPayload || !items) {
       return NextResponse.json(
@@ -52,6 +53,9 @@ export async function POST(req: Request) {
       );
     }
 
+    // [STEP 5] Signature verified
+    console.log('[STEP 5] Signature verified successfully');
+
     // Fetch the Razorpay order to validate the amount matches the previously calculated total amount
     const key_id = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     if (!key_id) {
@@ -75,8 +79,11 @@ export async function POST(req: Request) {
 
     // Razorpay amount is in paise, convert to rupees for validation
     const expectedAmount = (rzpOrder as any).amount / 100;
-    if (Math.round(orderPayload.totalAmount) !== Math.round(expectedAmount)) {
-      console.warn(`⚠️ Total amount mismatch. Payload: ${orderPayload.totalAmount}, Razorpay Order: ${expectedAmount}`);
+    const clientAmount = Number(orderPayload.totalAmount || 0);
+    
+    // Allow up to ₹1 rounding tolerance between client and server calculations
+    if (Math.abs(clientAmount - expectedAmount) > 1.0) {
+      console.warn(`⚠️ Total amount mismatch. Payload: ${clientAmount}, Razorpay Order: ${expectedAmount}`);
       return NextResponse.json(
         { success: false, error: 'Order amount verification failed due to mismatch' },
         { status: 400 }
@@ -100,27 +107,26 @@ export async function POST(req: Request) {
 
     const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 
-    // 1. Insert Order
-    // 1. Insert Order
-const dbOrderData = {
-  order_number: orderNumber,
-  user_id: userId || null,
-  customer_name: orderPayload.customerName,
-  customer_email: orderPayload.email,
-  customer_phone: orderPayload.phone,
-  shipping_address: orderPayload.shippingAddress,
-  payment_method: orderPayload.paymentMethod,
-  total_amount: orderPayload.totalAmount,
-  discount_amount: orderPayload.discountAmount || 0,
-  coupon_code: orderPayload.couponCode || null,
-  status: 'Confirmed',
-  payment_status: 'Paid',
-  razorpay_order_id: razorpay_order_id,
-  razorpay_payment_id: razorpay_payment_id,
-  payment_signature: razorpay_signature,
-  payment_gateway: 'razorpay',
-  transaction_time: new Date().toISOString()
-};
+    // 1. Insert Order into Supabase
+    const dbOrderData = {
+      order_number: orderNumber,
+      user_id: userId || null,
+      customer_name: orderPayload.customerName,
+      customer_email: orderPayload.email,
+      customer_phone: orderPayload.phone,
+      shipping_address: orderPayload.shippingAddress,
+      payment_method: orderPayload.paymentMethod || 'razorpay',
+      total_amount: expectedAmount, // Use authoritative Razorpay charged amount
+      discount_amount: orderPayload.discountAmount || 0,
+      coupon_code: orderPayload.couponCode || null,
+      status: 'Confirmed',
+      payment_status: 'Paid',
+      razorpay_order_id: razorpay_order_id,
+      razorpay_payment_id: razorpay_payment_id,
+      payment_signature: razorpay_signature,
+      gateway: 'razorpay', // Fixed: Matches database column 'gateway'
+      transaction_time: new Date().toISOString()
+    };
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -129,22 +135,25 @@ const dbOrderData = {
       .single();
 
     if (orderError || !order) {
-  console.error("========== ORDER INSERT ERROR ==========");
-  console.error(JSON.stringify(orderError, null, 2));
-  console.error("Payload:", JSON.stringify(dbOrderData, null, 2));
-  console.error("========================================");
+      console.error("========== ORDER INSERT ERROR ==========");
+      console.error(JSON.stringify(orderError, null, 2));
+      console.error("Payload:", JSON.stringify(dbOrderData, null, 2));
+      console.error("========================================");
 
-  return NextResponse.json(
-    {
-      success: false,
-      error: orderError?.message,
-      details: orderError,
-    },
-    { status: 500 }
-  );
-}
+      return NextResponse.json(
+        {
+          success: false,
+          error: orderError?.message || 'Failed to insert order',
+          details: orderError,
+        },
+        { status: 500 }
+      );
+    }
 
-    // 2. Insert Order Items
+    // [STEP 6] Order saved to database
+    console.log('[STEP 6] Order saved to database successfully', { orderId: order.id, orderNumber });
+
+    // 2. Prepare post-order creation tasks in parallel to minimize response time
     const orderItems = items.map((item: any) => ({
       order_id: order.id,
       product_id: item.productId || item.id,
@@ -155,55 +164,49 @@ const dbOrderData = {
       price: item.price || item.discountedPrice || 0
     }));
 
-    const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+    const insertItemsTask = supabase.from('order_items').insert(orderItems);
     
-    if (itemsError) {
-      console.error('Items Insert Error:', itemsError);
-      // Optional: Rollback logic if needed, but since payment is verified, we should probably keep the order and flag for manual review.
-    }
-
-    // 3. Insert Payment
-    const { error: paymentError } = await supabase.from('payments').insert([{
+    const insertPaymentTask = supabase.from('payments').insert([{
       razorpay_payment_id,
       razorpay_order_id,
       order_id: order.id,
       signature: razorpay_signature,
-      amount: orderPayload.totalAmount,
+      amount: expectedAmount,
       currency: 'INR',
       status: 'Success'
     }]);
 
-    if (paymentError) {
-      console.error('Payment Insert Error:', paymentError);
-    }
+    const reduceStockTasks = Promise.allSettled(
+      items.map(async (item: any) => {
+        const prodId = item.productId || item.id;
+        const { data: productData } = await supabase
+          .from('products')
+          .select('category')
+          .eq('id', prodId)
+          .single();
 
-    // 4. Reduce Inventory to prevent overselling
-    for (const item of items) {
-      // Determine category (it might not be passed in items, so we fetch it)
-      const { data: productData } = await supabase
-        .from('products')
-        .select('category')
-        .eq('id', item.productId || item.id)
-        .single();
-        
-      if (productData) {
-        const { error: stockError } = await supabase.rpc('reduce_stock', {
-          p_product_id: item.productId || item.id,
-          p_size: item.size || item.shirtSize || item.pantSize || item.shoeSize || '',
-          p_quantity: item.quantity,
-          p_category: productData.category
-        });
-        
-        if (stockError) {
-          console.error('Stock Reduction Error:', stockError);
+        if (productData) {
+          await supabase.rpc('reduce_stock', {
+            p_product_id: prodId,
+            p_size: item.size || item.shirtSize || item.pantSize || item.shoeSize || '',
+            p_quantity: item.quantity,
+            p_category: productData.category
+          });
         }
-      }
-    }
+      })
+    );
 
-    // 5. Clear User's Cart if userId exists
-    if (userId) {
-      await supabase.from('cart').delete().eq('user_id', userId);
-    }
+    const clearCartTask = userId
+      ? supabase.from('cart').delete().eq('user_id', userId)
+      : Promise.resolve();
+
+    // Execute all side-effects concurrently
+    await Promise.allSettled([
+      insertItemsTask,
+      insertPaymentTask,
+      reduceStockTasks,
+      clearCartTask
+    ]);
 
     return NextResponse.json({ 
       success: true, 

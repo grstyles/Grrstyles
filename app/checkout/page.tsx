@@ -44,6 +44,12 @@ export default function CheckoutPage() {
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
 
   useEffect(() => {
+    // Prefetch target pages on mount so routing is instant on mobile and desktop
+    router.prefetch('/order-success');
+    router.prefetch('/payment-failed');
+  }, [router]);
+
+  useEffect(() => {
     if (authChecked && user) {
       const loadAddresses = async () => {
         setLoadingAddresses(true);
@@ -378,6 +384,10 @@ export default function CheckoutPage() {
           throw new Error(rzpOrder.error || 'Failed to initialize payment');
         }
 
+        console.log('[STEP 1] Order created', { id: rzpOrder.id, amount: rzpOrder.amount });
+
+        let isProcessingVerification = false;
+
         const options = {
           key: RAZORPAY_KEY_ID,
           amount: rzpOrder.amount,
@@ -394,7 +404,8 @@ export default function CheckoutPage() {
             }
           },
           handler: async function (response: any) {
-            console.log("✅ Payment success, verifying...", response);
+            isProcessingVerification = true;
+            console.log("[STEP 3] Payment success callback fired", response);
             try {
               const verifyRes = await fetch('/api/razorpay/verify-payment', {
                 method: 'POST',
@@ -430,6 +441,7 @@ export default function CheckoutPage() {
               if (verifyData.order_number) {
                 sessionStorage.setItem('gr_last_order_number', verifyData.order_number);
               }
+              console.log('[STEP 7] Redirecting to success page');
               router.push('/order-success');
             } catch (err: any) {
               console.error('Verification error:', err);
@@ -451,8 +463,10 @@ export default function CheckoutPage() {
           },
           modal: {
             ondismiss: function () {
-              dispatch(addToast({ message: 'Payment cancelled.', type: 'info' }));
-              setLoading(false);
+              if (!isProcessingVerification) {
+                dispatch(addToast({ message: 'Payment cancelled.', type: 'info' }));
+                setLoading(false);
+              }
             }
           }
         };
@@ -460,11 +474,15 @@ export default function CheckoutPage() {
         const rzp = new (window as any).Razorpay(options);
         
         rzp.on('payment.failed', function (response: any) {
-          console.error('Payment failed:', response);
-          dispatch(addToast({ message: 'Payment failed. Please try again.', type: 'error' }));
-          setLoading(false);
+          if (!isProcessingVerification) {
+            const errorMsg = response?.error?.description || response?.error?.reason || 'Payment failed. Please try again.';
+            console.error('Payment failed details:', response);
+            dispatch(addToast({ message: errorMsg, type: 'error' }));
+            setLoading(false);
+          }
         });
         
+        console.log('[STEP 2] Razorpay checkout opened');
         rzp.open();
       } catch (err: any) {
         console.error('UPI Error:', err);
@@ -526,6 +544,10 @@ export default function CheckoutPage() {
           throw new Error(rzpOrder.error || 'Failed to initialize payment');
         }
 
+        console.log('[STEP 1] Order created', { id: rzpOrder.id, amount: rzpOrder.amount });
+
+        let isProcessingVerification = false;
+
         const options = {
           key: RAZORPAY_KEY_ID,
           amount: rzpOrder.amount,
@@ -534,9 +556,9 @@ export default function CheckoutPage() {
           description: 'Menswear Fashion Checkout',
           order_id: rzpOrder.id,
           handler: async function (response: any) {
+            isProcessingVerification = true;
+            console.log('[STEP 3] Payment success callback fired', response);
             try {
-              console.log('Payment success, verifying...', response);
-              
               const verifyRes = await fetch('/api/razorpay/verify-payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -567,6 +589,7 @@ export default function CheckoutPage() {
               }
               
               dispatch(addToast({ message: `Order ${verifyData.order_number} placed successfully!`, type: 'success' }));
+              console.log('[STEP 7] Redirecting to success page');
               router.push('/order-success');
             } catch (err: any) {
               console.error('Verification error:', err);
@@ -587,18 +610,24 @@ export default function CheckoutPage() {
           },
           modal: {
             ondismiss: function () {
-              dispatch(addToast({ message: 'Payment cancelled.', type: 'info' }));
-              setLoading(false);
+              if (!isProcessingVerification) {
+                dispatch(addToast({ message: 'Payment cancelled.', type: 'info' }));
+                setLoading(false);
+              }
             }
           }
         };
 
         const rzp = new (window as any).Razorpay(options);
         rzp.on('payment.failed', function (response: any) {
-          console.error('Payment failed:', response);
-          dispatch(addToast({ message: 'Payment failed. Please try again.', type: 'error' }));
-          setLoading(false);
+          if (!isProcessingVerification) {
+            const errorMsg = response?.error?.description || response?.error?.reason || 'Payment failed. Please try again.';
+            console.error('Payment failed details:', response);
+            dispatch(addToast({ message: errorMsg, type: 'error' }));
+            setLoading(false);
+          }
         });
+        console.log('[STEP 2] Razorpay checkout opened');
         rzp.open();
       } catch (err: any) {
         console.error('Card payment error:', err);

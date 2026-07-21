@@ -135,7 +135,12 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
       prevCartItemsRef.current = cartItems;
     };
 
-    syncCartWithDb();
+    // Non-blocking deferred sync so DB requests do not contend with route navigation
+    const timeoutId = setTimeout(() => {
+      syncCartWithDb().catch((err) => console.error('Cart sync error:', err));
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
   }, [cartItems, userId]);
 
   // 5. Track and Sync changes to Wishlist
