@@ -90,18 +90,20 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check if payment already exists
-    const { data: existingPayment } = await supabase
-      .from('payments')
-      .select('id, order_id')
-      .eq('razorpay_payment_id', razorpay_payment_id)
+    // Check if payment or order already exists (idempotency check)
+    const { data: existingOrder } = await supabase
+      .from('orders')
+      .select('id, order_number')
+      .or(`razorpay_payment_id.eq.${razorpay_payment_id},razorpay_order_id.eq.${razorpay_order_id}`)
       .maybeSingle();
 
-    if (existingPayment) {
+    if (existingOrder) {
+      console.log('[STEP 9] Existing order found in database:', existingOrder);
       return NextResponse.json({ 
         success: true, 
         message: 'Payment already processed',
-        order_id: existingPayment.order_id
+        order_id: existingOrder.id,
+        order_number: existingOrder.order_number
       });
     }
 

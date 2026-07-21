@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -42,11 +42,31 @@ export default function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState('new');
   const [saveAddressToProfile, setSaveAddressToProfile] = useState(false);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+  const paymentStateRef = useRef<'IDLE' | 'OPENED' | 'VERIFYING' | 'SUCCESS' | 'FAILED'>('IDLE');
 
   useEffect(() => {
     // Prefetch target pages on mount so routing is instant on mobile and desktop
     router.prefetch('/order-success');
     router.prefetch('/payment-failed');
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log('[STEP 5] Page visibility changed to hidden (app switch to PhonePe)');
+      } else {
+        console.log('[STEP 6] Page visibility restored to visible (returned from PhonePe)', { state: paymentStateRef.current });
+      }
+    };
+
+    const handlePageShow = (e: PageTransitionEvent) => {
+      console.log('[STEP 18] Page show event triggered', { persisted: e.persisted, state: paymentStateRef.current });
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handlePageShow);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
   }, [router]);
 
   useEffect(() => {
@@ -352,6 +372,7 @@ export default function CheckoutPage() {
       }
 
       try {
+        console.log('[STEP 1] Razorpay order creation requested', { amount: finalTotal });
         const createOrderRes = await fetch('/api/razorpay/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -384,9 +405,10 @@ export default function CheckoutPage() {
           throw new Error(rzpOrder.error || 'Failed to initialize payment');
         }
 
-        console.log('[STEP 1] Order created', { id: rzpOrder.id, amount: rzpOrder.amount });
+        console.log('[STEP 2] Razorpay order created successfully', { id: rzpOrder.id, amount: rzpOrder.amount });
+        paymentStateRef.current = 'OPENED';
 
-        let isProcessingVerification = false;
+        console.log('[STEP 3] Razorpay checkout options configured for UPI');
 
         const options = {
           key: RAZORPAY_KEY_ID,
@@ -404,8 +426,12 @@ export default function CheckoutPage() {
             }
           },
           handler: async function (response: any) {
-            isProcessingVerification = true;
-            console.log("[STEP 3] Payment success callback fired", response);
+            console.log('[STEP 7] Razorpay handler() callback entered', response);
+            paymentStateRef.current = 'VERIFYING';
+
+            console.log('[STEP 8] Payment verification payload prepared');
+            console.log('[STEP 9] verify-payment API request initiated');
+
             try {
               const verifyRes = await fetch('/api/razorpay/verify-payment', {
                 method: 'POST',
@@ -421,30 +447,81 @@ export default function CheckoutPage() {
               });
 
               const verifyData = await verifyRes.json();
-              
-              if (!verifyRes.ok) {
+              console.log('[STEP 10] verify-payment API response received', verifyData);
+
+              if (!verifyRes.ok || !verifyData.success) {
                 throw new Error(verifyData.error || 'Payment verification failed');
               }
-              
+
+              console.log('[STEP 11] Payment status verified as SUCCESS');
+              paymentStateRef.current = 'SUCCESS';
+
               if (typeof window !== 'undefined') {
                 sessionStorage.setItem('gr_last_payment_id', response.razorpay_payment_id);
                 sessionStorage.setItem('gr_last_amount', finalTotal.toString());
+                if (verifyData.order_number || verifyData.order_id) {
+                  sessionStorage.setItem('gr_last_order_number', verifyData.order_number || verifyData.order_id);
+                }
               }
-              
+              console.log('[STEP 12] Session storage updated with payment/order data');
+
               if (directCheckoutItem) {
                 dispatch(setDirectCheckoutItem(null));
               } else {
                 dispatch(clearSelectedItems());
               }
-              
-              dispatch(addToast({ message: `Order ${verifyData.order_number} placed successfully!`, type: 'success' }));
-              if (verifyData.order_number) {
-                sessionStorage.setItem('gr_last_order_number', verifyData.order_number);
-              }
-              console.log('[STEP 7] Redirecting to success page');
+              console.log('[STEP 13] Cart cleared post payment success');
+
+              dispatch(addToast({ message: `Order ${verifyData.order_number || ''} placed successfully!`, type: 'success' }));
+              console.log('[STEP 14] Redirecting to order success page');
+              console.log('[STEP 20] Final payment outcome resolved as SUCCESS');
               router.push('/order-success');
             } catch (err: any) {
-              console.error('Verification error:', err);
+              console.warn('[STEP 17] Catch block entered during payment verification', err);
+
+              // [STEP 18] Fallback database order check before triggering failure
+              console.log('[STEP 18] Fallback database order check initiated');
+              try {
+                const checkRes = await fetch('/api/razorpay/verify-payment', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                    userId: user?.id,
+                    orderPayload,
+                    items: cartItems
+                  }),
+                });
+                const checkData = await checkRes.json();
+
+                if (checkRes.ok && checkData.success) {
+                  console.log('[STEP 19] Fallback database order found - redirecting to success', checkData);
+                  paymentStateRef.current = 'SUCCESS';
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('gr_last_payment_id', response.razorpay_payment_id);
+                    sessionStorage.setItem('gr_last_amount', finalTotal.toString());
+                    if (checkData.order_number || checkData.order_id) {
+                      sessionStorage.setItem('gr_last_order_number', checkData.order_number || checkData.order_id);
+                    }
+                  }
+                  if (directCheckoutItem) {
+                    dispatch(setDirectCheckoutItem(null));
+                  } else {
+                    dispatch(clearSelectedItems());
+                  }
+                  dispatch(addToast({ message: `Order ${checkData.order_number || ''} placed successfully!`, type: 'success' }));
+                  console.log('[STEP 20] Final payment outcome resolved as SUCCESS (via Fallback)');
+                  router.push('/order-success');
+                  return;
+                }
+              } catch (fallbackErr) {
+                console.error('Fallback DB check error:', fallbackErr);
+              }
+
+              paymentStateRef.current = 'FAILED';
+              console.log('[STEP 20] Final payment outcome resolved as FAILED');
               dispatch(addToast({ message: err.message || 'Payment Verification Failed.', type: 'error' }));
               router.push('/payment-failed');
             }
@@ -463,9 +540,11 @@ export default function CheckoutPage() {
           },
           modal: {
             ondismiss: function () {
-              if (!isProcessingVerification) {
+              console.log('[STEP 15] Razorpay modal.ondismiss event triggered', { state: paymentStateRef.current });
+              if (paymentStateRef.current !== 'VERIFYING' && paymentStateRef.current !== 'SUCCESS') {
                 dispatch(addToast({ message: 'Payment cancelled.', type: 'info' }));
                 setLoading(false);
+                paymentStateRef.current = 'IDLE';
               }
             }
           }
@@ -474,15 +553,16 @@ export default function CheckoutPage() {
         const rzp = new (window as any).Razorpay(options);
         
         rzp.on('payment.failed', function (response: any) {
-          if (!isProcessingVerification) {
+          console.log('[STEP 16] Razorpay payment.failed event triggered', { response, state: paymentStateRef.current });
+          if (paymentStateRef.current !== 'VERIFYING' && paymentStateRef.current !== 'SUCCESS') {
             const errorMsg = response?.error?.description || response?.error?.reason || 'Payment failed. Please try again.';
-            console.error('Payment failed details:', response);
             dispatch(addToast({ message: errorMsg, type: 'error' }));
             setLoading(false);
+            paymentStateRef.current = 'FAILED';
           }
         });
         
-        console.log('[STEP 2] Razorpay checkout opened');
+        console.log('[STEP 4] Razorpay checkout modal opened');
         rzp.open();
       } catch (err: any) {
         console.error('UPI Error:', err);
@@ -512,6 +592,7 @@ export default function CheckoutPage() {
       }
 
       try {
+        console.log('[STEP 1] Razorpay order creation requested for Card', { amount: finalTotal });
         const createOrderRes = await fetch('/api/razorpay/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -544,9 +625,10 @@ export default function CheckoutPage() {
           throw new Error(rzpOrder.error || 'Failed to initialize payment');
         }
 
-        console.log('[STEP 1] Order created', { id: rzpOrder.id, amount: rzpOrder.amount });
+        console.log('[STEP 2] Razorpay order created successfully', { id: rzpOrder.id, amount: rzpOrder.amount });
+        paymentStateRef.current = 'OPENED';
 
-        let isProcessingVerification = false;
+        console.log('[STEP 3] Razorpay checkout options configured for Card');
 
         const options = {
           key: RAZORPAY_KEY_ID,
@@ -556,8 +638,12 @@ export default function CheckoutPage() {
           description: 'Menswear Fashion Checkout',
           order_id: rzpOrder.id,
           handler: async function (response: any) {
-            isProcessingVerification = true;
-            console.log('[STEP 3] Payment success callback fired', response);
+            console.log('[STEP 7] Razorpay handler() callback entered', response);
+            paymentStateRef.current = 'VERIFYING';
+
+            console.log('[STEP 8] Payment verification payload prepared');
+            console.log('[STEP 9] verify-payment API request initiated');
+
             try {
               const verifyRes = await fetch('/api/razorpay/verify-payment', {
                 method: 'POST',
@@ -573,26 +659,81 @@ export default function CheckoutPage() {
               });
 
               const verifyData = await verifyRes.json();
-              if (!verifyRes.ok) {
+              console.log('[STEP 10] verify-payment API response received', verifyData);
+
+              if (!verifyRes.ok || !verifyData.success) {
                 throw new Error(verifyData.error || 'Payment verification failed');
               }
-              
+
+              console.log('[STEP 11] Payment status verified as SUCCESS');
+              paymentStateRef.current = 'SUCCESS';
+
               if (typeof window !== 'undefined') {
                 sessionStorage.setItem('gr_last_payment_id', response.razorpay_payment_id);
                 sessionStorage.setItem('gr_last_amount', finalTotal.toString());
+                if (verifyData.order_number || verifyData.order_id) {
+                  sessionStorage.setItem('gr_last_order_number', verifyData.order_number || verifyData.order_id);
+                }
               }
-              
+              console.log('[STEP 12] Session storage updated with payment/order data');
+
               if (directCheckoutItem) {
                 dispatch(setDirectCheckoutItem(null));
               } else {
                 dispatch(clearSelectedItems());
               }
-              
-              dispatch(addToast({ message: `Order ${verifyData.order_number} placed successfully!`, type: 'success' }));
-              console.log('[STEP 7] Redirecting to success page');
+              console.log('[STEP 13] Cart cleared post payment success');
+
+              dispatch(addToast({ message: `Order ${verifyData.order_number || ''} placed successfully!`, type: 'success' }));
+              console.log('[STEP 14] Redirecting to order success page');
+              console.log('[STEP 20] Final payment outcome resolved as SUCCESS');
               router.push('/order-success');
             } catch (err: any) {
-              console.error('Verification error:', err);
+              console.warn('[STEP 17] Catch block entered during payment verification', err);
+
+              // [STEP 18] Fallback database order check before triggering failure
+              console.log('[STEP 18] Fallback database order check initiated');
+              try {
+                const checkRes = await fetch('/api/razorpay/verify-payment', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                    userId: user?.id,
+                    orderPayload,
+                    items: cartItems
+                  }),
+                });
+                const checkData = await checkRes.json();
+
+                if (checkRes.ok && checkData.success) {
+                  console.log('[STEP 19] Fallback database order found - redirecting to success', checkData);
+                  paymentStateRef.current = 'SUCCESS';
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('gr_last_payment_id', response.razorpay_payment_id);
+                    sessionStorage.setItem('gr_last_amount', finalTotal.toString());
+                    if (checkData.order_number || checkData.order_id) {
+                      sessionStorage.setItem('gr_last_order_number', checkData.order_number || checkData.order_id);
+                    }
+                  }
+                  if (directCheckoutItem) {
+                    dispatch(setDirectCheckoutItem(null));
+                  } else {
+                    dispatch(clearSelectedItems());
+                  }
+                  dispatch(addToast({ message: `Order ${checkData.order_number || ''} placed successfully!`, type: 'success' }));
+                  console.log('[STEP 20] Final payment outcome resolved as SUCCESS (via Fallback)');
+                  router.push('/order-success');
+                  return;
+                }
+              } catch (fallbackErr) {
+                console.error('Fallback DB check error:', fallbackErr);
+              }
+
+              paymentStateRef.current = 'FAILED';
+              console.log('[STEP 20] Final payment outcome resolved as FAILED');
               dispatch(addToast({ message: err.message || 'Payment Verification Failed.', type: 'error' }));
               router.push('/payment-failed');
             }
@@ -610,9 +751,11 @@ export default function CheckoutPage() {
           },
           modal: {
             ondismiss: function () {
-              if (!isProcessingVerification) {
+              console.log('[STEP 15] Razorpay modal.ondismiss event triggered', { state: paymentStateRef.current });
+              if (paymentStateRef.current !== 'VERIFYING' && paymentStateRef.current !== 'SUCCESS') {
                 dispatch(addToast({ message: 'Payment cancelled.', type: 'info' }));
                 setLoading(false);
+                paymentStateRef.current = 'IDLE';
               }
             }
           }
@@ -620,14 +763,15 @@ export default function CheckoutPage() {
 
         const rzp = new (window as any).Razorpay(options);
         rzp.on('payment.failed', function (response: any) {
-          if (!isProcessingVerification) {
+          console.log('[STEP 16] Razorpay payment.failed event triggered', { response, state: paymentStateRef.current });
+          if (paymentStateRef.current !== 'VERIFYING' && paymentStateRef.current !== 'SUCCESS') {
             const errorMsg = response?.error?.description || response?.error?.reason || 'Payment failed. Please try again.';
-            console.error('Payment failed details:', response);
             dispatch(addToast({ message: errorMsg, type: 'error' }));
             setLoading(false);
+            paymentStateRef.current = 'FAILED';
           }
         });
-        console.log('[STEP 2] Razorpay checkout opened');
+        console.log('[STEP 4] Razorpay checkout modal opened');
         rzp.open();
       } catch (err: any) {
         console.error('Card payment error:', err);
