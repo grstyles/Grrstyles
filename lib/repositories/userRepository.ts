@@ -177,27 +177,69 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
 
   async login(email: string, password?: string) {
     if (!isSupabaseConfigured()) {
+      console.error('[SupabaseUserRepository.login] Supabase not configured.');
       return { success: false, error: 'Supabase not configured.' };
     }
 
     const authClient = this.getAuthClient();
     if (!authClient) {
+      console.error('[SupabaseUserRepository.login] Auth client not available.');
       return { success: false, error: 'Auth client not available.' };
     }
 
     try {
+      const maskedPassword = password ? `${'*'.repeat(Math.max(0, password.length - 2))}${password.slice(-2)}` : '[empty]';
+      console.log(`[SupabaseUserRepository.login] Attempting login for email: "${email}", password masked: "${maskedPassword}"`);
+
       const { data, error } = await authClient.auth.signInWithPassword({
         email,
         password: password || '',
       });
 
+      console.log('[SupabaseUserRepository.login] Supabase response:', {
+        hasData: !!data,
+        userId: data?.user?.id,
+        userEmail: data?.user?.email,
+        hasSession: !!data?.session,
+        errorCode: (error as any)?.code,
+        errorMessage: error?.message,
+        status: (error as any)?.status,
+      });
+
       if (error || !data.user) {
-        return { success: false, error: error?.message || 'Login failed.' };
+        const rawMessage = error?.message || 'Login failed.';
+        const errCode = (error as any)?.code || '';
+
+        if (errCode === 'email_not_confirmed' || rawMessage.toLowerCase().includes('email not confirmed')) {
+          return {
+            success: false,
+            error: 'Email not confirmed. Please check your inbox and click the confirmation link before logging in.',
+          };
+        }
+
+        if (errCode === 'invalid_credentials' || rawMessage.toLowerCase().includes('invalid login credentials')) {
+          return {
+            success: false,
+            error: 'Invalid login credentials. If you created your account with Google, please use "Continue with Google".',
+          };
+        }
+
+        return { success: false, error: rawMessage };
       }
 
-      const profile = await this.getUser();
-      return { success: true, user: profile || undefined };
+      // Build profile directly from authenticated user object
+      const profile = await this.buildUserProfile(data.user, authClient);
+      const userProfile: UserProfile = profile || {
+        id: data.user.id,
+        email: data.user.email ?? email,
+        fullName: data.user.user_metadata?.full_name || email.split('@')[0] || 'User',
+        role: (data.user.user_metadata?.role as any) || 'customer',
+      };
+
+      console.log('[SupabaseUserRepository.login] Login successful, returning userProfile:', userProfile.email);
+      return { success: true, user: userProfile };
     } catch (error: any) {
+      console.error('[SupabaseUserRepository.login] Exception during login:', error);
       return { success: false, error: error.message || 'Login failed.' };
     }
   }
@@ -214,7 +256,7 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
 
     const origin = typeof window !== 'undefined'
       ? window.location.origin
-        : (process.env.NEXT_PUBLIC_SITE_URL || '');
+      : (process.env.NEXT_PUBLIC_SITE_URL || '');
     const redirectTo = `${origin}/auth/callback`;
     
     console.log('[loginWithGoogle] Redirect URL:', redirectTo);
@@ -246,15 +288,20 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
 
   async register(email: string, password?: string, fullName?: string, role: 'customer' | 'admin' = 'customer') {
     if (!isSupabaseConfigured()) {
+      console.error('[SupabaseUserRepository.register] Supabase not configured.');
       return { success: false, error: 'Supabase not configured.' };
     }
 
     const authClient = this.getAuthClient();
     if (!authClient) {
+      console.error('[SupabaseUserRepository.register] Auth client not available.');
       return { success: false, error: 'Auth client not available.' };
     }
 
     try {
+      const maskedPassword = password ? `${'*'.repeat(Math.max(0, password.length - 2))}${password.slice(-2)}` : '[empty]';
+      console.log(`[SupabaseUserRepository.register] Attempting register for email: "${email}", fullName: "${fullName}", role: "${role}", password masked: "${maskedPassword}"`);
+
       const { data, error } = await authClient.auth.signUp({
         email,
         password: password || '',
@@ -263,16 +310,55 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
         },
       });
 
+      console.log('[SupabaseUserRepository.register] Supabase response:', {
+        hasData: !!data,
+        userId: data?.user?.id,
+        userEmail: data?.user?.email,
+        identitiesCount: data?.user?.identities?.length,
+        hasSession: !!data?.session,
+        errorCode: (error as any)?.code,
+        errorMessage: error?.message,
+        status: (error as any)?.status,
+      });
+
       if (error) {
-        const isDuplicate = error.message?.toLowerCase().includes('user already registered');
+        const errCode = (error as any)?.code || '';
+        const rawMessage = error.message || '';
+
+        if (errCode === 'over_email_send_rate_limit' || rawMessage.toLowerCase().includes('rate limit')) {
+          return {
+            success: false,
+            error: 'Email rate limit exceeded. Please wait a few minutes before trying again.',
+          };
+        }
+
+        if (errCode === 'email_address_invalid' || rawMessage.toLowerCase().includes('invalid')) {
+          return {
+            success: false,
+            error: 'Please enter a valid email address.',
+          };
+        }
+
+        const isDuplicate = rawMessage.toLowerCase().includes('user already registered') || rawMessage.toLowerCase().includes('already registered');
         return {
           success: false,
-          error: isDuplicate ? 'An account with this email already exists.' : error.message,
+          error: isDuplicate ? 'An account with this email already exists.' : rawMessage,
         };
       }
 
       if (!data.user) {
-        return { success: false, error: 'No user returned.' };
+        return { success: false, error: 'No user returned from sign up.' };
+      }
+
+      // CRITICAL SUPABASE IDENTITIES CHECK:
+      // When an account with this email already exists (e.g., registered via Google OAuth or prior sign up),
+      // Supabase signUp returns error = null and user object, BUT data.user.identities is an empty array [].
+      if (data.user.identities && data.user.identities.length === 0) {
+        console.warn(`[SupabaseUserRepository.register] Existing user detected for email "${email}" (identities array is empty).`);
+        return {
+          success: false,
+          error: 'An account with this email already exists. If you previously signed in with Google or Magic Link, please use that sign-in method.',
+        };
       }
 
       return {
@@ -285,6 +371,7 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
         },
       };
     } catch (error: any) {
+      console.error('[SupabaseUserRepository.register] Exception during register:', error);
       return { success: false, error: error.message || 'Registration failed.' };
     }
   }

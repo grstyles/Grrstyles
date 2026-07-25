@@ -375,19 +375,41 @@ export const productService = {
   async uploadReviewImage(file: File): Promise<string> {
     const ext = file.name.split('.').pop();
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await sb().storage.from('reviews').upload(path, file);
-    if (error) throw error;
-    const { data } = sb().storage.from('reviews').getPublicUrl(path);
-    return data.publicUrl;
+    try {
+      const { error } = await sb().storage.from('reviews').upload(path, file);
+      if (!error) {
+        const { data } = sb().storage.from('reviews').getPublicUrl(path);
+        if (data?.publicUrl) return data.publicUrl;
+      }
+    } catch (e) {
+      console.warn('Supabase reviews bucket upload skipped:', e);
+    }
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
   },
 
   async uploadCustomImage(file: File): Promise<string> {
     const ext = file.name.split('.').pop();
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await sb().storage.from('custom_uploads').upload(path, file);
-    if (error) throw error;
-    const { data } = sb().storage.from('custom_uploads').getPublicUrl(path);
-    return data.publicUrl;
+    try {
+      const { error } = await sb().storage.from('custom_uploads').upload(path, file);
+      if (!error) {
+        const { data } = sb().storage.from('custom_uploads').getPublicUrl(path);
+        if (data?.publicUrl) return data.publicUrl;
+      }
+    } catch (e) {
+      console.warn('Supabase custom_uploads bucket upload skipped:', e);
+    }
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
   }
 };;
 

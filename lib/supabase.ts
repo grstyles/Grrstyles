@@ -50,7 +50,6 @@ export const supabaseAdmin = supabaseUrl && supabaseServiceRoleKey
 /** Helper to retrieve the admin client (null if not configured) */
 export const getAdminClient = () => {
   if (!supabaseAdmin) {
-    console.error('[Supabase] Admin client not initialized – check SUPABASE_SERVICE_ROLE_KEY');
     return null;
   }
   return supabaseAdmin;

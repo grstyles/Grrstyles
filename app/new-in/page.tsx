@@ -134,6 +134,7 @@ export default function NewInPage() {
   const wishlistItems = useSelector((state: RootState) => state.wishlist.items);
   const { scrollYProgress } = useScroll();
   const [products, setProducts] = useState<Product[]>([]);
+  const [heroImage, setHeroImage] = useState<string>('/images/image1.jpeg');
   const [loading, setLoading] = useState(true);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const targetRef = useRef<HTMLDivElement>(null);
@@ -141,6 +142,13 @@ export default function NewInPage() {
   // Parallax transforms
   const heroY = useTransform(scrollYProgress, [0, 1], [0, 200]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0]);
+
+  // Load hero image from database
+  useEffect(() => {
+    repo.navigation.getByPage('new-in').then((data) => {
+      if (data?.imageUrl) setHeroImage(data.imageUrl);
+    }).catch(err => console.error('Failed to load new-in hero image', err));
+  }, []);
 
   // Load products
   useEffect(() => {
@@ -215,7 +223,7 @@ export default function NewInPage() {
       <section className="relative h-[70vh] w-full flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <Image
-            src="/images/image1.jpeg"
+            src={heroImage}
             alt="New Arrivals Campaign"
             fill
             priority

@@ -21,10 +21,12 @@ import {
   IAnalyticsRepository,
   IBannerRepository,
   IShippingRepository,
+  INavigationRepository,
 } from './interfaces';
 export type { IUserRepository, UserProfile, UserAddress } from './userRepository';
 import { IUserRepository, SupabaseUserRepository } from './userRepository';
 import { ICategoryCarouselRepository, SupabaseCategoryCarouselRepository } from './categoryCarouselRepository';
+import { SupabaseNavigationRepository } from './navigationRepository';
 
 import {
   SupabaseProductRepository,
@@ -48,6 +50,7 @@ interface RepositorySet {
   banners: IBannerRepository;
   categoryCarousel: ICategoryCarouselRepository;
   shipping: IShippingRepository;
+  navigation: INavigationRepository;
 }
 
 // ─── Factory Function ──────────────────────────────────────────────────────────
@@ -64,6 +67,7 @@ function createRepositories(): RepositorySet {
     banners: new SupabaseBannerRepository(),
     categoryCarousel: new SupabaseCategoryCarouselRepository(),
     shipping: new SupabaseShippingRepository(),
+    navigation: new SupabaseNavigationRepository(),
   };
 }
 
@@ -106,5 +110,7 @@ export type {
   MockOrder,
   MockOrderItem,
   MockCoupon,
+  INavigationRepository,
+  NavigationHeroImage,
 } from './interfaces';
 

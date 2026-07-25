@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, ArrowRight, ShoppingBag } from "lucide-react";
+import { repo } from "@/lib/repositories";
 
 const slides = [
   {
@@ -63,20 +64,33 @@ const slides = [
 ];
 
 export default function MensHeroCarousel() {
+  const [carouselSlides, setCarouselSlides] = useState(slides);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
   const slidesRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    repo.navigation.getByPage('mens').then((data) => {
+      if (data?.imageUrl) {
+        setCarouselSlides((prev) => {
+          const next = [...prev];
+          next[0] = { ...next[0], image: data.imageUrl };
+          return next;
+        });
+      }
+    }).catch(err => console.error('Failed to load mens hero image', err));
+  }, []);
+
   // Auto-slide with pause on hover
   useEffect(() => {
     if (isPaused) return;
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
+      setCurrentSlide((prev) => (prev === carouselSlides.length - 1 ? 0 : prev + 1));
     }, 6000);
     return () => clearInterval(timer);
-  }, [isPaused]);
+  }, [isPaused, carouselSlides.length]);
 
   // GSAP Animations on slide change
   useEffect(() => {
@@ -144,11 +158,11 @@ export default function MensHeroCarousel() {
   };
 
   const nextSlide = () => {
-    setCurrentSlide((prev) => (prev === slides.length - 1 ? 0 : prev + 1));
+    setCurrentSlide((prev) => (prev === carouselSlides.length - 1 ? 0 : prev + 1));
   };
 
   const prevSlide = () => {
-    setCurrentSlide((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
+    setCurrentSlide((prev) => (prev === 0 ? carouselSlides.length - 1 : prev - 1));
   };
 
   return (
@@ -159,7 +173,7 @@ export default function MensHeroCarousel() {
     >
       {/* Background Images */}
       <div className="absolute inset-0" ref={slidesRef}>
-        {slides.map((slide, index) => (
+        {carouselSlides.map((slide, index) => (
           <div
             key={index}
             className={`absolute inset-0 transition-opacity duration-1000 ${
@@ -185,41 +199,41 @@ export default function MensHeroCarousel() {
             <div className="badge-anim inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-2 rounded-full mb-6">
               <span className="w-2 h-2 bg-[#D4AF37] rounded-full animate-pulse" />
               <span className="text-xs font-medium tracking-[0.2em] uppercase text-[#D4AF37]">
-                {slides[currentSlide].badge}
+                {carouselSlides[currentSlide].badge}
               </span>
             </div>
 
             {/* Title */}
             <h1 className="anim-text text-5xl sm:text-6xl lg:text-7xl font-light leading-[1.1] mb-3">
-              {slides[currentSlide].title}
+              {carouselSlides[currentSlide].title}
             </h1>
 
             {/* Subtitle */}
             <h2 className="anim-text text-2xl sm:text-3xl lg:text-4xl font-bold text-[#D4AF37] mb-4">
-              {slides[currentSlide].subtitle}
+              {carouselSlides[currentSlide].subtitle}
             </h2>
 
             {/* Description */}
             <p className="anim-text text-base sm:text-lg text-white/80 leading-relaxed max-w-lg mb-8">
-              {slides[currentSlide].description}
+              {carouselSlides[currentSlide].description}
             </p>
 
             {/* CTA Buttons */}
             <div className="anim-text flex flex-wrap gap-4">
               <Link
-                href={slides[currentSlide].ctaLink}
+                href={carouselSlides[currentSlide].ctaLink}
                 className="btn-hover group bg-[#D4AF37] hover:bg-[#c4a030] text-black px-8 py-4 rounded-full font-semibold tracking-wide transition-all duration-300 inline-flex items-center gap-2 shadow-lg"
               >
                 <ShoppingBag size={18} />
-                {slides[currentSlide].ctaText}
+                {carouselSlides[currentSlide].ctaText}
                 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </Link>
 
               <Link
-                href={slides[currentSlide].secondaryCtaLink}
+                href={carouselSlides[currentSlide].secondaryCtaLink}
                 className="btn-hover group bg-white/10 backdrop-blur-sm hover:bg-white/20 border border-white/30 text-white px-8 py-4 rounded-full font-semibold tracking-wide transition-all duration-300 inline-flex items-center gap-2"
               >
-                {slides[currentSlide].secondaryCta}
+                {carouselSlides[currentSlide].secondaryCta}
                 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
@@ -231,7 +245,7 @@ export default function MensHeroCarousel() {
               </span>
               <div className="w-12 h-[1px] bg-white/30" />
               <span className="text-sm font-light text-white/40">
-                {String(slides.length).padStart(2, '0')}
+                {String(carouselSlides.length).padStart(2, '0')}
               </span>
             </div>
           </div>
@@ -257,7 +271,7 @@ export default function MensHeroCarousel() {
 
       {/* Progress Indicators */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-20">
-        {slides.map((_, index) => (
+        {carouselSlides.map((_, index) => (
           <button
             key={index}
             className={`transition-all duration-500 rounded-full ${

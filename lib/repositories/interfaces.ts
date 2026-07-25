@@ -188,13 +188,13 @@ export interface ICouponRepository {
 
 export interface IStorageRepository {
   /** Upload an image file, returns public URL */
-  uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections'): Promise<string | null>;
+  uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images'): Promise<string | null>;
 
   /** Delete an image by URL or path */
-  deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections'): Promise<boolean>;
+  deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images'): Promise<boolean>;
 
   /** Get public URL for a stored asset */
-  getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections'): string;
+  getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images'): string;
 }
 
 export interface ShippingSettings {
@@ -301,3 +301,21 @@ export interface IBannerRepository {
   delete(id: string): Promise<boolean>;
   getActive(): Promise<Banner[]>;
 }
+
+// ─── Navigation Hero Repository ────────────────────────────────────────────────
+
+export interface NavigationHeroImage {
+  id?: string;
+  pageKey: string;
+  pageName: string;
+  imageUrl: string;
+  updatedAt?: string;
+}
+
+export interface INavigationRepository {
+  getAll(): Promise<NavigationHeroImage[]>;
+  getByPage(pageKey: string): Promise<NavigationHeroImage | null>;
+  updateHeroImage(pageKey: string, imageUrl: string): Promise<NavigationHeroImage | null>;
+  deleteHeroImage(pageKey: string): Promise<boolean>;
+}
+

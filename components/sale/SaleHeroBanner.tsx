@@ -1,10 +1,20 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { repo } from '@/lib/repositories';
 import styles from './SaleHeroBanner.module.css';
 
 export default function SaleHeroBanner() {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [heroImage, setHeroImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    repo.navigation.getByPage('sale').then((data) => {
+      if (data?.imageUrl) {
+        setHeroImage(data.imageUrl);
+      }
+    }).catch(err => console.error('Failed to load sale hero image', err));
+  }, []);
 
   useEffect(() => {
     // 48 hours from now
@@ -32,7 +42,10 @@ export default function SaleHeroBanner() {
 
   return (
     <section className={styles.heroSection}>
-      <div className={styles.background}>
+      <div
+        className={styles.background}
+        style={heroImage ? { backgroundImage: `url(${heroImage})` } : undefined}
+      >
         <div className={styles.overlay}></div>
       </div>
 

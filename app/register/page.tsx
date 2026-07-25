@@ -35,7 +35,7 @@ export default function RegisterPage() {
       const role = email.toLowerCase().includes('admin') ? 'admin' : 'customer';
       const res = await authService.register(email, password, fullName, role);
       if (res.success) {
-        dispatch(addToast({ message: 'Account created successfully! Please log in.', type: 'success' }));
+        dispatch(addToast({ message: 'Account created successfully! Please check your email to confirm your account before logging in.', type: 'success' }));
         router.push('/login');
       } else {
         // Map Supabase's raw error strings to friendly messages
