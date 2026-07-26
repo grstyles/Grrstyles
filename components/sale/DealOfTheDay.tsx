@@ -13,33 +13,36 @@ interface DealOfTheDayProps {
 
 // Countdown timer hook (resets daily)
 function useCountdown() {
-  const getNextMidnight = () => {
-    const midnight = new Date();
-    midnight.setHours(24, 0, 0, 0);
-    return midnight;
-  };
-
-  const calculateTimeLeft = () => {
-    const diff = getNextMidnight().getTime() - new Date().getTime();
-    return {
-      hours: Math.max(Math.floor((diff / (1000 * 60 * 60)) % 24), 0),
-      minutes: Math.max(Math.floor((diff / (1000 * 60)) % 60), 0),
-      seconds: Math.max(Math.floor((diff / 1000) % 60), 0),
-    };
-  };
-
-  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft);
+  const [isMounted, setIsMounted] = useState(false);
+  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
   useEffect(() => {
+    setIsMounted(true);
+    const getNextMidnight = () => {
+      const midnight = new Date();
+      midnight.setHours(24, 0, 0, 0);
+      return midnight;
+    };
+
+    const calculateTimeLeft = () => {
+      const diff = getNextMidnight().getTime() - new Date().getTime();
+      return {
+        hours: Math.max(Math.floor((diff / (1000 * 60 * 60)) % 24), 0),
+        minutes: Math.max(Math.floor((diff / (1000 * 60)) % 60), 0),
+        seconds: Math.max(Math.floor((diff / 1000) % 60), 0),
+      };
+    };
+
+    setTimeLeft(calculateTimeLeft());
     const interval = setInterval(() => setTimeLeft(calculateTimeLeft()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  return timeLeft;
+  return { ...timeLeft, isMounted };
 }
 
 export default function DealOfTheDay({ categoryProducts, activeCategoryName }: DealOfTheDayProps) {
-  const { hours, minutes, seconds } = useCountdown();
+  const { hours, minutes, seconds, isMounted } = useCountdown();
   const [activeIndex, setActiveIndex] = useState(0);
 
   // Sort products within the category to put the highest discount first
@@ -172,8 +175,8 @@ export default function DealOfTheDay({ categoryProducts, activeCategoryName }: D
           <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-xl shadow-lg border border-gray-100 flex items-center gap-2">
             <Clock size={14} className="text-red-500 animate-spin" style={{ animationDuration: '3s' }} />
             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mr-1">Offer Ends:</span>
-            <span className="text-xs font-bold font-mono text-gray-800">
-              {hours.toString().padStart(2, '0')}:{minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
+            <span className="text-xs font-bold font-mono text-gray-800" suppressHydrationWarning>
+              {isMounted ? `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}` : '00:00:00'}
             </span>
           </div>
 

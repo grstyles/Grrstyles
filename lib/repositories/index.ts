@@ -1,5 +1,5 @@
 /**
- * GR STYLES â€“ Repository Factory
+ * GR STYLES – Repository Factory
  * ================================
  * Single entry point for all data access.
  * 
@@ -110,7 +110,8 @@ export type {
   MockOrder,
   MockOrderItem,
   MockCoupon,
+  Banner,
+  IBannerRepository,
   INavigationRepository,
   NavigationHeroImage,
 } from './interfaces';
-

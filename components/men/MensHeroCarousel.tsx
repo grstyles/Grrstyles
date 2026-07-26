@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { gsap } from "gsap";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, ArrowRight, ShoppingBag } from "lucide-react";
@@ -71,17 +71,56 @@ export default function MensHeroCarousel() {
   const slidesRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    repo.navigation.getByPage('mens').then((data) => {
-      if (data?.imageUrl) {
+  const loadMensBanners = useCallback(async () => {
+    try {
+      const banners = await repo.banners.getActive();
+      const menBanners = banners.filter(
+        (b) =>
+          b.target_page === 'men' ||
+          b.target_page === '/men' ||
+          b.target_page === 'mens' ||
+          b.target_page === '/mens'
+      );
+      if (menBanners.length > 0) {
         setCarouselSlides((prev) => {
           const next = [...prev];
-          next[0] = { ...next[0], image: data.imageUrl };
+          menBanners.forEach((mb, idx) => {
+            if (next[idx]) {
+              next[idx] = {
+                ...next[idx],
+                image: mb.image_url || next[idx].image,
+                title: mb.title || next[idx].title,
+                subtitle: mb.subtitle || next[idx].subtitle,
+              };
+            }
+          });
+          return next;
+        });
+        return;
+      }
+      const navData = await repo.navigation?.getByPage('mens');
+      if (navData?.imageUrl) {
+        setCarouselSlides((prev) => {
+          const next = [...prev];
+          next[0] = { ...next[0], image: navData.imageUrl };
           return next;
         });
       }
-    }).catch(err => console.error('Failed to load mens hero image', err));
+    } catch (err) {
+      console.error('Failed to load mens hero image', err);
+    }
   }, []);
+
+  useEffect(() => {
+    loadMensBanners();
+    const handleUpdate = () => loadMensBanners();
+    window.addEventListener('gr_banner_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('gr_banner_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [loadMensBanners]);
 
   // Auto-slide with pause on hover
   useEffect(() => {

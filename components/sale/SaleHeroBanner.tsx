@@ -7,13 +7,44 @@ import styles from './SaleHeroBanner.module.css';
 export default function SaleHeroBanner() {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [heroImage, setHeroImage] = useState<string | null>(null);
+  const [bannerTitle, setBannerTitle] = useState('SEASON SALE');
+  const [bannerSubtitle, setBannerSubtitle] = useState('Save up to 70% on premium menswear collections.');
+
+  const loadSaleBanner = async () => {
+    try {
+      const banners = await repo.banners.getActive();
+      const saleBanner = banners.find(
+        (b) =>
+          b.target_page === 'sale' ||
+          b.target_page === '/sale' ||
+          b.target_page === 'clearance' ||
+          b.target_page === '/clearance'
+      );
+      if (saleBanner && saleBanner.image_url) {
+        setHeroImage(saleBanner.image_url);
+        if (saleBanner.title) setBannerTitle(saleBanner.title);
+        if (saleBanner.subtitle) setBannerSubtitle(saleBanner.subtitle);
+        return;
+      }
+
+      const navData = await repo.navigation?.getByPage('sale');
+      if (navData?.imageUrl) {
+        setHeroImage(navData.imageUrl);
+      }
+    } catch (err) {
+      console.error('Failed to load sale hero image', err);
+    }
+  };
 
   useEffect(() => {
-    repo.navigation.getByPage('sale').then((data) => {
-      if (data?.imageUrl) {
-        setHeroImage(data.imageUrl);
-      }
-    }).catch(err => console.error('Failed to load sale hero image', err));
+    loadSaleBanner();
+    const handleUpdate = () => loadSaleBanner();
+    window.addEventListener('gr_banner_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('gr_banner_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, []);
 
   useEffect(() => {
@@ -51,9 +82,9 @@ export default function SaleHeroBanner() {
 
       <div className={styles.content}>
         <span className={styles.label}>LIMITED TIME OFFER</span>
-        <h1 className={styles.title}>SEASON SALE</h1>
+        <h1 className={styles.title}>{bannerTitle}</h1>
         <p className={styles.subtitle}>
-          Save up to 70% on premium menswear collections.
+          {bannerSubtitle}
         </p>
 
         {/* Countdown Timer */}

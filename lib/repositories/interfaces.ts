@@ -188,13 +188,13 @@ export interface ICouponRepository {
 
 export interface IStorageRepository {
   /** Upload an image file, returns public URL */
-  uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images'): Promise<string | null>;
+  uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections'): Promise<string | null>;
 
   /** Delete an image by URL or path */
-  deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images'): Promise<boolean>;
+  deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections'): Promise<boolean>;
 
   /** Get public URL for a stored asset */
-  getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images'): string;
+  getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections'): string;
 }
 
 export interface ShippingSettings {
@@ -318,4 +318,3 @@ export interface INavigationRepository {
   updateHeroImage(pageKey: string, imageUrl: string): Promise<NavigationHeroImage | null>;
   deleteHeroImage(pageKey: string): Promise<boolean>;
 }
-

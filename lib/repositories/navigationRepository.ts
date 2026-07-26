@@ -1,6 +1,6 @@
 /**
  * Navigation Repository Implementation
- * Handles reading and updating Navigation Hero Images in Supabase.
+ * Handles reading and updating Navigation Hero Images in Supabase & Local Fallback.
  */
 
 import { getClient } from '@/lib/supabase';
@@ -51,7 +51,6 @@ export class SupabaseNavigationRepository implements INavigationRepository {
         .select('*');
 
       if (error || !data || data.length === 0) {
-        console.warn('Navigation table fetch notice, using default mappings:', error?.message);
         return DEFAULT_PAGES.map((def) => localStore[def.pageKey] || def);
       }
 
@@ -66,10 +65,8 @@ export class SupabaseNavigationRepository implements INavigationRepository {
         };
       });
 
-      // Ensure all 4 required pages are present
       return DEFAULT_PAGES.map((def) => map[def.pageKey] || localStore[def.pageKey] || def);
     } catch (err) {
-      console.error('Error fetching navigation hero images:', err);
       return Object.values(localStore);
     }
   }
@@ -101,7 +98,6 @@ export class SupabaseNavigationRepository implements INavigationRepository {
         updatedAt: data.updated_at,
       };
     } catch (err) {
-      console.error(`Error fetching navigation hero image for ${pageKey}:`, err);
       return localStore[pageKey] || defaultItem;
     }
   }
@@ -138,7 +134,6 @@ export class SupabaseNavigationRepository implements INavigationRepository {
         .single();
 
       if (error) {
-        console.warn(`Supabase upsert warning for page ${pageKey}, stored in local fallback:`, error.message);
         return localStore[pageKey];
       }
 
@@ -150,7 +145,6 @@ export class SupabaseNavigationRepository implements INavigationRepository {
         updatedAt: data.updated_at,
       };
     } catch (err) {
-      console.error(`Error updating navigation hero image for ${pageKey}:`, err);
       return localStore[pageKey];
     }
   }
@@ -170,7 +164,7 @@ export class SupabaseNavigationRepository implements INavigationRepository {
     if (!client) return true;
 
     try {
-      const { error } = await client
+      await client
         .from('navigation_hero_images')
         .upsert(
           {
@@ -181,13 +175,8 @@ export class SupabaseNavigationRepository implements INavigationRepository {
           },
           { onConflict: 'page_key' }
         );
-
-      if (error) {
-        console.warn(`Supabase delete warning for page ${pageKey}:`, error.message);
-      }
       return true;
     } catch (err) {
-      console.error(`Error resetting hero image for page ${pageKey}:`, err);
       return true;
     }
   }

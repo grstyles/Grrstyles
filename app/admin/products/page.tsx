@@ -744,7 +744,7 @@ export default function AdminProductsPage() {
                   />
                   <ToggleBtn
                     active={isDealOfDay} onClick={() => setIsDealOfDay(!isDealOfDay)}
-                    icon={Zap} label="Deal of Day" activeColor="bg-amber-50 text-amber-600"
+                    icon={Zap} label="Combo Offers" activeColor="bg-amber-50 text-amber-600"
                   />
                 </div>
               </div>

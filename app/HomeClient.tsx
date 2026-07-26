@@ -28,10 +28,8 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTIONS);
 
   useEffect(() => {
-    if (config.demoMode) {
-      repo.products.getAll().then(setProducts);
-      repo.banners.getActive().then(setBanners);
-    }
+    repo.products.getAll().then(setProducts);
+    repo.banners.getActive().then(setBanners);
     repo.categoryCarousel.getActive().then(setCarouselCategories);
     
     // Simulate fetching dynamic marketing config for homepage order

@@ -1,5 +1,5 @@
 /**
- * GR STYLES – Supabase Provider (Cache Refresh: 2026-07-25-v2)
+ * GR STYLES – Supabase Provider
  * ================================
  * Implements all repository interfaces using Supabase.
  * Activated automatically when NEXT_PUBLIC_SUPABASE_URL is set in .env.local
@@ -798,45 +798,26 @@ export class SupabaseStorageRepository implements IStorageRepository {
   async uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images'): Promise<string | null> {
     const MAX_SIZE = 5 * 1024 * 1024; // 5MB
     if (file.size > MAX_SIZE) {
-      console.warn('File size exceeds 5MB limit');
+      console.error('File size exceeds 5MB limit');
       return null;
     }
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
-      console.warn('Invalid file type:', file.type);
+      console.error('Invalid file type:', file.type);
       return null;
     }
 
     const ext = file.name.split('.').pop()?.toLowerCase();
     const allowedExts = ['jpg', 'jpeg', 'png', 'webp'];
     if (!ext || !allowedExts.includes(ext)) {
-      console.warn('Invalid file extension:', ext);
+      console.error('Invalid file extension:', ext);
       return null;
     }
 
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-    // Suppress Next.js Turbopack console error overlay triggered by internal Supabase Storage SDK logs
-    const originalConsoleError = console.error;
-    const quietConsoleError = (...args: any[]) => {
-      const fullText = args.map(a => (typeof a === 'object' && a !== null ? (a.message || JSON.stringify(a)) : String(a))).join(' ');
-      if (
-        fullText.includes('Bucket not found') ||
-        fullText.includes('StorageApiError') ||
-        fullText.includes('Admin client') ||
-        fullText.includes('SUPABASE_SERVICE_ROLE_KEY') ||
-        fullText.includes('[Supabase]')
-      ) {
-        return; // Suppress SDK internal noise
-      }
-      originalConsoleError.apply(console, args);
-    };
-
     try {
-      console.error = quietConsoleError;
-
-      // 1. Attempt upload to target bucket
       const client = sb();
       if (client) {
         const { data, error } = await client.storage.from(bucket).upload(path, file);
@@ -846,29 +827,11 @@ export class SupabaseStorageRepository implements IStorageRepository {
             return pubData.publicUrl;
           }
         }
-
-        // 2. Attempt upload to alternative fallback public buckets
-        const fallbacks = ['category-images', 'banners', 'product-images', 'collections'];
-        for (const fb of fallbacks) {
-          if (fb === bucket) continue;
-          try {
-            const { data: fbData, error: fbErr } = await client.storage.from(fb).upload(path, file);
-            if (!fbErr && fbData) {
-              const { data: pubData } = client.storage.from(fb).getPublicUrl(path);
-              if (pubData?.publicUrl) return pubData.publicUrl;
-            }
-          } catch (fbException) {
-            // continue
-          }
-        }
       }
-    } catch (err) {
-      // ignore storage api errors
-    } finally {
-      console.error = originalConsoleError;
+    } catch (e) {
+      // Fallthrough to Data URL fallback
     }
 
-    // 3. Guaranteed Data URL fallback (works immediately without requiring Supabase Storage bucket setup)
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
@@ -879,23 +842,13 @@ export class SupabaseStorageRepository implements IStorageRepository {
 
   async deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images'): Promise<boolean> {
     if (!url || url.startsWith('data:') || url.startsWith('/images/')) return true;
-    
-    const originalConsoleError = console.error;
     try {
-      console.error = (...args: any[]) => {
-        const msg = String(args[0] || '');
-        if (msg.includes('Bucket not found') || msg.includes('StorageApiError')) return;
-        originalConsoleError.apply(console, args);
-      };
-
       const path = url.split(`/${bucket}/`)[1] || url.split('/storage/v1/object/public/')[1];
       if (!path) return false;
       const { error } = await sb().storage.from(bucket).remove([path]);
       return !error;
     } catch (e) {
       return true;
-    } finally {
-      console.error = originalConsoleError;
     }
   }
 
@@ -904,21 +857,11 @@ export class SupabaseStorageRepository implements IStorageRepository {
     if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('/')) {
       return path;
     }
-
-    const originalConsoleError = console.error;
     try {
-      console.error = (...args: any[]) => {
-        const msg = String(args[0] || '');
-        if (msg.includes('Bucket not found') || msg.includes('StorageApiError')) return;
-        originalConsoleError.apply(console, args);
-      };
-
       const { data } = sb().storage.from(bucket).getPublicUrl(path);
       return data?.publicUrl || path;
     } catch (e) {
       return path;
-    } finally {
-      console.error = originalConsoleError;
     }
   }
 }

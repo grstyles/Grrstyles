@@ -131,23 +131,42 @@ const staggerContainer = {
 // =============================================
 export default function NewInPage() {
   const dispatch = useDispatch();
-  const wishlistItems = useSelector((state: RootState) => state.wishlist.items);
-  const { scrollYProgress } = useScroll();
-  const [products, setProducts] = useState<Product[]>([]);
   const [heroImage, setHeroImage] = useState<string>('/images/image1.jpeg');
+  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const targetRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll();
 
-  // Parallax transforms
-  const heroY = useTransform(scrollYProgress, [0, 1], [0, 200]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0]);
+  // Load hero image from database (banners repository or navigation fallback)
+  const loadHeroBanner = async () => {
+    try {
+      const banners = await repo.banners.getActive();
+      const banner = banners.find(
+        (b) => b.target_page === 'new-in' || b.target_page === '/new-in'
+      );
+      if (banner && banner.image_url) {
+        setHeroImage(banner.image_url);
+        return;
+      }
+      const navData = await repo.navigation?.getByPage('new-in');
+      if (navData?.imageUrl) {
+        setHeroImage(navData.imageUrl);
+      }
+    } catch (err) {
+      console.error('Failed to load new-in hero image', err);
+    }
+  };
 
-  // Load hero image from database
   useEffect(() => {
-    repo.navigation.getByPage('new-in').then((data) => {
-      if (data?.imageUrl) setHeroImage(data.imageUrl);
-    }).catch(err => console.error('Failed to load new-in hero image', err));
+    loadHeroBanner();
+    const handleUpdate = () => loadHeroBanner();
+    window.addEventListener('gr_banner_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('gr_banner_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, []);
 
   // Load products
@@ -227,6 +246,7 @@ export default function NewInPage() {
             alt="New Arrivals Campaign"
             fill
             priority
+            unoptimized
             className="object-cover object-center scale-105 animate-[subtleZoom_20s_ease-out_infinite]"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-[#111111]/60 via-[#111111]/45 to-[#111111]/75" />
