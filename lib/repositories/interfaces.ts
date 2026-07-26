@@ -57,6 +57,7 @@ export interface MockOrder {
 }
 
 export interface MockCoupon {
+  id?: string;
   code: string;
   discountType: 'percentage' | 'flat';
   discountValue: number;
@@ -112,6 +113,7 @@ export interface InventoryEntry {
   name: string;
   slug: string;
   category: string;
+  sizes?: string[];
   sizeStock: { size: string; stock: number }[];
 }
 

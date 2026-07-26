@@ -34,6 +34,20 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
     }));
   }
 
+  let sizes: string[] = [];
+  if (Array.isArray(db.sizes)) {
+    sizes = db.sizes;
+  } else if (typeof db.sizes === 'string') {
+    try { sizes = JSON.parse(db.sizes); } catch(e) { sizes = []; }
+  }
+
+  if (sizes.length === 0) {
+    const shirtKeys = Object.keys(db.shirt_stock || {});
+    const pantKeys = Object.keys(db.pant_stock || {});
+    const shoeKeys = Object.keys(db.shoe_stock || {});
+    sizes = Array.from(new Set([...shirtKeys, ...pantKeys, ...shoeKeys]));
+  }
+
   const mappedProduct: Product = {
     id: db.product_id || db.id,
     productId: db.product_id || db.id,
@@ -54,6 +68,7 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
     discountPercent: discount,
     label: db.label || '',
     description: db.description,
+    sizes,
     shirtStock: db.shirt_stock ?? {},
     pantStock: db.pant_stock ?? {},
     shoeStock: db.shoe_stock ?? {},
@@ -63,12 +78,12 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
     reviews: Number(db.reviews_count || 0),
     isNew: !!db.new_arrival,
     bestSeller: !!db.trending,
-    inStock: (db.overall_stock > 0) || 
+    inStock: sizes.length > 0 || (db.overall_stock > 0) || 
              (db.shirt_stock && Object.keys(db.shirt_stock).length > 0) || 
              (db.pant_stock && Object.keys(db.pant_stock).length > 0) || 
              (db.shoe_stock && Object.keys(db.shoe_stock).length > 0) || 
              false,
-    stockCount: db.overall_stock || 0,
+    stockCount: sizes.length || db.overall_stock || 0,
     metadata: {
       dealOfDay: !!(db.deal_of_day || db.deal_of_the_day),
       featured: !!db.featured,
@@ -110,52 +125,11 @@ export const productService = {
   },
 
   async getProductsByCollection(collectionSlug: string): Promise<Product[]> {
-    const slug = collectionSlug.toLowerCase().trim();
-    let query = sb().from('products').select('*');
-
-    const colMap: Record<string, string> = {
-      'korean-collection': 'Korean Collection',
-      'festival-collection': 'Festival Collection',
-      'festival-wear': 'Festival Collection',
-      'formal-collection': 'Formal Collection',
-      'formal-wear': 'Formal Collection',
-      'weekend-collection': 'Weekend Collection',
-      'weekend-offers': 'Weekend Collection',
-      'denim-collection': 'Denim Collection',
-      'streetwear-collection': 'Streetwear Collection',
-      'premium-essentials': 'Premium Essentials',
-      'office-wear-collection': 'Office Wear Collection'
-    };
-
-    const dbCol = colMap[slug];
-    if (dbCol) {
-      query = query.eq('collection', dbCol);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      // Fallback to text query filtering on DB products
-      const { data: allProds, error: allErr } = await sb().from('products').select('*');
-      if (allErr) throw allErr;
-      if (allProds) {
-        return allProds.map((p: any) => mapDbProduct(p)).filter((p: any) => {
-          if (slug === 'korean-collection') return p.name.toLowerCase().includes('korean') || p.description.toLowerCase().includes('korean');
-          if (slug === 'festival-collection' || slug === 'festival-wear') return p.label === 'HOT' || p.discountPercent > 20 || p.label === 'NEW';
-          if (slug === 'formal-collection' || slug === 'formal-wear') return p.name.toLowerCase().includes('formal') || p.description.toLowerCase().includes('formal') || p.name.toLowerCase().includes('office');
-          if (slug === 'weekend-collection') return p.name.toLowerCase().includes('weekend') || p.name.toLowerCase().includes('casual');
-          if (slug === 'denim-collection') return p.category === 'Jeans' || p.name.toLowerCase().includes('denim');
-          if (slug === 'streetwear-collection') return p.name.toLowerCase().includes('streetwear') || p.name.toLowerCase().includes('oversized') || p.category === 'Hoodies';
-          if (slug === 'premium-essentials') return p.name.toLowerCase().includes('premium') || p.name.toLowerCase().includes('basic');
-          if (slug === 'office-wear-collection') return p.name.toLowerCase().includes('office') || p.name.toLowerCase().includes('formal');
-          return true;
-        });
-      }
-      return [];
-    }
-
-    return data.map((p: any) => mapDbProduct(p));
+    const normalizedSlug = normalizeSlug(collectionSlug);
+    const productsRes = await sb().from('products').select('*').order('created_at', { ascending: false });
+    if (productsRes.error || !productsRes.data) throw productsRes.error || new Error('No data');
+    const mapped = productsRes.data.map((p: any) => mapDbProduct(p));
+    return mapped.filter((p: any) => matchCategory(p, normalizedSlug));
   },
 
   async getProductsByBrand(brandSlug: string): Promise<Product[]> {

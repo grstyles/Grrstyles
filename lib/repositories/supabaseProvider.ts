@@ -14,7 +14,7 @@ import { Product } from '@/lib/data/products';
 import { getClient, getAdminClient } from '@/lib/supabase';
 const sb = () => getClient()!;
 import { mapDbProduct } from '@/services/productService';
-import { normalizeCategory, normalizeSlug, normalizeCollection } from '../utils/categoryImageMap';
+import { normalizeCategory, normalizeSlug, normalizeCollection, matchCategory } from '../utils/categoryImageMap';
 import {
   IProductRepository,
   IOrderRepository,
@@ -75,15 +75,15 @@ export class SupabaseProductRepository implements IProductRepository {
   }
 
   async getByCategory(category: string): Promise<Product[]> {
-    const productsRes = await sb().from('products').select('*').ilike('category', category).order('created_at', { ascending: false });
-    if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map((p: any) => mapDbProduct(p));
+    const products = await this.getAll();
+    const targetSlug = normalizeSlug(category);
+    return products.filter((p) => matchCategory(p, targetSlug));
   }
 
   async getByCollection(collection: string): Promise<Product[]> {
-    const productsRes = await sb().from('products').select('*').ilike('collection', collection).order('created_at', { ascending: false });
-    if (productsRes.error) throw productsRes.error;
-    return (productsRes.data || []).map((p: any) => mapDbProduct(p));
+    const products = await this.getAll();
+    const targetSlug = normalizeSlug(collection);
+    return products.filter((p) => matchCategory(p, targetSlug));
   }
 
   private async generateUniqueSlug(baseName: string, currentId?: string): Promise<string> {
@@ -128,6 +128,7 @@ export class SupabaseProductRepository implements IProductRepository {
       images: product.images,
       color: product.color || '',
       image_colors: (product as any).imageColors || null,
+      sizes: product.sizes || [],
       shirt_stock: product.shirtStock || {},
       pant_stock: product.pantStock || {},
       shoe_stock: product.shoeStock || {},
@@ -184,6 +185,7 @@ export class SupabaseProductRepository implements IProductRepository {
     if (updates.collection !== undefined) mapped.collection = updates.collection ? normalizeCollection(updates.collection) : '';
     if (updates.sellingPrice) mapped.selling_price = updates.sellingPrice;
     if (updates.mrpPrice) mapped.mrp = updates.mrpPrice;
+    if (updates.sizes !== undefined) mapped.sizes = updates.sizes;
     if (updates.shirtStock !== undefined) mapped.shirt_stock = updates.shirtStock;
     if (updates.pantStock !== undefined) mapped.pant_stock = updates.pantStock;
     if (updates.shoeStock !== undefined) mapped.shoe_stock = updates.shoeStock;
@@ -253,10 +255,17 @@ export class SupabaseProductRepository implements IProductRepository {
   async getInventory(): Promise<InventoryEntry[]> {
     const { data, error } = await sb()
       .from('products')
-      .select('id, name, slug, category, shirt_stock, pant_stock, shoe_stock, overall_stock')
+      .select('id, name, slug, category, sizes, shirt_stock, pant_stock, shoe_stock, overall_stock')
       .order('category');
     if (error) throw error;
     return (data || []).map((d: any) => {
+      let sizes: string[] = [];
+      if (Array.isArray(d.sizes)) {
+        sizes = d.sizes;
+      } else if (typeof d.sizes === 'string') {
+        try { sizes = JSON.parse(d.sizes); } catch(e) { sizes = []; }
+      }
+
       const categoryLower = (d.category || '').toLowerCase();
       let rawStock: Record<string, number> = {};
       if (categoryLower.includes('shoe')) {
@@ -268,7 +277,9 @@ export class SupabaseProductRepository implements IProductRepository {
       }
 
       let sizeStock: { size: string; stock: number }[] = [];
-      if (Object.keys(rawStock).length > 0) {
+      if (sizes.length > 0) {
+        sizeStock = sizes.map((s) => ({ size: s, stock: 10 }));
+      } else if (Object.keys(rawStock).length > 0) {
         sizeStock = Object.entries(rawStock).map(([size, stock]) => ({
           size,
           stock: Number(stock) || 0,
@@ -282,6 +293,7 @@ export class SupabaseProductRepository implements IProductRepository {
         name: d.name,
         slug: d.slug,
         category: d.category,
+        sizes,
         sizeStock,
       };
     });

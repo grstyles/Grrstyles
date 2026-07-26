@@ -9,7 +9,7 @@ import { addToWishlist, removeFromWishlist } from '@/lib/redux/slices/wishlistSl
 import { addToCart } from '@/lib/redux/slices/cartSlice';
 import { addToast, openQuickView } from '@/lib/redux/slices/uiSlice';
 import { RootState } from '@/lib/redux/store';
-import { Product } from '@/lib/data/products';
+import { Product, getProductSizes } from '@/lib/data/products';
 
 export interface ProductCardProps {
   product: Product;
@@ -46,12 +46,8 @@ export default function ProductCard({ product }: ProductCardProps) {
     e.preventDefault();
     e.stopPropagation();
 
-    // Check if size is required based on new stock objects
-    const hasShirtStock = Object.keys(product.shirtStock || {}).length > 0;
-    const hasPantStock = Object.keys(product.pantStock || {}).length > 0;
-    const hasShoeStock = Object.keys(product.shoeStock || {}).length > 0;
-    
-    const needsSize = hasShirtStock || hasPantStock || hasShoeStock;
+    const availableSizes = getProductSizes(product);
+    const needsSize = availableSizes.length > 0;
 
     if (needsSize) {
       dispatch(addToast({ message: 'Please select a size first', type: 'info' }));

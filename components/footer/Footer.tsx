@@ -16,6 +16,7 @@ import {
   Sparkles,
   X,
   Award,
+  CreditCard
 } from "lucide-react";
 
 // WhatsApp Popup Component
@@ -158,12 +159,12 @@ export default function Footer() {
   <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl py-10">
     <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
       <div className="flex flex-col items-center text-center group">
-        <Truck className="w-8 h-8 text-[#8b7b6b] mb-3 group-hover:scale-110 transition-transform duration-300" />
-        <h3 className="font-semibold text-sm mb-1 text-[#1a1a1a]">
-          FREE SHIPPING
-        </h3>
-        <p className="text-xs text-[#6b5b4b]">On orders over ₹999</p>
-      </div>
+  <CreditCard className="w-8 h-8 text-[#8b7b6b] mb-3 group-hover:scale-110 transition-transform duration-300" />
+  <h3 className="font-semibold text-sm mb-1 text-[#1a1a1a]">
+    SECURE PAYMENTS
+  </h3>
+  <p className="text-xs text-[#6b5b4b]">100% safe & encrypted checkout</p>
+</div>
       <div className="flex flex-col items-center text-center group">
         <Shield className="w-8 h-8 text-[#8b7b6b] mb-3 group-hover:scale-110 transition-transform duration-300" />
         <h3 className="font-semibold text-sm mb-1 text-[#1a1a1a]">

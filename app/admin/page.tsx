@@ -397,16 +397,28 @@ export default function AdminDashboard() {
                         </td>
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
-                            {(item.sizeStock ?? []).map((ss: any) => (
-                              <span key={ss.size} className="text-[9px] bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md font-mono font-semibold">
-                                {ss.size}:{ss.stock}
-                              </span>
-                            ))}
+                            {Array.isArray(item.sizes) && item.sizes.length > 0 ? (
+                              item.sizes.map((s: string) => (
+                                <span key={s} className="text-[9px] bg-black text-white px-2 py-0.5 rounded-md font-mono font-bold">
+                                  {s}
+                                </span>
+                              ))
+                            ) : (item.sizeStock ?? []).length > 0 ? (
+                              (item.sizeStock ?? []).map((ss: any) => (
+                                <span key={ss.size} className="text-[9px] bg-gray-100 text-gray-800 border border-gray-200 px-2 py-0.5 rounded-md font-mono font-semibold">
+                                  {ss.size}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[9px] text-gray-400 italic">None</span>
+                            )}
                           </div>
                         </td>
                         <td className="p-3 text-right pr-5">
                           <span className="font-bold text-xs text-gray-900">
-                            {(item.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0)} Units
+                            {Array.isArray(item.sizes) && item.sizes.length > 0
+                              ? `${item.sizes.length} Sizes`
+                              : `${(item.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0)} Units`}
                           </span>
                         </td>
                       </tr>

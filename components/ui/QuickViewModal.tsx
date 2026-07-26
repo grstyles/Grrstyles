@@ -11,6 +11,7 @@ import { addToCart, setDirectCheckoutItem } from "@/lib/redux/slices/cartSlice";
 import { addToast } from "@/lib/redux/slices/uiSlice";
 import { RootState } from "@/lib/redux/store";
 import { useState } from "react";
+import { getProductSizes } from "@/lib/data/products";
 
 interface QuickViewModalProps {
   product: any | null;
@@ -39,6 +40,8 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
   );
 
   if (!product) return null;
+
+  const allProductSizes = getProductSizes(product);
 
   const price = product.discountedPrice ?? product.price;
   const original = product.discountedPrice ? product.price : null;
@@ -283,7 +286,7 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
               </p>
 
               {/* Size selectors */}
-              {Object.keys(product.shirtStock || {}).length > 0 && (
+              {(Object.keys(product.shirtStock || {}).length > 0 || allProductSizes.some(s => ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'].includes(s))) && (
                 <div className="mb-3">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-semibold text-[#1a1a1a]">
@@ -295,18 +298,15 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
                     sizeError && !selectedShirtSize ? 'border-red-500 bg-red-50/30' : 'border-transparent'
                   }`}>
                     {['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL']
-                      .map(sizeName => ({ sizeName, stock: (product.shirtStock?.[sizeName] as number) || 0 }))
-                      .filter(obj => obj.stock > 0 || product.shirtStock?.[obj.sizeName] !== undefined)
-                      .map(({ sizeName, stock }) => {
-                      const isOutOfStock = stock === 0;
+                      .filter(sizeName => allProductSizes.includes(sizeName) || product.shirtStock?.[sizeName] !== undefined)
+                      .map((sizeName) => {
                       const isSelected = selectedShirtSize === sizeName;
                       return (
                         <button
                           key={sizeName}
-                          disabled={isOutOfStock}
                           onClick={() => { setSelectedShirtSize(sizeName); setSizeError(false); }}
                           className={`w-9 h-9 border rounded-xl text-xs font-medium transition-all flex items-center justify-center relative ${
-                            isSelected ? "border-black bg-black text-white scale-105" : isOutOfStock ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50" : "border-gray-200 hover:border-black text-gray-700 bg-white"
+                            isSelected ? "border-black bg-black text-white scale-105" : "border-gray-200 hover:border-black text-gray-700 bg-white"
                           }`}
                         >
                           {sizeName}
@@ -317,7 +317,7 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
                 </div>
               )}
 
-              {Object.keys(product.pantStock || {}).length > 0 && (
+              {(Object.keys(product.pantStock || {}).length > 0 || allProductSizes.some(s => ['28', '30', '32', '34', '36', '38', '40', '42'].includes(s))) && (
                 <div className="mb-3">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-semibold text-[#1a1a1a]">
@@ -329,18 +329,15 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
                     sizeError && !selectedPantSize ? 'border-red-500 bg-red-50/30' : 'border-transparent'
                   }`}>
                     {['28', '30', '32', '34', '36', '38', '40', '42']
-                      .map(sizeName => ({ sizeName, stock: (product.pantStock?.[sizeName] as number) || 0 }))
-                      .filter(obj => obj.stock > 0 || product.pantStock?.[obj.sizeName] !== undefined)
-                      .map(({ sizeName, stock }) => {
-                      const isOutOfStock = stock === 0;
+                      .filter(sizeName => allProductSizes.includes(sizeName) || product.pantStock?.[sizeName] !== undefined)
+                      .map((sizeName) => {
                       const isSelected = selectedPantSize === sizeName;
                       return (
                         <button
                           key={sizeName}
-                          disabled={isOutOfStock}
                           onClick={() => { setSelectedPantSize(sizeName); setSizeError(false); }}
                           className={`w-9 h-9 border rounded-xl text-xs font-medium transition-all flex items-center justify-center relative ${
-                            isSelected ? "border-black bg-black text-white scale-105" : isOutOfStock ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50" : "border-gray-200 hover:border-black text-gray-700 bg-white"
+                            isSelected ? "border-black bg-black text-white scale-105" : "border-gray-200 hover:border-black text-gray-700 bg-white"
                           }`}
                         >
                           {sizeName}

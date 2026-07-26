@@ -23,6 +23,7 @@ import { addToast } from '@/lib/redux/slices/uiSlice';
 import { repo, MockCoupon } from '@/lib/repositories';
 import { RootState } from '@/lib/redux/store';
 import { productService } from '@/services/productService';
+import { Product, getProductSizes } from '@/lib/data/products';
 import { useAuth } from '@/lib/context/AuthContext';
 import { X, Tag } from 'lucide-react';
 
@@ -48,24 +49,23 @@ export default function ProductDetailsPage() {
   const STANDARD_SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
   const STANDARD_PANT_SIZES = ['28', '30', '32', '34', '36', '38', '40', '42'];
 
+  const allProductSizes = getProductSizes(product);
+
   const shirtSizes = STANDARD_SHIRT_SIZES
-    .map(size => ({ size, stock: (product?.shirtStock?.[size] as number) || 0, type: 'shirt' }))
-    .filter(obj => isShirtCategory && (obj.stock > 0 || product?.shirtStock?.[obj.size] !== undefined));
+    .filter(size => isShirtCategory && (allProductSizes.includes(size) || (product?.shirtStock?.[size] !== undefined && (product?.shirtStock?.[size] as number) > 0)))
+    .map(size => ({ size, stock: 10, type: 'shirt' }));
     
   const pantSizes = STANDARD_PANT_SIZES
-    .map(size => ({ size, stock: (product?.pantStock?.[size] as number) || 0, type: 'pant' }))
-    .filter(obj => isPantCategory && (obj.stock > 0 || product?.pantStock?.[obj.size] !== undefined));
+    .filter(size => isPantCategory && (allProductSizes.includes(size) || (product?.pantStock?.[size] !== undefined && (product?.pantStock?.[size] as number) > 0)))
+    .map(size => ({ size, stock: 10, type: 'pant' }));
     
-  const genericSizes = Object.entries(product?.shoeStock || {})
-    .filter(([_, stock]) => (stock as number) > 0)
-    .map(([size, stock]) => ({ size, stock, type: 'shoe' }));
+  const genericSizes = allProductSizes
+    .filter(size => !STANDARD_SHIRT_SIZES.includes(size) && !STANDARD_PANT_SIZES.includes(size))
+    .map(size => ({ size, stock: 10, type: 'shoe' }));
 
-  const hasShirtStockConfigured = Object.keys(product?.shirtStock || {}).length > 0;
-  const hasPantStockConfigured = Object.keys(product?.pantStock || {}).length > 0;
-
-  const hasShirt = isShirtCategory && hasShirtStockConfigured;
-  const hasPant = isPantCategory && hasPantStockConfigured;
-  const hasGeneric = genericSizes.length > 0 || (product?.overallStock && product.overallStock > 0);
+  const hasShirt = isShirtCategory && shirtSizes.length > 0;
+  const hasPant = isPantCategory && pantSizes.length > 0;
+  const hasGeneric = genericSizes.length > 0 || allProductSizes.length > 0 || ((product?.overallStock || 0) > 0);
   const [quantity, setQuantity] = useState(1);
   const [sizeWarning, setSizeWarning] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);

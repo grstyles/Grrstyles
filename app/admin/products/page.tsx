@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Product } from '@/lib/data/products';
+import { Product, getProductSizes } from '@/lib/data/products';
 import { repo, MockCoupon } from '@/lib/repositories';
-import { COLLECTIONS } from '@/lib/config';
 import {
   Plus, X, Trash2, Tag, ShoppingBag, DollarSign, Upload,
-  Star, TrendingUp, Sparkles, Zap, RefreshCw, Search, Check, Edit2
+  Star, TrendingUp, Sparkles, Zap, RefreshCw, Search, Check, Edit2, Layers
 } from 'lucide-react';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useDispatch } from 'react-redux';
@@ -36,14 +35,61 @@ const CATEGORIES = [
   'Festival Offers',
   'Weekend Offers'
 ];
+
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
 const PANT_SIZES  = ['28', '30', '32', '34', '36', '38', '40', '42'];
 const SHOE_SIZES  = ['6', '7', '8', '9', '10', '11'];
 
-function getSizeOptions(cat: string) {
-  if (['Trousers', 'Denim Jeans', 'Formal Pant'].includes(cat)) return PANT_SIZES;
-  if (cat === 'Shoes') return SHOE_SIZES;
-  return SHIRT_SIZES;
+// Helper functions for category classification
+function isShirtCat(cat: string): boolean {
+  if (!cat) return false;
+  const val = cat.toLowerCase().trim();
+  return (
+    ['shirts', 'printed shirts', 't-shirts', 'formal shirts', 'korean collection', 'jackets', 'night tracks'].includes(val) ||
+    val.includes('shirt') || val.includes('t-shirt') || val.includes('tshirt') || val.includes('jacket') || val.includes('top') || val.includes('hoodie') || val.includes('sweatshirt')
+  );
+}
+
+function isPantCat(cat: string): boolean {
+  if (!cat) return false;
+  const val = cat.toLowerCase().trim();
+  return (
+    ['baggy pants', 'korean trousers', 'formal pant', 'trousers', 'denim jeans', 'pants', 'jeans'].includes(val) ||
+    val.includes('pant') || val.includes('trouser') || val.includes('jeans') || val.includes('denim') || val.includes('bottom') || val.includes('cargo') || val.includes('chinos') || val.includes('shorts')
+  );
+}
+
+function isShoeCat(cat: string): boolean {
+  if (!cat) return false;
+  const val = cat.toLowerCase().trim();
+  return (
+    ['shoes', 'footwear', 'sneakers'].includes(val) ||
+    val.includes('shoe') || val.includes('footwear') || val.includes('sneaker') || val.includes('boot') || val.includes('sandal') || val.includes('slipper')
+  );
+}
+
+function isComboCat(cat: string, coll: string = '', isDeal: boolean = false, isComboBtn: boolean = false): boolean {
+  if (isComboBtn || isDeal) return true;
+  const val = (cat || '').toLowerCase().trim();
+  const collVal = (coll || '').toLowerCase().trim();
+  return (
+    val.includes('combo') || collVal.includes('combo') ||
+    val === 'combo offers' || val === 'formal combo' || val === 'party combo' || val === 'combo offer'
+  );
+}
+
+function isAccessoryCat(cat: string): boolean {
+  if (!cat) return false;
+  const val = cat.toLowerCase().trim();
+  return (
+    ['accessories', 'accessory'].includes(val) ||
+    val.includes('accessor') || val.includes('watch') || val.includes('belt') || val.includes('wallet') || val.includes('cap') || val.includes('sunglass') || val.includes('perfume') || val.includes('sock')
+  );
+}
+
+function getOrdinalText(index: number): string {
+  const ordinals = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
+  return ordinals[index] || `${index + 1}th`;
 }
 
 export default function AdminProductsPage() {
@@ -69,19 +115,26 @@ export default function AdminProductsPage() {
   const [sellingPrice, setSellingPrice] = useState('');
   const [description, setDescription] = useState('');
   const [label, setLabel] = useState('');
-  const [shirtStockInput, setShirtStockInput] = useState<Record<string, number>>({});
-  const [pantStockInput, setPantStockInput] = useState<Record<string, number>>({});
-  const [shoeStockInput, setShoeStockInput] = useState<Record<string, number>>({});
+  
+  // Primary Array-Based Sizes State (e.g., ["S", "M", "L", "XL"])
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [overallStockInput, setOverallStockInput] = useState<number>(0);
+  
   const [imagesList, setImagesList] = useState<string[]>([]);
   const [imageColors, setImageColors] = useState<string[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+
   // Feature toggles
   const [isNewArrival, setIsNewArrival] = useState(false);
   const [isTrending, setIsTrending] = useState(false);
   const [isFeatured, setIsFeatured] = useState(false);
   const [isDealOfDay, setIsDealOfDay] = useState(false);
+  const [isComboOffer, setIsComboOffer] = useState(false);
+
+  // Manual Size Override Tab ('auto' | 'shirts' | 'pants' | 'shoes' | 'combo' | 'overall' | 'all')
+  const [sizeTabOverride, setSizeTabOverride] = useState<'auto' | 'shirts' | 'pants' | 'shoes' | 'combo' | 'overall' | 'all'>('auto');
+
   const [availableCoupons, setAvailableCoupons] = useState<MockCoupon[]>([]);
   const [selectedCoupons, setSelectedCoupons] = useState<string[]>([]);
 
@@ -114,95 +167,87 @@ export default function AdminProductsPage() {
     loadProductsAndCoupons();
   }, []);
 
+  // Synchronize dynamic primary color from first uploaded image
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const editId = urlParams.get('edit');
-      if (editId && items.length > 0) {
-        const prod = items.find(p => p.id === editId);
-        if (prod) {
-          populateFormFromProduct(prod);
-          // Remove query param without refreshing
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      }
+    if (imageColors.length > 0 && imageColors[0]) {
+      setColor(imageColors[0]);
     }
-  }, [items]);
+  }, [imageColors]);
 
-  const handleImageColorChange = (idx: number, val: string) => {
-    setImageColors((prev) => {
-      const updated = [...prev];
-      updated[idx] = val;
-      return updated;
-    });
-    if (idx === 0) {
-      setColor(val);
-    }
+  const toggleSize = (size: string) => {
+    setSelectedSizes((prev) =>
+      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]
+    );
   };
 
-  const handleRemoveImage = (idx: number) => {
-    setImagesList((prev) => prev.filter((_, i) => i !== idx));
-    setImageColors((prev) => {
-      const updated = prev.filter((_, i) => i !== idx);
-      if (idx === 0 && updated.length > 0) {
-        setColor(updated[0] || '');
-      }
-      return updated;
-    });
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragStart = (idx: number) => {
-    setDraggedIndex(idx);
-  };
-
-  const handleDragOver = (e: React.DragEvent, idx: number) => {
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = (e: React.DragEvent, targetIdx: number) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, dropIndex: number) => {
     e.preventDefault();
-    if (draggedIndex === null || draggedIndex === targetIdx) return;
+    if (draggedIndex === null || draggedIndex === dropIndex) return;
 
-    setImagesList((prev) => {
-      const newImages = [...prev];
-      const [draggedImg] = newImages.splice(draggedIndex, 1);
-      newImages.splice(targetIdx, 0, draggedImg);
-      return newImages;
-    });
+    const newImages = [...imagesList];
+    const draggedItem = newImages[draggedIndex];
+    newImages.splice(draggedIndex, 1);
+    newImages.splice(dropIndex, 0, draggedItem);
+    setImagesList(newImages);
 
-    setImageColors((prev) => {
-      const newColors = [...prev];
-      const [draggedCol] = newColors.splice(draggedIndex, 1);
-      newColors.splice(targetIdx, 0, draggedCol);
-      if (targetIdx === 0 || draggedIndex === 0) {
-        setColor(newColors[0] || '');
-      }
-      return newColors;
-    });
+    const newColors = [...imageColors];
+    const draggedColor = newColors[draggedIndex];
+    newColors.splice(draggedIndex, 1);
+    newColors.splice(dropIndex, 0, draggedColor);
+    setImageColors(newColors);
 
     setDraggedIndex(null);
   };
 
-  const getOrdinalText = (index: number): string => {
-    const ordinals = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth'];
-    return ordinals[index] || `${index + 1}th`;
+  const handleImageColorChange = (index: number, val: string) => {
+    setImageColors(prev => {
+      const next = [...prev];
+      next[index] = val;
+      return next;
+    });
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRemoveImage = (index: number) => {
+    setImagesList(prev => prev.filter((_, i) => i !== index));
+    setImageColors(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      dispatch(addToast({ message: 'File size must be less than 5MB', type: 'error' }));
+      return;
+    }
+
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(file.type)) {
+      dispatch(addToast({ message: 'Only JPEG, PNG, and WebP images are allowed', type: 'error' }));
+      return;
+    }
+
     setUploading(true);
     try {
-      const url = await repo.storage.uploadImage(file, 'product-images');
-      if (url) {
+      const uploadedUrl = await repo.storage.uploadImage(file, 'product-images');
+      if (uploadedUrl) {
         setImagesList((prev) => {
-          const newList = [...prev, url];
+          const newList = [...prev, uploadedUrl];
           setImageColors((colorsPrev) => {
             const newColors = [...colorsPrev];
             if (newColors.length === 0) {
               newColors.push(color || '');
             } else {
-              newColors.push(''); // required input for subsequent images
+              newColors.push('');
             }
             return newColors;
           });
@@ -234,15 +279,15 @@ export default function AdminProductsPage() {
     setSellingPrice('');
     setDescription('');
     setLabel('');
-    setShirtStockInput({});
-    setPantStockInput({});
-    setShoeStockInput({});
+    setSelectedSizes([]);
     setOverallStockInput(0);
     setImagesList([]);
     setIsNewArrival(false);
     setIsTrending(false);
     setIsFeatured(false);
     setIsDealOfDay(false);
+    setIsComboOffer(false);
+    setSizeTabOverride('auto');
     setSelectedCoupons([]);
   };
 
@@ -260,9 +305,9 @@ export default function AdminProductsPage() {
     setDescription(product.description);
     setLabel(product.label || '');
     
-    setShirtStockInput(product.shirtStock || {});
-    setPantStockInput(product.pantStock || {});
-    setShoeStockInput(product.shoeStock || {});
+    // Load array-based sizes
+    const sizes = getProductSizes(product);
+    setSelectedSizes(sizes);
     setOverallStockInput(product.overallStock || 0);
 
     setImagesList(product.images || []);
@@ -278,8 +323,19 @@ export default function AdminProductsPage() {
     setIsNewArrival(!!product.isNew);
     setIsTrending(!!product.bestSeller);
     setIsFeatured(!!product.metadata?.featured);
-    setIsDealOfDay(!!product.metadata?.dealOfDay);
+    
+    const isCombo = !!(
+      (product as any).isComboOffer ||
+      product.metadata?.comboOffer ||
+      product.metadata?.dealOfDay ||
+      product.category?.toLowerCase().includes('combo') ||
+      product.collection?.toLowerCase().includes('combo')
+    );
+    setIsComboOffer(isCombo);
+    setIsDealOfDay(!!(isCombo || product.metadata?.dealOfDay));
+
     setSelectedCoupons(product.coupons || []);
+    setSizeTabOverride('auto');
     setFormOpen(true);
   };
 
@@ -294,6 +350,16 @@ export default function AdminProductsPage() {
 
     const uniqueColors = Array.from(new Set(imageColors.filter(Boolean)));
 
+    // Construct legacy stock objects for backwards compatibility
+    const shirtStock: Record<string, number> = {};
+    const pantStock: Record<string, number> = {};
+    const shoeStock: Record<string, number> = {};
+    selectedSizes.forEach((s) => {
+      if (SHIRT_SIZES.includes(s)) shirtStock[s] = 10;
+      if (PANT_SIZES.includes(s)) pantStock[s] = 10;
+      if (SHOE_SIZES.includes(s)) shoeStock[s] = 10;
+    });
+
     return {
       id,
       productId: id,
@@ -302,7 +368,7 @@ export default function AdminProductsPage() {
       title: name,
       slug,
       category,
-      collection,
+      collection: collection || (isComboOffer ? 'Combo Offers' : ''),
       images: imagesList.length > 0 ? imagesList : ['/placeholder.png'],
       color: color || imageColors[0] || '',
       colors: uniqueColors.length > 0 ? uniqueColors : [color || 'Original'],
@@ -313,19 +379,21 @@ export default function AdminProductsPage() {
       discountPercent: discount,
       label: effectiveLabel,
       description,
-      shirtStock: shirtStockInput,
-      pantStock: pantStockInput,
-      shoeStock: shoeStockInput,
-      overallStock: overallStockInput,
+      sizes: selectedSizes, // Clean array representation
+      shirtStock,
+      pantStock,
+      shoeStock,
+      overallStock: overallStockInput || (selectedSizes.length * 10),
       brand: brand || 'GR STYLES',
       rating: 5.0,
       reviews: 0,
       isNew: isNewArrival,
       bestSeller: isTrending,
-      inStock: true, // recalculated in service
-      stockCount: 0, // recalculated in service
+      inStock: selectedSizes.length > 0 || overallStockInput > 0,
+      stockCount: selectedSizes.length * 10 || overallStockInput || 0,
       metadata: {
-        dealOfDay: isDealOfDay,
+        dealOfDay: isDealOfDay || isComboOffer,
+        comboOffer: isComboOffer || isDealOfDay,
         featured: isFeatured,
         tags,
       },
@@ -364,42 +432,18 @@ export default function AdminProductsPage() {
       }
     }
 
-    // Validation
-    const isCombo = category === 'Combo Offers' || category === 'Formal Combo';
-    const isShirt = ['Shirts', 'Printed Shirts', 'T-Shirts', 'Formal Shirts', 'Korean Collection', 'Jackets', 'Night Tracks'].includes(category);
-    const isPant = ['Baggy Pants', 'Korean Trousers', 'Formal Pant', 'Trousers', 'Denim Jeans'].includes(category);
-    const isShoe = category === 'Shoes';
-
-    const hasShirtStock = Object.values(shirtStockInput).some(v => v > 0);
-    const hasPantStock = Object.values(pantStockInput).some(v => v > 0);
-    const hasShoeStock = Object.values(shoeStockInput).some(v => v > 0);
-    
-    if (isCombo && (!hasShirtStock || !hasPantStock)) {
-      dispatch(addToast({ message: 'Combo requires both Shirt and Pant inventory.', type: 'error' }));
-      return;
-    }
-    if (isShirt && !isCombo && !hasShirtStock) {
-      dispatch(addToast({ message: 'Shirt categories require Shirt inventory.', type: 'error' }));
-      return;
-    }
-    if (isPant && !isCombo && !hasPantStock) {
-      dispatch(addToast({ message: 'Pant categories require Pant inventory.', type: 'error' }));
-      return;
-    }
-    if (isShoe && !hasShoeStock) {
-      dispatch(addToast({ message: 'Shoe categories require Shoe inventory.', type: 'error' }));
+    // Size Validation
+    if (selectedSizes.length === 0 && overallStockInput === 0) {
+      dispatch(addToast({ message: 'Please select at least one available size for this product.', type: 'error' }));
       return;
     }
 
     const tempId = editingId || `p-${Date.now()}`;
-    console.log('[DEBUG Admin Flow] 1. imageColors React state before Save:', JSON.stringify(imageColors, null, 2));
     const productPayload = buildProductPayload(tempId);
-    console.log('[DEBUG Admin Flow] 2. buildProductPayload():', JSON.stringify(productPayload.imageColors, null, 2));
 
     setLoading(true);
     try {
       if (editingId) {
-        console.log('[DEBUG Admin Flow] 3. Payload sent to updateProduct():', JSON.stringify(productPayload.imageColors, null, 2));
         const updated = await repo.products.update(editingId, productPayload);
         if (updated) {
           setItems((prev) => prev.map((p) => (p.id === editingId ? { ...p, ...updated } : p)));
@@ -451,150 +495,124 @@ export default function AdminProductsPage() {
     });
     if (updated) {
       setItems((prev) => prev.map((p) => (p.id === product.id ? { ...p, label: effectiveLabel } : p)));
-      dispatch(addToast({ message: `Label updated to "${effectiveLabel || 'None'}"`, type: 'success' }));
     }
   };
 
-  // Filtering
-  const filteredItems = items.filter((p) => {
+  // Filtered products
+  const filteredProducts = items.filter((p) => {
     const matchesCat = filterCat === 'All' || p.category === filterCat;
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = !q ||
-      (p.name || '').toLowerCase().includes(q) ||
-      (p.category || '').toLowerCase().includes(q) ||
-      (p.color || '').toLowerCase().includes(q);
+    const matchesSearch =
+      (p.name || p.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.category || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
   });
 
-  const ToggleBtn = ({
-    active, onClick, icon: Icon, label: btnLabel, activeColor
-  }: {
-    active: boolean;
-    onClick: () => void;
-    icon: React.ElementType;
-    label: string;
-    activeColor: string;
-  }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all ${
-        active
-          ? `${activeColor} border-transparent`
-          : 'bg-white text-gray-400 border-gray-200 hover:border-gray-400'
-      }`}
-    >
-      <Icon size={11} />
-      {btnLabel}
-      {active && <Check size={10} />}
-    </button>
-  );
-
-  if (loading && items.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  // Active Size View Flags
+  const showCombo = sizeTabOverride === 'combo' || (sizeTabOverride === 'auto' && isComboCat(category, collection, isDealOfDay, isComboOffer));
+  const showShirt = sizeTabOverride === 'shirts' || sizeTabOverride === 'combo' || sizeTabOverride === 'all' || (sizeTabOverride === 'auto' && (isShirtCat(category) || showCombo));
+  const showPant = sizeTabOverride === 'pants' || sizeTabOverride === 'combo' || sizeTabOverride === 'all' || (sizeTabOverride === 'auto' && (isPantCat(category) || showCombo));
+  const showShoe = sizeTabOverride === 'shoes' || sizeTabOverride === 'all' || (sizeTabOverride === 'auto' && isShoeCat(category));
+  const showOverall = sizeTabOverride === 'overall' || sizeTabOverride === 'all' || (sizeTabOverride === 'auto' && isAccessoryCat(category));
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-6">
 
-      {/* Header */}
+      {/* Page Title & Controls */}
       <div className="flex items-center justify-between flex-wrap gap-4 border-b border-gray-100 pb-5">
         <div>
           <h1 className="text-3xl font-light tracking-tight text-gray-900 uppercase">Product Catalog</h1>
-          <p className="text-sm text-gray-400 mt-1">{items.length} products · Changes reflect on website immediately.</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Manage your store inventory, variant stock by size, categories, and combo offer tags.
+          </p>
         </div>
+
         <div className="flex items-center gap-3">
           <button
             onClick={loadProductsAndCoupons}
-            className="p-2.5 border border-gray-200 hover:border-black rounded-xl text-gray-500 hover:text-black transition-colors"
-            title="Refresh"
+            className="p-3 border border-gray-200 rounded-xl hover:border-black transition-all text-gray-600 hover:text-black"
+            title="Refresh Products"
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
+          
           <button
             id="admin-add-product-btn"
             onClick={() => {
               if (formOpen) {
-                resetForm();
                 setFormOpen(false);
+                resetForm();
               } else {
                 resetForm();
                 setFormOpen(true);
               }
             }}
-            className="flex items-center gap-2 bg-black hover:bg-gray-900 text-white px-5 py-3 rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm"
+            className="flex items-center gap-2 bg-black hover:bg-gray-900 text-white px-5 py-3 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all shadow-sm active:scale-95"
           >
             {formOpen ? <X size={14} /> : <Plus size={14} />}
-            {formOpen ? 'Close Form' : 'Add New Product'}
+            {formOpen ? 'Cancel' : 'Add New Product'}
           </button>
         </div>
       </div>
 
-      {/* Add Product Form */}
+      {/* Product Form Drawer */}
       {formOpen && (
-        <form onSubmit={handleAddProduct} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
-          <h3 className="text-sm font-bold text-gray-700 uppercase tracking-widest border-b border-gray-100 pb-3">
-            {editingId ? 'Edit Product Details' : 'New Product Details'}
-          </h3>
+        <form
+          onSubmit={handleAddProduct}
+          className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6 animate-fadeIn"
+        >
+          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+            <h3 className="text-xs font-bold text-gray-800 uppercase tracking-widest flex items-center gap-2">
+              <Sparkles size={16} className="text-amber-500" />
+              {editingId ? 'Edit Product Details' : 'Create New Product'}
+            </h3>
+            <span className="text-[10px] text-gray-400 font-mono">* Required fields</span>
+          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: General Details */}
-            <div className="space-y-4 lg:col-span-2">
-              {/* Name */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            {/* Left: Basic Info */}
+            <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Product Name *</label>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Product Name / Title *</label>
                 <input
                   id="form-product-name"
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. White Baggy Pant"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
+                  placeholder="e.g. Slim Fit Cotton Oxford Shirt"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm font-medium"
                 />
               </div>
 
-              {/* SKU + Brand */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">SKU</label>
-                  <input
-                    id="form-product-sku"
-                    type="text"
-                    value={sku}
-                    onChange={(e) => setSku(e.target.value)}
-                    placeholder="e.g. GR-SH-001"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Brand</label>
-                  <input
-                    id="form-product-brand"
-                    type="text"
-                    value={brand}
-                    onChange={(e) => setBrand(e.target.value)}
-                    placeholder="GR STYLES"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
-                  />
-                </div>
-              </div>
-
-              {/* Category + Collection + Color */}
-              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Category *</label>
                   <input
                     list="dynamic-categories"
                     required
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    placeholder="e.g. Shirts, T-Shirts"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+                    onChange={(e) => {
+                      const newCat = e.target.value;
+                      setCategory(newCat);
+                      if (isComboCat(newCat, collection, isDealOfDay, isComboOffer)) {
+                        setIsComboOffer(true);
+                        setSizeTabOverride('combo');
+                      } else if (isPantCat(newCat)) {
+                        setSizeTabOverride('pants');
+                      } else if (isShirtCat(newCat)) {
+                        setSizeTabOverride('shirts');
+                      } else if (isShoeCat(newCat)) {
+                        setSizeTabOverride('shoes');
+                      } else if (isAccessoryCat(newCat)) {
+                        setSizeTabOverride('overall');
+                      } else {
+                        setSizeTabOverride('all');
+                      }
+                    }}
+                    placeholder="e.g. Shirts, Pants, Shoes"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm font-medium"
                   />
                   <datalist id="dynamic-categories">
                     {dynamicCategories.map((c) => <option key={c} value={c} />)}
@@ -613,6 +631,9 @@ export default function AdminProductsPage() {
                     {dynamicCollections.map((c) => <option key={c} value={c} />)}
                   </datalist>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
                     Primary Color *
@@ -625,25 +646,34 @@ export default function AdminProductsPage() {
                     onChange={(e) => setColor(e.target.value)}
                     placeholder="e.g. White"
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
-                    readOnly
-                    title="Automatically set from the first image color"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Brand</label>
+                  <input
+                    type="text"
+                    value={brand}
+                    onChange={(e) => setBrand(e.target.value)}
+                    placeholder="GR STYLES"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
                   />
                 </div>
               </div>
 
-              {/* Prices + Label */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
                     <DollarSign size={10} /> MRP *
                   </label>
                   <input
-                    id="form-mrp-price"
-                    type="number" required min="0"
+                    id="form-product-mrp"
+                    type="number"
+                    step="0.01"
+                    required
                     value={mrpPrice}
                     onChange={(e) => setMrpPrice(e.target.value)}
-                    placeholder="1200"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+                    placeholder="2999"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm font-mono"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -651,66 +681,56 @@ export default function AdminProductsPage() {
                     <DollarSign size={10} /> Sell Price *
                   </label>
                   <input
-                    id="form-selling-price"
-                    type="number" required min="0"
+                    id="form-product-price"
+                    type="number"
+                    step="0.01"
+                    required
                     value={sellingPrice}
                     onChange={(e) => setSellingPrice(e.target.value)}
-                    placeholder="599"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
+                    placeholder="1499"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm font-mono"
                   />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
                     <Tag size={10} /> Label
                   </label>
-                  <select
+                  <input
+                    type="text"
                     value={label}
                     onChange={(e) => setLabel(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
-                  >
-                    <option value="">NONE</option>
-                    <option value="NEW">NEW</option>
-                    <option value="BEST SELLER">BEST SELLER</option>
-                    <option value="HOT">HOT</option>
-                    <option value="SALE">SALE</option>
-                  </select>
+                    placeholder="NEW / HOT"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm uppercase placeholder-gray-300"
+                  />
                 </div>
               </div>
 
-              {/* Description + Tags */}
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Description *</label>
-                  <textarea
-                    required
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Describe the product — fabric, fit, details..."
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300 resize-none"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tags (comma separated)</label>
-                  <input
-                    type="text"
-                    value={tagsInput}
-                    onChange={(e) => setTagsInput(e.target.value)}
-                    placeholder="e.g. casual, summer, slim-fit"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Applicable Coupons</label>
-                  <div className="border border-gray-200 rounded-xl p-3 bg-gray-50/50 max-h-40 overflow-y-auto space-y-2">
-                    {availableCoupons.length > 0 ? availableCoupons.map((c) => (
-                      <label key={c.code} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-white p-1 rounded-md">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Description *</label>
+                <textarea
+                  id="form-product-desc"
+                  required
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Detailed product features, material composition, care instructions..."
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300 resize-none"
+                />
+              </div>
+
+              {/* Coupon Selectors */}
+              <div className="space-y-1.5 pt-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Applicable Coupons</label>
+                <div className="border border-gray-200 rounded-xl p-3 bg-gray-50/50 max-h-32 overflow-y-auto">
+                  <div className="flex flex-wrap gap-2">
+                    {availableCoupons.length > 0 ? availableCoupons.map((c, idx) => (
+                      <label key={c.code || idx} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer text-xs select-none hover:border-black transition-colors">
                         <input
                           type="checkbox"
                           checked={selectedCoupons.includes(c.code)}
                           onChange={(e) => {
-                            if (e.target.checked) setSelectedCoupons([...selectedCoupons, c.code]);
-                            else setSelectedCoupons(selectedCoupons.filter(code => code !== c.code));
+                            if (e.target.checked) setSelectedCoupons(prev => [...prev, c.code]);
+                            else setSelectedCoupons(prev => prev.filter(code => code !== c.code));
                           }}
                           className="rounded border-gray-300 text-black focus:ring-black cursor-pointer"
                         />
@@ -743,7 +763,17 @@ export default function AdminProductsPage() {
                     icon={Star} label="Featured" activeColor="bg-purple-50 text-purple-600"
                   />
                   <ToggleBtn
-                    active={isDealOfDay} onClick={() => setIsDealOfDay(!isDealOfDay)}
+                    active={isComboOffer}
+                    onClick={() => {
+                      const next = !isComboOffer;
+                      setIsComboOffer(next);
+                      setIsDealOfDay(next);
+                      if (next) {
+                        if (!category || category === 'Shirts') setCategory('Combo Offers');
+                        if (!collection) setCollection('Combo Offers');
+                        setSizeTabOverride('combo');
+                      }
+                    }}
                     icon={Zap} label="Combo Offers" activeColor="bg-amber-50 text-amber-600"
                   />
                 </div>
@@ -751,305 +781,423 @@ export default function AdminProductsPage() {
             </div>
 
             {/* Right: Sizes + Images */}
-            <div className="space-y-5 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-              {/* Sizes */}
+            <div className="space-y-5 bg-gray-50 p-5 rounded-2xl border border-gray-100">
               
-              {/* Sizes */}
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase">Sizes & Stock</label>
-                
-                <div className="mt-4 space-y-6">
-                  {/* Accessories */}
-                  {['Accessories'].includes(category) && (
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-700 mb-2">Overall Stock</h4>
+              {/* Selectable Sizes Chips Section */}
+              <div className="space-y-4 bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs">
+                <div className="flex items-center justify-between flex-wrap gap-2 border-b border-gray-100 pb-3">
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers size={14} className="text-black" /> Select Available Sizes
+                    </h4>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Click chips to toggle available sizes ON/OFF. Highlighted black chips are active.
+                    </p>
+                  </div>
+
+                  {/* Size Mode Switcher Buttons */}
+                  <div className="flex flex-wrap items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSizeTabOverride('shirts')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                        sizeTabOverride === 'shirts' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      👔 Shirts
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSizeTabOverride('pants')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                        sizeTabOverride === 'pants' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      👖 Pants
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSizeTabOverride('shoes')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                        sizeTabOverride === 'shoes' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      👟 Shoes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSizeTabOverride('combo')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                        sizeTabOverride === 'combo' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      🎁 Combo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSizeTabOverride('all')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                        sizeTabOverride === 'all' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      ⚡ All Sizes
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick Selection Presets */}
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+                  <span className="text-[11px] font-bold text-gray-500 font-mono">
+                    {selectedSizes.length} Size{selectedSizes.length === 1 ? '' : 's'} Selected: <span className="text-black font-semibold">{selectedSizes.length > 0 ? selectedSizes.join(', ') : 'None'}</span>
+                  </span>
+                  
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSizes(Array.from(new Set([...selectedSizes, ...SHIRT_SIZES])))}
+                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all active:scale-95"
+                    >
+                      + Shirt Sizes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSizes(Array.from(new Set([...selectedSizes, ...PANT_SIZES])))}
+                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all active:scale-95"
+                    >
+                      + Pant Sizes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSizes(Array.from(new Set([...selectedSizes, ...SHOE_SIZES])))}
+                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all active:scale-95"
+                    >
+                      + Shoe Sizes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSizes([])}
+                      className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all active:scale-95"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+
+                {/* Selectable Size Chips Grid */}
+                <div className="space-y-4 pt-2">
+                  
+                  {/* Shirt Sizes */}
+                  {showShirt && (
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                        <span>👔 Shirt / Tops Sizes</span>
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          {selectedSizes.filter((s) => SHIRT_SIZES.includes(s)).length} Active
+                        </span>
+                      </label>
+                      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                        {SHIRT_SIZES.map((size) => {
+                          const isSelected = selectedSizes.includes(size);
+                          return (
+                            <button
+                              key={'chip-shirt-' + size}
+                              type="button"
+                              onClick={() => toggleSize(size)}
+                              className={`h-11 rounded-xl text-xs font-bold transition-all duration-200 border flex items-center justify-center gap-1.5 active:scale-95 ${
+                                isSelected
+                                  ? 'bg-black text-white border-black shadow-md ring-2 ring-black/10 scale-105'
+                                  : 'bg-white text-gray-800 border-gray-200 hover:border-black hover:bg-gray-50'
+                              }`}
+                            >
+                              <span>{size}</span>
+                              {isSelected && <Check size={12} className="stroke-[3]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pant Sizes */}
+                  {showPant && (
+                    <div className="space-y-2 pt-2 border-t border-gray-100">
+                      <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                        <span>👖 Pant / Waist Sizes</span>
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          {selectedSizes.filter((s) => PANT_SIZES.includes(s)).length} Active
+                        </span>
+                      </label>
+                      <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                        {PANT_SIZES.map((size) => {
+                          const isSelected = selectedSizes.includes(size);
+                          return (
+                            <button
+                              key={'chip-pant-' + size}
+                              type="button"
+                              onClick={() => toggleSize(size)}
+                              className={`h-11 rounded-xl text-xs font-bold transition-all duration-200 border flex items-center justify-center gap-1.5 active:scale-95 ${
+                                isSelected
+                                  ? 'bg-black text-white border-black shadow-md ring-2 ring-black/10 scale-105'
+                                  : 'bg-white text-gray-800 border-gray-200 hover:border-black hover:bg-gray-50'
+                              }`}
+                            >
+                              <span>{size}</span>
+                              {isSelected && <Check size={12} className="stroke-[3]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Shoe Sizes */}
+                  {showShoe && (
+                    <div className="space-y-2 pt-2 border-t border-gray-100">
+                      <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                        <span>👟 Shoe UK Sizes</span>
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          {selectedSizes.filter((s) => SHOE_SIZES.includes(s)).length} Active
+                        </span>
+                      </label>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                        {SHOE_SIZES.map((size) => {
+                          const isSelected = selectedSizes.includes(size);
+                          return (
+                            <button
+                              key={'chip-shoe-' + size}
+                              type="button"
+                              onClick={() => toggleSize(size)}
+                              className={`h-11 rounded-xl text-xs font-bold transition-all duration-200 border flex items-center justify-center gap-1.5 active:scale-95 ${
+                                isSelected
+                                  ? 'bg-black text-white border-black shadow-md ring-2 ring-black/10 scale-105'
+                                  : 'bg-white text-gray-800 border-gray-200 hover:border-black hover:bg-gray-50'
+                              }`}
+                            >
+                              <span>UK {size}</span>
+                              {isSelected && <Check size={12} className="stroke-[3]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Overall Stock Fallback */}
+                  {showOverall && (
+                    <div className="pt-2 border-t border-gray-100">
+                      <h4 className="text-xs font-bold text-gray-800 mb-2">📦 Overall Product Inventory</h4>
                       <input
                         type="number"
                         min="0"
                         value={overallStockInput === 0 ? '' : overallStockInput}
-                        placeholder="0"
+                        placeholder="e.g. 50 units"
                         onChange={(e) => setOverallStockInput(parseInt(e.target.value, 10) || 0)}
-                        className="w-32 border border-gray-300 rounded text-xs px-3 py-2 focus:border-black focus:outline-none"
+                        className="w-40 border border-gray-300 rounded-xl text-xs px-4 py-2.5 bg-white focus:border-black focus:ring-1 focus:ring-black focus:outline-none font-mono font-semibold"
                       />
                     </div>
                   )}
 
-                  {/* Shirts */}
-                  {(['Shirts', 'Printed Shirts', 'T-Shirts', 'Formal Shirts', 'Korean Collection', 'Jackets', 'Night Tracks', 'Combo Offers', 'Formal Combo', 'Party Combo', 'Combo Offer'].includes(category) || category.toLowerCase().includes('combo')) && (
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">Shirt Sizes <span className="text-[10px] text-gray-400 font-normal">(Enter quantity)</span></h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {SHIRT_SIZES.map((size) => (
-                          <div key={'shirt-'+size} className="flex items-center gap-3">
-                            <span className="text-xs font-semibold w-8">{size}</span>
-                            <input
-                              type="number"
-                              min="0"
-                              value={shirtStockInput[size] || ''}
-                              placeholder="0"
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value, 10) || 0;
-                                setShirtStockInput(prev => ({ ...prev, [size]: val }));
-                              }}
-                              className="w-20 border border-gray-300 rounded text-xs px-2 py-1 focus:border-black focus:outline-none"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Pants */}
-                  {(['Baggy Pants', 'Korean Trousers', 'Formal Pant', 'Trousers', 'Denim Jeans', 'Combo Offers', 'Formal Combo', 'Party Combo', 'Combo Offer'].includes(category) || category.toLowerCase().includes('combo')) && (
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">Pant Sizes <span className="text-[10px] text-gray-400 font-normal">(Enter quantity)</span></h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {PANT_SIZES.map((size) => (
-                          <div key={'pant-'+size} className="flex items-center gap-3">
-                            <span className="text-xs font-semibold w-8">{size}</span>
-                            <input
-                              type="number"
-                              min="0"
-                              value={pantStockInput[size] || ''}
-                              placeholder="0"
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value, 10) || 0;
-                                setPantStockInput(prev => ({ ...prev, [size]: val }));
-                              }}
-                              className="w-20 border border-gray-300 rounded text-xs px-2 py-1 focus:border-black focus:outline-none"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Shoes */}
-                  {category === 'Shoes' && (
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">Shoe Sizes <span className="text-[10px] text-gray-400 font-normal">(Enter quantity)</span></h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {SHOE_SIZES.map((size) => (
-                          <div key={'shoe-'+size} className="flex items-center gap-3">
-                            <span className="text-xs font-semibold w-8">{size}</span>
-                            <input
-                              type="number"
-                              min="0"
-                              value={shoeStockInput[size] || ''}
-                              placeholder="0"
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value, 10) || 0;
-                                setShoeStockInput(prev => ({ ...prev, [size]: val }));
-                              }}
-                              className="w-20 border border-gray-300 rounded text-xs px-2 py-1 focus:border-black focus:outline-none"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
+
               {/* Images and Colors */}
               <div className="space-y-4">
-                <label className="text-xs font-bold text-gray-500 uppercase">Product Images & Colors</label>
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Product Images & Color Mapping</label>
                 
                 {imagesList.length > 1 && (
-                  <p className="text-[9px] text-gray-400 italic">Drag and drop images to reorder them.</p>
+                  <p className="text-[10px] text-gray-400 italic">Drag and drop images to reorder them.</p>
                 )}
 
-                <div className="flex gap-2 flex-wrap">
-                  {imagesList.map((img, idx) => (
-                    <div
-                      key={idx}
-                      draggable
-                      onDragStart={() => handleDragStart(idx)}
-                      onDragOver={(e) => handleDragOver(e, idx)}
-                      onDrop={(e) => handleDrop(e, idx)}
-                      className={`relative w-14 h-20 border rounded-xl overflow-hidden bg-white flex-shrink-0 cursor-move transition-all ${
-                        draggedIndex === idx ? 'opacity-40 border-black ring-2 ring-black' : 'border-gray-200 hover:border-black'
-                      }`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img} alt={`Product ${idx}`} className="object-cover w-full h-full pointer-events-none" />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveImage(idx)}
-                        className="absolute top-0.5 right-0.5 p-1 bg-black/60 hover:bg-black text-white rounded-full transition-colors"
-                        title="Remove Image"
-                      >
-                        <X size={8} />
-                      </button>
-                      <div className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-[8px] text-center py-0.5 font-bold truncate px-1 pointer-events-none">
-                        {imageColors[idx] || color || 'No Color'}
-                      </div>
-                    </div>
-                  ))}
-                  
-                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                {/* Upload Button */}
+                <div className="flex items-center gap-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/jpg"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
                   <button
                     type="button"
                     disabled={uploading}
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-14 h-20 border-2 border-dashed border-gray-300 hover:border-black rounded-xl flex flex-col items-center justify-center text-gray-400 hover:text-black transition-colors flex-shrink-0"
+                    className="flex items-center gap-2 bg-black hover:bg-gray-800 text-white px-4 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm disabled:opacity-50"
                   >
-                    {uploading ? (
-                      <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Upload size={14} />
-                        <span className="text-[8px] font-bold mt-1">UPLOAD</span>
-                      </>
-                    )}
+                    <Upload size={14} />
+                    <span>{uploading ? 'Uploading...' : 'Upload Image File'}</span>
                   </button>
                 </div>
 
-                {/* Dynamic color inputs for all images */}
-                {imagesList.map((img, idx) => {
-                  const labelText = `${getOrdinalText(idx)} Product Color`;
-                  return (
-                    <div key={idx} className="space-y-1 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="relative w-8 h-10 border rounded overflow-hidden flex-shrink-0">
-                          <img src={img} alt={`Thumbnail ${idx}`} className="object-cover w-full h-full" />
-                        </div>
-                        <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider leading-tight">
-                          {idx === 0 ? 'Primary Image Color *' : `${getOrdinalText(idx)} Image Color *`}
-                        </span>
+                {/* Uploaded Images List */}
+                <div className="space-y-3 pt-2">
+                  {imagesList.map((img, idx) => (
+                    <div
+                      key={idx}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, idx)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, idx)}
+                      className="flex items-center gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-2xs group cursor-grab active:cursor-grabbing"
+                    >
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-gray-100 border border-gray-200">
+                        <Image src={img} alt={`Product ${idx}`} fill unoptimized className="object-cover" />
                       </div>
-                      <input
-                        type="text"
-                        required
-                        value={imageColors[idx] || ''}
-                        onChange={(e) => handleImageColorChange(idx, e.target.value)}
-                        placeholder="e.g. Red, Black"
-                        className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-xs font-semibold"
-                      />
+
+                      <div className="flex-1 space-y-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                          {idx === 0 ? 'Primary Color (Auto)' : `${getOrdinalText(idx)} Image Color *`}
+                        </label>
+                        <input
+                          type="text"
+                          required={idx > 0}
+                          value={imageColors[idx] || ''}
+                          onChange={(e) => handleImageColorChange(idx, e.target.value)}
+                          placeholder="e.g. Black, White, Denim Blue"
+                          className="w-full border border-gray-200 rounded-lg text-xs px-3 py-1.5 focus:border-black focus:outline-none font-medium"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(idx)}
+                        className="p-2 text-gray-400 hover:text-red-600 rounded-lg transition-colors"
+                        title="Remove Image"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
-              {mrpPrice && sellingPrice && parseFloat(mrpPrice) > 0 && (
-                <div className="text-[10px] text-gray-400 bg-white rounded-xl border border-gray-100 px-3 py-2">
-                  Discount: <strong className="text-green-600">{Math.round(((parseFloat(mrpPrice) - parseFloat(sellingPrice)) / parseFloat(mrpPrice)) * 100)}% off</strong>
+                  ))}
                 </div>
-              )}
+              </div>
+
             </div>
+
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100">
             <button
               type="button"
-              onClick={() => setFormOpen(false)}
-              className="px-5 py-3 border border-gray-200 hover:border-black text-black rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors"
+              onClick={() => {
+                setFormOpen(false);
+                resetForm();
+              }}
+              className="px-5 py-2.5 border border-gray-200 hover:border-black text-gray-700 rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors"
             >
               Cancel
             </button>
             <button
-              id="form-submit-product"
               type="submit"
-              className="px-7 py-3 bg-black hover:bg-gray-900 text-white rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm"
+              disabled={loading || uploading}
+              className="px-6 py-2.5 bg-black hover:bg-gray-900 text-white rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
             >
-              {editingId ? 'Update Product →' : 'Save Product →'}
+              {loading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+              <span>{editingId ? 'Update Product' : 'Save & Publish Product'}</span>
             </button>
           </div>
         </form>
       )}
 
-      {/* Filter Bar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px]">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search products..."
-            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-black placeholder-gray-300 font-semibold"
-          />
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        </div>
-
-        {/* Category filter pills */}
-        <div className="flex gap-2 flex-wrap">
-          {['All', ...CATEGORIES].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setFilterCat(cat)}
-              className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-xl border transition-all ${
-                filterCat === cat
-                  ? 'bg-black text-white border-black'
-                  : 'text-gray-500 border-gray-200 hover:border-gray-400 hover:text-black'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Catalog Table */}
+      {/* Product List Table */}
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-            Catalog Listings
-          </h3>
-          <span className="text-xs text-gray-400">{filteredItems.length} of {items.length} products</span>
+        <div className="p-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-[240px]">
+            <div className="relative flex-1">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search products by title, SKU, category..."
+                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-black"
+              />
+            </div>
+            
+            <select
+              value={filterCat}
+              onChange={(e) => setFilterCat(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:border-black"
+            >
+              <option value="All">All Categories</option>
+              {dynamicCategories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
+          <span className="text-xs text-gray-400 font-mono">
+            Showing {filteredProducts.length} of {items.length} Products
+          </span>
         </div>
 
-        {filteredItems.length > 0 ? (
+        {filteredProducts.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100 text-[10px] font-bold tracking-widest text-gray-400 uppercase">
+                <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase text-[10px] tracking-wider">
                   <th className="p-4 pl-6">Product</th>
                   <th className="p-4">Category</th>
-                  <th className="p-4">MRP</th>
-                  <th className="p-4">Sale Price</th>
-                  <th className="p-4">Discount</th>
-                  <th className="p-4">Label / Tags</th>
-                  <th className="p-4">Stock</th>
+                  <th className="p-4">Price</th>
+                  <th className="p-4">Available Sizes</th>
+                  <th className="p-4">Status / Label</th>
                   <th className="p-4 pr-6 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 text-xs">
-                {filteredItems.map((product) => {
-                  const displayPrice = product.sellingPrice || product.discountedPrice || 0;
-                  const originalPrice = product.mrpPrice || product.price || 0;
-                  const totalStock = product.stockCount || 0;
-                  const imageSrc = product.images?.[0] || '/placeholder.png';
-                  const isLowStock = totalStock > 0 && totalStock <= 5;
+              <tbody className="divide-y divide-gray-100">
+                {filteredProducts.map((product) => {
+                  const productSizes = getProductSizes(product);
 
                   return (
-                    <tr key={product.id} className="hover:bg-gray-50/30 transition-colors">
+                    <tr key={product.id} className="hover:bg-gray-50/60 transition-colors group">
                       <td className="p-4 pl-6">
                         <div className="flex items-center gap-3">
-                          <div className="relative w-9 h-12 rounded bg-gray-50 border border-gray-100 overflow-hidden flex-shrink-0">
+                          <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
                             <Image
-                              src={imageSrc}
-                              alt={product.name || ''}
+                              src={product.images?.[0] || '/placeholder.png'}
+                              alt={product.name || product.title}
                               fill
+                              unoptimized
                               className="object-cover"
                               sizes="40px"
-                              unoptimized={imageSrc.startsWith('data:')}
                             />
                           </div>
                           <div>
-                            <p className="font-bold text-gray-800 uppercase max-w-[180px] truncate">{product.name || product.title}</p>
-                            <p className="text-[9px] text-gray-400 uppercase font-mono">{product.color}</p>
+                            <p className="font-semibold text-gray-900 line-clamp-1">{product.name || product.title}</p>
+                            <p className="text-[10px] text-gray-400 font-mono">SKU: {product.sku || 'N/A'}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 text-gray-500 uppercase font-semibold">{product.category}</td>
-                      <td className="p-4 text-gray-400 line-through">{formatPrice(originalPrice)}</td>
-                      <td className="p-4 font-bold text-gray-800">{formatPrice(displayPrice)}</td>
                       <td className="p-4">
-                        {product.discountPercent > 0 && (
-                          <span className="bg-green-50 text-green-600 text-[9px] font-bold px-2 py-0.5 rounded-full">
-                            {product.discountPercent}% OFF
-                          </span>
+                        <span className="inline-block bg-gray-100 text-gray-700 font-medium px-2.5 py-1 rounded-md text-[11px]">
+                          {product.category}
+                        </span>
+                        {product.collection && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">{product.collection}</p>
                         )}
+                      </td>
+                      <td className="p-4 font-mono font-medium">
+                        <div className="text-gray-900">{formatPrice(product.sellingPrice || product.discountedPrice || product.price)}</div>
+                        {product.mrpPrice > (product.sellingPrice || 0) && (
+                          <div className="text-[10px] text-gray-400 line-through">
+                            {formatPrice(product.mrpPrice)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-1 max-w-[220px]">
+                          {productSizes.length > 0 ? (
+                            productSizes.map((s) => (
+                              <span
+                                key={s}
+                                className="bg-black text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs font-mono"
+                              >
+                                {s}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-red-500 font-bold text-[10px] uppercase">Out of Stock</span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-1">
@@ -1064,20 +1212,13 @@ export default function AdminProductsPage() {
                           {product.bestSeller && (
                             <span className="bg-amber-50 text-amber-500 text-[9px] font-bold px-2 py-0.5 rounded-full">🔥 TRENDING</span>
                           )}
+                          {(product.metadata?.dealOfDay || product.metadata?.comboOffer) && (
+                            <span className="bg-purple-50 text-purple-600 text-[9px] font-bold px-2 py-0.5 rounded-full">⚡ COMBO</span>
+                          )}
                         </div>
-                      </td>
-                      <td className="p-4">
-                        {totalStock === 0 ? (
-                          <span className="text-red-500 font-bold text-[10px] uppercase">Out of Stock</span>
-                        ) : isLowStock ? (
-                          <span className="text-amber-500 font-bold">{totalStock} ⚠️</span>
-                        ) : (
-                          <span className="text-green-600 font-semibold">{totalStock} units</span>
-                        )}
                       </td>
                       <td className="p-4 pr-6 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {/* Quick label toggles */}
                           <button
                             onClick={() => handleToggleLabel(product, 'NEW')}
                             className={`p-1.5 rounded-lg transition-all text-[10px] ${product.label === 'NEW' || product.isNew ? 'bg-blue-50 text-blue-500' : 'text-gray-300 hover:text-blue-400'}`}
@@ -1129,5 +1270,23 @@ export default function AdminProductsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function ToggleBtn({ active, onClick, icon: Icon, label, activeColor }: {
+  active: boolean; onClick: () => void; icon: any; label: string; activeColor: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+        active ? `${activeColor} border-transparent shadow-2xs` : 'bg-gray-50 text-gray-400 border-gray-200 hover:border-gray-300'
+      }`}
+    >
+      <Icon size={12} />
+      <span>{label}</span>
+      {active && <Check size={10} className="ml-0.5" />}
+    </button>
   );
 }

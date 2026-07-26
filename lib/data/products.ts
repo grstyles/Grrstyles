@@ -2,6 +2,7 @@
 
 export interface ProductMetadata {
   dealOfDay?: boolean;
+  comboOffer?: boolean;
   featured?: boolean;
   tags?: string[];
 }
@@ -20,7 +21,8 @@ export interface Product {
   sellingPrice: number;
   label: string;
   description: string;
-   shirtStock?: Record<string, number>;
+  sizes?: string[]; // Primary array-based size system (e.g., ["S", "M", "L", "XL"])
+  shirtStock?: Record<string, number>;
   pantStock?: Record<string, number>;
   shoeStock?: Record<string, number>;
   overallStock?: number;
@@ -40,6 +42,21 @@ export interface Product {
   metadata?: ProductMetadata;
   coupons?: string[];
   imageColors?: { image_url: string; color_name: string; display_order: number }[];
+}
+
+/**
+ * Returns clean array of sizes for a product with legacy fallback.
+ */
+export function getProductSizes(product?: Partial<Product> | null): string[] {
+  if (!product) return [];
+  if (Array.isArray(product.sizes) && product.sizes.length > 0) {
+    return product.sizes;
+  }
+  const shirtKeys = Object.keys(product.shirtStock || {});
+  const pantKeys = Object.keys(product.pantStock || {});
+  const shoeKeys = Object.keys(product.shoeStock || {});
+  const combined = Array.from(new Set([...shirtKeys, ...pantKeys, ...shoeKeys]));
+  return combined;
 }
 
 export const productDatabase: Record<string, Product> = {

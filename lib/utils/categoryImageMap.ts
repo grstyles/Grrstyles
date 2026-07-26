@@ -36,6 +36,8 @@ export function normalizeCategory(category: string): string {
   if (val === 'jeans' || val === 'denim' || val === 'denim jeans' || val === 'denim-jeans') return 'denim-jeans';
   if (val === 'sneakers' || val === 'shoes' || val === 'sneaker' || val === 'shoe' || val === 'footwear') return 'shoes';
   if (val === 'accessories' || val === 'accessory' || val === 'watch' || val === 'watches' || val === 'belt' || val === 'belts' || val === 'wallet' || val === 'wallets' || val === 'cap' || val === 'caps' || val === 'sunglasses' || val === 'sunglass' || val === 'perfume' || val === 'perfumes') return 'accessories';
+  if (val === 'korean collection' || val === 'korean collections' || val === 'korean-collection' || val === 'korean-collections') return 'korean-collections';
+  if (val === 'traditional collection' || val === 'traditional collections' || val === 'traditional-collection' || val === 'traditional-collections') return 'traditional-collections';
 
   return normalizeSlug(category);
 }
@@ -47,17 +49,17 @@ export function normalizeCollection(collection: string): string {
   if (!collection) return '';
   const val = collection.toLowerCase().trim().replace(/-/g, ' ');
 
-  if (val === 'korean collection' || val === 'korean collections') return 'korean-collections';
-  if (val === 'trending collection' || val === 'trending collections') return 'trending-collections';
-  if (val === 'baggy pant' || val === 'baggy pants') return 'baggy-pants';
-  if (val === 'korean trouser' || val === 'korean trousers') return 'korean-trousers';
-  if (val === 'traditional collection' || val === 'traditional collections') return 'traditional-collections';
-  if (val === 'festival collection' || val === 'festival collections' || val === 'festival wear') return 'festival-collections';
-  if (val === 'combo offer' || val === 'combo offers' || val === 'combos') return 'combo-offers';
-  if (val === 'festival offer' || val === 'festival offers') return 'festival-offers';
-  if (val === 'weekend offer' || val === 'weekend offers') return 'weekend-offers';
-  if (val === 'formal combo' || val === 'formal combos') return 'formal-combos';
-  if (val === 'deal of the day' || val === 'deal of day' || val === 'deals') return 'deal-of-the-day';
+  if (val === 'korean collection' || val === 'korean collections' || val === 'korean-collection' || val === 'korean-collections') return 'korean-collections';
+  if (val === 'trending collection' || val === 'trending collections' || val === 'trending-collection' || val === 'trending-collections') return 'trending-collections';
+  if (val === 'baggy pant' || val === 'baggy pants' || val === 'baggy-pant' || val === 'baggy-pants') return 'baggy-pants';
+  if (val === 'korean trouser' || val === 'korean trousers' || val === 'korean-trouser' || val === 'korean-trousers') return 'korean-trousers';
+  if (val === 'traditional collection' || val === 'traditional collections' || val === 'traditional-collection' || val === 'traditional-collections') return 'traditional-collections';
+  if (val === 'festival collection' || val === 'festival collections' || val === 'festival wear' || val === 'festival-collection' || val === 'festival-collections') return 'festival-collections';
+  if (val === 'combo offer' || val === 'combo offers' || val === 'combos' || val === 'combo-offer' || val === 'combo-offers') return 'combo-offers';
+  if (val === 'festival offer' || val === 'festival offers' || val === 'festival-offer' || val === 'festival-offers') return 'festival-offers';
+  if (val === 'weekend offer' || val === 'weekend offers' || val === 'weekend-offer' || val === 'weekend-offers') return 'weekend-offers';
+  if (val === 'formal combo' || val === 'formal combos' || val === 'formal-combo' || val === 'formal-combos') return 'formal-combos';
+  if (val === 'deal of the day' || val === 'deal of day' || val === 'deals' || val === 'deal-of-the-day') return 'deal-of-the-day';
   if (val === 'shoes' || val === 'shoe') return 'shoes';
 
   return normalizeSlug(collection);
@@ -80,10 +82,12 @@ const IMAGE_MAP: Record<string, string> = {
   'shoes': '/images/categories/shoes.png',
   // Collections:
   'korean-collections': '/images/categories/korean_collection.png',
+  'korean-collection': '/images/categories/korean_collection.png',
   'trending-collections': '/images/categories/category-placeholder.png',
   'baggy-pants': '/images/categories/baggy_pants.png',
   'korean-trousers': '/images/categories/korean_collection.png',
   'traditional-collections': '/images/categories/festival_wear.png',
+  'traditional-collection': '/images/categories/festival_wear.png',
   'festival-collections': '/images/categories/festival_wear.png',
   'combo-offers': '/images/categories/category-placeholder.png',
   'festival-offers': '/images/categories/festival_wear.png',
@@ -109,23 +113,33 @@ export function matchCategory(product: any, slug: string): boolean {
 
   const target = normalizeSlug(slug);
   const prodCat = normalizeCategory(product.category || '');
+  const rawCat = (product.category || '').toLowerCase().trim();
   const prodTitle = (product.title || product.name || '').toLowerCase();
   const prodDesc = (product.description || '').toLowerCase();
   const prodColl = normalizeCollection(product.collection || '');
+  const rawColl = (product.collection || '').toLowerCase().trim();
 
   // 1. Direct match on category or collection
-  if (prodCat === target || prodColl === target) return true;
+  if (
+    prodCat === target ||
+    prodColl === target ||
+    normalizeSlug(rawCat) === target ||
+    normalizeSlug(rawColl) === target
+  ) return true;
 
   // 2. Collection specific text overrides
-  if (target === 'korean-collections') {
+  if (target === 'korean-collections' || target === 'korean-collection') {
     return (
       prodColl === 'korean-collections' ||
+      prodCat === 'korean-collections' ||
+      rawCat.includes('korean') ||
+      rawColl.includes('korean') ||
       prodTitle.includes('korean') ||
       prodDesc.includes('korean')
     );
   }
 
-  if (target === 'trending-collections') {
+  if (target === 'trending-collections' || target === 'trending-collection') {
     return (
       prodColl === 'trending-collections' ||
       product.bestSeller ||
@@ -154,13 +168,17 @@ export function matchCategory(product: any, slug: string): boolean {
   if (target === 'korean-trousers') {
     return (
       prodColl === 'korean-trousers' ||
+      prodCat === 'korean-trousers' ||
       (prodTitle.includes('korean') && (prodTitle.includes('trouser') || prodTitle.includes('pant') || prodTitle.includes('trousers') || prodTitle.includes('pants')))
     );
   }
 
-  if (target === 'traditional-collections') {
+  if (target === 'traditional-collections' || target === 'traditional-collection') {
     return (
       prodColl === 'traditional-collections' ||
+      prodCat === 'traditional-collections' ||
+      rawCat.includes('traditional') ||
+      rawColl.includes('traditional') ||
       prodTitle.includes('traditional') ||
       prodTitle.includes('ethnic') ||
       prodDesc.includes('traditional') ||
