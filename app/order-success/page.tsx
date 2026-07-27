@@ -16,7 +16,7 @@ export default function OrderSuccessPage() {
   const [orderId, setOrderId] = useState('');
   const [paymentId, setPaymentId] = useState('');
   const [amount, setAmount] = useState<number>(0);
-  const [minOrderThreshold, setMinOrderThreshold] = useState<number>(1000);
+  const [minOrderThreshold, setMinOrderThreshold] = useState<number>(5000);
   const [userCard, setUserCard] = useState<UserScratchCard | null>(null);
   const [loadingCard, setLoadingCard] = useState(true);
 
@@ -53,9 +53,9 @@ export default function OrderSuccessPage() {
       try {
         const settingsRes = await fetch('/api/scratch-cards/settings');
         const settingsData = await settingsRes.json();
-        let minLimit = 1000;
+        let minLimit = 5000;
         if (settingsData.success && settingsData.settings) {
-          minLimit = Number(settingsData.settings.min_order_amount || 1000);
+          minLimit = Number(settingsData.settings.min_order_amount || 5000);
           setMinOrderThreshold(minLimit);
         }
 

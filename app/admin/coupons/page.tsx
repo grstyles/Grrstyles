@@ -177,7 +177,7 @@ export default function AdminCouponsPage() {
                 type="number"
                 value={minOrderValue}
                 onChange={(e) => setMinOrderValue(e.target.value)}
-                placeholder="1000"
+                placeholder="5000"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm"
               />
             </div>

@@ -79,7 +79,7 @@ export default function ScratchCardsTab() {
   const [stats, setStats] = useState<ScratchDashboardStats | null>(null);
   const [settings, setSettings] = useState<ScratchCardSettings>({
     global_enabled: true,
-    min_order_amount: 1000,
+    min_order_amount: 5000,
     award_trigger: 'on_every_eligible_order',
     allow_multiple_per_customer: true,
     cards_per_order: 1,
@@ -731,7 +731,7 @@ export default function ScratchCardsTab() {
                   value={settings.min_order_amount}
                   onChange={(e) => setSettings({ ...settings, min_order_amount: Number(e.target.value) })}
                   className="w-full border border-gray-200 rounded-xl p-3 text-base font-bold focus:outline-none focus:ring-2 focus:ring-black"
-                  placeholder="1000"
+                  placeholder="5000"
                 />
                 <p className="text-gray-400 mt-1">
                   Customers get a scratch card automatically when their completed order is ₹{settings.min_order_amount} or higher.

@@ -17,7 +17,7 @@ export async function GET() {
       success: true,
       settings: {
         global_enabled: true,
-        min_order_amount: 1000,
+        min_order_amount: 5000,
         award_trigger: 'on_every_eligible_order',
         allow_multiple_per_customer: true,
         cards_per_order: 1,
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       success: true,
       settings: {
         global_enabled: true,
-        min_order_amount: 1000,
+        min_order_amount: 5000,
         award_trigger: 'on_every_eligible_order',
         allow_multiple_per_customer: true,
         cards_per_order: 1,
