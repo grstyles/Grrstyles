@@ -49,15 +49,40 @@ export interface Product {
  */
 export function getProductSizes(product?: Partial<Product> | null): string[] {
   if (!product) return [];
+  let sizes: string[] = [];
   if (Array.isArray(product.sizes) && product.sizes.length > 0) {
-    return product.sizes;
+    sizes = product.sizes;
   }
   const shirtKeys = Object.keys(product.shirtStock || {});
   const pantKeys = Object.keys(product.pantStock || {});
   const shoeKeys = Object.keys(product.shoeStock || {});
-  const combined = Array.from(new Set([...shirtKeys, ...pantKeys, ...shoeKeys]));
+  const combined = Array.from(new Set([...sizes, ...shirtKeys, ...pantKeys, ...shoeKeys]));
   return combined;
 }
+
+export function isPantCategory(category?: string): boolean {
+  if (!category) return false;
+  const c = category.toLowerCase();
+  return c.includes('pant') || c.includes('jean') || c.includes('trouser') || c.includes('bottom') || c.includes('chino') || c.includes('short') || c.includes('track');
+}
+
+export function isShirtCategory(category?: string): boolean {
+  if (!category) return false;
+  const c = category.toLowerCase();
+  return c.includes('shirt') || c.includes('top') || c.includes('polo') || c.includes('jacket') || c.includes('hoodie') || c.includes('upper');
+}
+
+export function isShoeCategory(category?: string): boolean {
+  if (!category) return false;
+  const c = category.toLowerCase();
+  return c.includes('shoe') || c.includes('footwear') || c.includes('sneaker') || c.includes('boot') || c.includes('slipper');
+}
+
+export function isComboCategory(category?: string): boolean {
+  if (!category) return false;
+  return category.toLowerCase().includes('combo');
+}
+
 
 export const productDatabase: Record<string, Product> = {
   'premium-white-oxford-shirt': {

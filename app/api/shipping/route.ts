@@ -18,26 +18,26 @@ export async function GET() {
       .single();
 
     if (error) {
-      // Row missing – return safe defaults so checkout always renders
+      // Row missing or query error – return safe defaults so checkout always renders
       console.warn('[/api/shipping] shipping_settings query error:', error.message);
       return NextResponse.json({
-        shippingCharge: 0,
-        freeShippingAbove: 0,
-        freeDelivery: true,
+        shippingCharge: 80,
+        freeShippingAbove: 2000,
+        freeDelivery: false,
       });
     }
 
     return NextResponse.json({
-      shippingCharge:    Number(data.shipping_charge    ?? 0),
-      freeShippingAbove: Number(data.free_shipping_above ?? 0),
-      freeDelivery:     Boolean(data.free_delivery       ?? true),
+      shippingCharge:    Number(data.shipping_charge    ?? 80),
+      freeShippingAbove: Number(data.free_shipping_above ?? 2000),
+      freeDelivery:     Boolean(data.free_delivery       ?? false),
     });
   } catch (e: any) {
     console.error('[/api/shipping] Unexpected error:', e?.message);
     return NextResponse.json({
-      shippingCharge: 0,
-      freeShippingAbove: 0,
-      freeDelivery: true,
+      shippingCharge: 80,
+      freeShippingAbove: 2000,
+      freeDelivery: false,
     });
   }
 }

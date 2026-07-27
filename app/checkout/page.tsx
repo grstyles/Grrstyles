@@ -146,9 +146,9 @@ export default function CheckoutPage() {
   // Shipping config — initialise with freeDelivery=true (show ₹0) until the
   // API responds.  The real values overwrite this inside the useEffect below.
   const [shippingConfig, setShippingConfig] = useState({
-    shippingCharge: 0,
-    freeShippingAbove: 0,
-    freeDelivery: true,
+    shippingCharge: 80,
+    freeShippingAbove: 2000,
+    freeDelivery: false,
   });
 
   useEffect(() => {
@@ -273,6 +273,8 @@ export default function CheckoutPage() {
       const data = await response.json();
 
       if (data.success && data.orderNumber) {
+        sessionStorage.setItem('gr_last_order_number', data.orderNumber);
+        sessionStorage.setItem('gr_last_amount', finalTotal.toString());
         if (directCheckoutItem) {
           dispatch(setDirectCheckoutItem(null));
         } else {
@@ -1033,8 +1035,8 @@ export default function CheckoutPage() {
 
             {/* Items */}
             <div className="mb-6 max-h-64 overflow-y-auto space-y-3">
-              {cartItems.map((item) => {
-                const uniqueKey = `${item.id}-${item.size || ''}-${item.shirtSize || ''}-${item.pantSize || ''}-${item.shoeSize || ''}-${item.color || ''}`;
+              {cartItems.map((item, index) => {
+                const uniqueKey = `${item.id}-${item.size || ''}-${item.shirtSize || ''}-${item.pantSize || ''}-${item.shoeSize || ''}-${item.color || ''}-${index}`;
                 return (
                   <div key={uniqueKey} className="flex gap-4 text-sm pb-3 border-b border-gray-200 items-start group">
                     {item.image ? (

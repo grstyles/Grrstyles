@@ -6,6 +6,9 @@
 -- 1. Alter Orders Table to support tracking and payment details
 ALTER TABLE public.orders
 ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users ON DELETE SET NULL,
+ADD COLUMN IF NOT EXISTS subtotal numeric(10, 2),
+ADD COLUMN IF NOT EXISTS shipping_amount numeric(10, 2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS tax_amount numeric(10, 2) DEFAULT 0,
 ADD COLUMN IF NOT EXISTS razorpay_order_id text,
 ADD COLUMN IF NOT EXISTS razorpay_payment_id text,
 ADD COLUMN IF NOT EXISTS payment_signature text,

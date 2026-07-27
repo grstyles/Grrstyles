@@ -390,26 +390,48 @@ export default function AdminOrderDetailsPage() {
             </div>
 
             <div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between text-gray-600">
-                  <span>Subtotal</span>
-                  <span>{formatPrice(order.totalAmount + (order.discountAmount || 0) - 150)}</span>
-                </div>
-                <div className="flex justify-between text-gray-600">
-                  <span>Shipping</span>
-                  <span>{formatPrice(150)}</span>
-                </div>
-                {order.discountAmount && order.discountAmount > 0 && (
-                  <div className="flex justify-between text-green-600 font-medium">
-                    <span>Discount {order.couponCode ? `(${order.couponCode})` : ''}</span>
-                    <span>-{formatPrice(order.discountAmount)}</span>
+              {(() => {
+                const subtotal = order.subtotal ?? (order.items || []).reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                const discount = order.discountAmount || 0;
+                const tax = order.taxAmount || 0;
+                const shipping = order.shippingAmount ?? Math.max(0, order.totalAmount - subtotal + discount - tax);
+                const isPaid = order.paymentStatus === 'Paid';
+
+                return (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Subtotal</span>
+                      <span>{formatPrice(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>Shipping</span>
+                      <span>{shipping > 0 ? formatPrice(shipping) : 'Free'}</span>
+                    </div>
+                    {discount > 0 && (
+                      <div className="flex justify-between text-green-600 font-medium">
+                        <span>Discount {order.couponCode ? `(${order.couponCode})` : ''}</span>
+                        <span>-{formatPrice(discount)}</span>
+                      </div>
+                    )}
+                    {tax > 0 && (
+                      <div className="flex justify-between text-gray-600 font-medium">
+                        <span>Tax</span>
+                        <span>{formatPrice(tax)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-xl text-gray-900 pt-4 border-t border-gray-100 mt-2">
+                      <span>Grand Total</span>
+                      <span>{formatPrice(order.totalAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 font-medium pt-1">
+                      <span>Amount Paid</span>
+                      <span className={isPaid ? "text-green-600 font-bold" : "text-amber-600 font-bold"}>
+                        {isPaid ? formatPrice(order.totalAmount) : formatPrice(0)}
+                      </span>
+                    </div>
                   </div>
-                )}
-                <div className="flex justify-between font-bold text-xl text-gray-900 pt-4 border-t border-gray-100 mt-2">
-                  <span>Grand Total</span>
-                  <span>{formatPrice(order.totalAmount)}</span>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           </div>
 

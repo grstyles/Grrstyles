@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/context/AuthContext';
-import { repo, MockOrder, UserAddress } from '@/lib/repositories';
+import { repo, MockOrder, UserAddress, UserScratchCard } from '@/lib/repositories';
 import { formatPrice } from '@/lib/utils/helpers';
 import { 
   User, 
@@ -39,11 +39,14 @@ import {
   MessageCircle,
   BarChart3,
   ChevronRight,
-  Lock
+  Lock,
+  Ticket,
+  Sparkles
 } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import BottomNavigation from '@/components/layout/BottomNavigation';
+import ScratchCardModal from '@/components/ui/ScratchCardModal';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -86,6 +89,23 @@ export default function ProfilePage() {
     }
   };
 
+  const [scratchCards, setScratchCards] = useState<UserScratchCard[]>([]);
+  const [loadingScratchCards, setLoadingScratchCards] = useState(true);
+  const [activeModalCard, setActiveModalCard] = useState<UserScratchCard | null>(null);
+
+  const loadScratchCards = async () => {
+    if (!user) return;
+    setLoadingScratchCards(true);
+    try {
+      const list = await repo.scratchCards.getUserCards(user.id, user.email);
+      setScratchCards(list);
+    } catch (err) {
+      console.error('Failed to load scratch cards:', err);
+    } finally {
+      setLoadingScratchCards(false);
+    }
+  };
+
   useEffect(() => {
     requireAuth(
       () => {
@@ -112,9 +132,6 @@ export default function ProfilePage() {
         return;
       }
       try {
-        // RLS policy on the orders table already filters rows to the logged-in
-        // user (via customer_email = auth.jwt()->>'email'), so getAll() returns
-        // only this user's orders — no client-side filter needed.
         const userOrders = await repo.orders.getAll();
         setOrders(userOrders);
       } catch (err) {
@@ -126,6 +143,7 @@ export default function ProfilePage() {
 
     loadOrders();
     loadAddresses();
+    loadScratchCards();
   }, [authChecked, user]);
 
   const handleLogout = async () => {
@@ -513,6 +531,78 @@ export default function ProfilePage() {
                 )}
               </div>
 
+              {/* My Scratch Cards */}
+              <div id="scratch-cards" className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                <div className="flex justify-between items-center pb-4 border-b border-gray-50">
+                  <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-2">
+                    <Ticket size={16} className="text-amber-500" />
+                    My Scratch Cards ({scratchCards.length})
+                  </h3>
+                  <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                    Scratch & Win
+                  </span>
+                </div>
+
+                {loadingScratchCards ? (
+                  <div className="py-8 flex justify-center">
+                    <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : scratchCards.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    {scratchCards.map((sc) => (
+                      <div
+                        key={sc.id}
+                        onClick={() => setActiveModalCard(sc)}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between group ${
+                          sc.is_claimed
+                            ? 'bg-gray-50 border-gray-200 opacity-90'
+                            : sc.is_scratched
+                            ? 'bg-amber-50/60 border-amber-200'
+                            : 'bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-sm hover:shadow-md'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            sc.is_claimed ? 'bg-emerald-100 text-emerald-700' :
+                            sc.is_scratched ? 'bg-amber-200 text-amber-800' :
+                            'bg-black/30 text-white backdrop-blur'
+                          }`}>
+                            {sc.is_claimed ? 'Claimed' : sc.is_scratched ? 'Scratched' : 'Tap to Scratch ✨'}
+                          </span>
+                          {!sc.is_claimed && !sc.is_scratched && (
+                            <Sparkles size={16} className="text-amber-200 animate-pulse" />
+                          )}
+                        </div>
+
+                        <div>
+                          <h4 className={`font-bold text-sm leading-tight ${sc.is_claimed ? 'text-gray-900' : sc.is_scratched ? 'text-amber-900' : 'text-white'}`}>
+                            {sc.card_title || 'Scratch & Win Discount'}
+                          </h4>
+                          <p className={`text-xs mt-1 ${sc.is_claimed ? 'text-gray-500' : sc.is_scratched ? 'text-amber-700' : 'text-white/80'}`}>
+                            {sc.is_claimed ? `Code: ${sc.coupon_code}` : 'Unveil your instant shopping reward'}
+                          </p>
+                        </div>
+
+                        <div className="mt-3 pt-2 border-t border-black/10 flex items-center justify-between text-xs font-semibold">
+                          <span className={sc.is_claimed ? 'text-emerald-600 font-mono' : sc.is_scratched ? 'text-amber-800' : 'text-amber-200'}>
+                            {sc.reward_type === 'percentage_discount' ? `${sc.reward_value}% OFF` : `₹${sc.reward_value} OFF`}
+                          </span>
+                          <span className={`text-[10px] uppercase font-bold flex items-center gap-1 ${sc.is_claimed ? 'text-gray-400' : sc.is_scratched ? 'text-amber-700' : 'text-white'}`}>
+                            {sc.is_claimed ? 'Claimed' : 'Scratch Now'} <ChevronRight size={12} />
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 space-y-2">
+                    <Ticket size={24} className="mx-auto text-gray-300" />
+                    <p className="text-xs text-gray-400">No scratch cards assigned yet.</p>
+                    <p className="text-[10px] text-gray-400">Place an order above minimum cart value to earn scratch cards!</p>
+                  </div>
+                )}
+              </div>
+
               {/* Saved Addresses */}
               <div id="addresses" className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
                 <div className="flex justify-between items-center pb-4 border-b border-gray-50">
@@ -800,6 +890,18 @@ export default function ProfilePage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Interactive Scratch Card Modal */}
+      {activeModalCard && (
+        <ScratchCardModal
+          card={activeModalCard}
+          isOpen={Boolean(activeModalCard)}
+          onClose={() => setActiveModalCard(null)}
+          onRewardClaimed={(updated) => {
+            setScratchCards((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+          }}
+        />
       )}
 
       <BottomNavigation />

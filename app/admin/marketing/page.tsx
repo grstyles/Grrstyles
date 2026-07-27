@@ -13,6 +13,7 @@ import {
   Layout
 } from 'lucide-react';
 import CategoryCarouselTab from '@/components/admin/marketing/CategoryCarouselTab';
+import ScratchCardsTab from '@/components/admin/marketing/ScratchCardsTab';
 
 const TABS = [
   { id: 'homepage', label: 'Homepage Builder', icon: Home },
@@ -190,21 +191,6 @@ function RewardsTab() {
           <input type="text" placeholder="Reward Value (e.g. Wallet)" className="border p-2 rounded-lg" defaultValue="Premium Wallet" />
         </div>
         <button className="bg-black text-white px-4 py-2 rounded-lg text-sm">Add Rule</button>
-      </div>
-    </div>
-  );
-}
-
-// --------------------------------------------------------
-// SCRATCH CARDS TAB
-// --------------------------------------------------------
-function ScratchCardsTab() {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-bold">Scratch Card Manager</h2>
-      <p className="text-gray-500">Configure post-checkout scratch card probabilities.</p>
-      <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-sm">
-        To add new scratch cards, define the Title, Reward Image, Probability (%), and Stock limits.
       </div>
     </div>
   );

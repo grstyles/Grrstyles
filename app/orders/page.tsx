@@ -306,28 +306,47 @@ export default function OrdersPage() {
 
                       {/* Total details summary */}
                       <div className="flex justify-end pt-2">
-                        <div className="w-full sm:w-64 bg-white border border-gray-100 p-4 rounded-2xl shadow-sm space-y-2 text-xs">
-                          <div className="flex justify-between text-gray-500 font-light">
-                            <span>Subtotal</span>
-                            <span>{formatPrice(order.totalAmount + (order.discountAmount || 0))}</span>
-                          </div>
-                          {order.discountAmount && order.discountAmount > 0 ? (
-                            <div className="flex justify-between text-red-500 font-medium">
-                              <span>Promo Discount ({order.couponCode})</span>
-                              <span>-{formatPrice(order.discountAmount)}</span>
+                        {(() => {
+                          const subtotal = order.subtotal ?? (order.items || []).reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                          const discount = order.discountAmount || 0;
+                          const tax = order.taxAmount || 0;
+                          const shipping = order.shippingAmount ?? Math.max(0, order.totalAmount - subtotal + discount - tax);
+
+                          return (
+                            <div className="w-full sm:w-64 bg-white border border-gray-100 p-4 rounded-2xl shadow-sm space-y-2 text-xs">
+                              <div className="flex justify-between text-gray-500 font-light">
+                                <span>Subtotal</span>
+                                <span>{formatPrice(subtotal)}</span>
+                              </div>
+                              <div className="flex justify-between text-gray-500 font-light">
+                                <span>Shipping</span>
+                                <span>{shipping > 0 ? formatPrice(shipping) : 'Free'}</span>
+                              </div>
+                              {discount > 0 ? (
+                                <div className="flex justify-between text-red-500 font-medium">
+                                  <span>Promo Discount {order.couponCode ? `(${order.couponCode})` : ''}</span>
+                                  <span>-{formatPrice(discount)}</span>
+                                </div>
+                              ) : null}
+                              {tax > 0 ? (
+                                <div className="flex justify-between text-gray-500 font-light">
+                                  <span>Tax</span>
+                                  <span>{formatPrice(tax)}</span>
+                                </div>
+                              ) : null}
+                              <div className="flex justify-between font-bold text-gray-900 border-t border-gray-50 pt-2 text-sm">
+                                <span>Total</span>
+                                <span>{formatPrice(order.totalAmount)}</span>
+                              </div>
+                              <div className="text-[10px] font-light text-gray-400 pt-1 text-right italic font-mono space-y-0.5">
+                                <p>Payment: {order.paymentMethod === 'razorpay' ? 'Razorpay' : order.paymentMethod} ({order.paymentStatus})</p>
+                                {order.gateway === 'razorpay' && order.razorpay_payment_id && (
+                                  <p className="text-[9px]">ID: {order.razorpay_payment_id}</p>
+                                )}
+                              </div>
                             </div>
-                          ) : null}
-                          <div className="flex justify-between font-bold text-gray-900 border-t border-gray-50 pt-2 text-sm">
-                            <span>Total</span>
-                            <span>{formatPrice(order.totalAmount)}</span>
-                          </div>
-                          <div className="text-[10px] font-light text-gray-400 pt-1 text-right italic font-mono space-y-0.5">
-                            <p>Payment: {order.paymentMethod === 'razorpay' ? 'Razorpay' : order.paymentMethod} ({order.paymentStatus})</p>
-                            {order.gateway === 'razorpay' && order.razorpay_payment_id && (
-                              <p className="text-[9px]">ID: {order.razorpay_payment_id}</p>
-                            )}
-                          </div>
-                        </div>
+                          );
+                        })()}
                       </div>
 
                     </div>

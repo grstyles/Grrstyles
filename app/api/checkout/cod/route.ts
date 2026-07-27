@@ -159,6 +159,19 @@ export async function POST(req: Request) {
       await supabase.from('cart').delete().eq('user_id', userId);
     }
 
+    // 5. Evaluate and assign Scratch Card if eligible
+    try {
+      await repo.scratchCards.evaluateAndAssignForOrder({
+        id: orderData.id,
+        orderNumber,
+        userId: userId || undefined,
+        userEmail: orderPayload.email,
+        totalAmount: verifiedTotalAmount,
+      });
+    } catch (scErr) {
+      console.warn('Scratch card auto-issuance error (COD):', scErr);
+    }
+
     return NextResponse.json({ success: true, orderNumber });
 
   } catch (err: any) {

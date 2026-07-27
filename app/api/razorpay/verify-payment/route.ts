@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import { createClient } from '@supabase/supabase-js';
+import { repo } from '@/lib/repositories';
 
 
 const supabase = createClient(
@@ -81,13 +82,10 @@ export async function POST(req: Request) {
     const expectedAmount = (rzpOrder as any).amount / 100;
     const clientAmount = Number(orderPayload.totalAmount || 0);
     
-    // Allow up to ₹1 rounding tolerance between client and server calculations
+    // Log warning if there is any mismatch between client calculation and Razorpay charged amount,
+    // but proceed using the authoritative Razorpay charged amount (expectedAmount).
     if (Math.abs(clientAmount - expectedAmount) > 1.0) {
-      console.warn(`⚠️ Total amount mismatch. Payload: ${clientAmount}, Razorpay Order: ${expectedAmount}`);
-      return NextResponse.json(
-        { success: false, error: 'Order amount verification failed due to mismatch' },
-        { status: 400 }
-      );
+      console.warn(`⚠️ Total amount mismatch. Client payload: ${clientAmount}, Razorpay Order charged: ${expectedAmount}. Using authoritative charged amount.`);
     }
 
     // Check if payment or order already exists (idempotency check)
@@ -110,6 +108,10 @@ export async function POST(req: Request) {
     const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 
     // 1. Insert Order into Supabase
+    const calculatedSubtotal = items.reduce(
+      (s: number, i: any) => s + (i.sellingPrice ?? i.discountedPrice ?? i.price ?? 0) * i.quantity,
+      0
+    );
     const dbOrderData = {
       order_number: orderNumber,
       user_id: userId || null,
@@ -163,7 +165,7 @@ export async function POST(req: Request) {
       size: item.size || item.shirtSize || item.pantSize || item.shoeSize || 'N/A',
       color: item.color || null,
       quantity: item.quantity,
-      price: item.price || item.discountedPrice || 0
+      price: item.sellingPrice ?? item.discountedPrice ?? item.price ?? 0
     }));
 
     const insertItemsTask = supabase.from('order_items').insert(orderItems);
@@ -202,12 +204,21 @@ export async function POST(req: Request) {
       ? supabase.from('cart').delete().eq('user_id', userId)
       : Promise.resolve();
 
+    const scratchCardTask = repo.scratchCards.evaluateAndAssignForOrder({
+      id: order.id,
+      orderNumber,
+      userId: userId || undefined,
+      userEmail: orderPayload.email,
+      totalAmount: expectedAmount,
+    }).catch(err => console.warn('Scratch card issuance error (Razorpay):', err));
+
     // Execute all side-effects concurrently
     await Promise.allSettled([
       insertItemsTask,
       insertPaymentTask,
       reduceStockTasks,
-      clearCartTask
+      clearCartTask,
+      scratchCardTask
     ]);
 
     return NextResponse.json({ 

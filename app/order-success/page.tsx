@@ -3,8 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { ShoppingBag, CheckCircle, ShieldCheck, Truck } from 'lucide-react';
+import { ShoppingBag, CheckCircle, ShieldCheck, Truck, Sparkles, Gift } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { UserScratchCard } from '@/lib/repositories';
 
 const ScratchCard = dynamic(() => import('@/components/ui/ScratchCard'), {
   ssr: false,
@@ -14,17 +15,23 @@ const ScratchCard = dynamic(() => import('@/components/ui/ScratchCard'), {
 export default function OrderSuccessPage() {
   const [orderId, setOrderId] = useState('');
   const [paymentId, setPaymentId] = useState('');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState<number>(0);
+  const [minOrderThreshold, setMinOrderThreshold] = useState<number>(1000);
+  const [userCard, setUserCard] = useState<UserScratchCard | null>(null);
+  const [loadingCard, setLoadingCard] = useState(true);
 
   useEffect(() => {
-    // Check if we have a cached order number from checkout, otherwise fallback to random
+    // 1. Read cached order info
     const cachedOrder = sessionStorage.getItem('gr_last_order_number');
+    let orderNum = '';
     if (cachedOrder) {
+      orderNum = cachedOrder;
       setOrderId(cachedOrder);
       sessionStorage.removeItem('gr_last_order_number');
     } else {
       const num = Math.floor(100000 + Math.random() * 900000);
-      setOrderId(`GR-2026-${num}`);
+      orderNum = `GR-2026-${num}`;
+      setOrderId(orderNum);
     }
 
     const cachedPayment = sessionStorage.getItem('gr_last_payment_id');
@@ -34,11 +41,68 @@ export default function OrderSuccessPage() {
     }
 
     const cachedAmount = sessionStorage.getItem('gr_last_amount');
+    let numAmount = 0;
     if (cachedAmount) {
-      setAmount(cachedAmount);
+      numAmount = Number(cachedAmount) || 0;
+      setAmount(numAmount);
       sessionStorage.removeItem('gr_last_amount');
     }
+
+    // 2. Fetch admin global settings and customer assigned scratch card
+    async function loadCardDetails() {
+      try {
+        const settingsRes = await fetch('/api/scratch-cards/settings');
+        const settingsData = await settingsRes.json();
+        let minLimit = 1000;
+        if (settingsData.success && settingsData.settings) {
+          minLimit = Number(settingsData.settings.min_order_amount || 1000);
+          setMinOrderThreshold(minLimit);
+        }
+
+        // Only check for user card if order amount qualifies (amount >= minLimit)
+        if (numAmount >= minLimit) {
+          const userCardsRes = await fetch('/api/scratch-cards/user');
+          const userCardsData = await userCardsRes.json();
+          if (userCardsData.success && userCardsData.cards && userCardsData.cards.length > 0) {
+            // Find unrevealed card or latest assigned card
+            const match = userCardsData.cards.find((c: UserScratchCard) => !c.is_claimed) || userCardsData.cards[0];
+            if (match) setUserCard(match);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch scratch card info:', err);
+      } finally {
+        setLoadingCard(false);
+      }
+    }
+
+    loadCardDetails();
   }, []);
+
+  const handleRevealReward = async () => {
+    import('canvas-confetti').then((confettiModule) => {
+      confettiModule.default({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+    });
+
+    if (userCard && !userCard.is_claimed) {
+      try {
+        await fetch('/api/scratch-cards/claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userCardId: userCard.id, userId: userCard.user_id }),
+        });
+      } catch (err) {
+        console.warn('Error claiming reward on reveal:', err);
+      }
+    }
+  };
+
+  const getRewardDisplay = () => {
+    if (!userCard) return '₹250 DISCOUNT';
+    if (userCard.reward_type === 'percentage_discount') return `${userCard.reward_value}% OFF`;
+    if (userCard.reward_type === 'free_shipping') return 'FREE SHIPPING';
+    return `₹${userCard.reward_value} OFF`;
+  };
 
   return (
     <main className="min-h-screen bg-[#fcfbf9] py-16 sm:py-24 px-4 flex items-center justify-center">
@@ -62,18 +126,33 @@ export default function OrderSuccessPage() {
           Thank you for shopping with GR STYLES. Your order has been placed successfully.
         </p>
 
-        {/* Scratch Card Section */}
-        <div className="mb-10">
-          <h3 className="text-sm font-semibold uppercase tracking-widest text-[#1a1a1a] mb-4 border-b border-gray-100 pb-2">A Gift For You</h3>
-          <ScratchCard 
-            rewardText="₹500 CASHBACK" 
-            onReveal={() => {
-              import('canvas-confetti').then((confettiModule) => {
-                confettiModule.default({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-              });
-            }} 
-          />
-        </div>
+        {/* Dynamic Scratch Card Section based on Order Threshold */}
+        {!loadingCard && (
+          <div className="mb-8">
+            {amount >= minOrderThreshold && userCard ? (
+              <div>
+                <div className="flex items-center justify-center gap-2 mb-3">
+                  <Sparkles className="text-amber-500" size={16} />
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a1a1a]">You Unlocked A Scratch Card Gift!</h3>
+                </div>
+                <ScratchCard 
+                  rewardText={getRewardDisplay()} 
+                  onReveal={handleRevealReward} 
+                />
+              </div>
+            ) : amount > 0 && amount < minOrderThreshold ? (
+              <div className="p-4 bg-amber-50/80 border border-amber-200/70 rounded-2xl text-left space-y-1">
+                <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
+                  <Gift size={16} className="text-amber-600" />
+                  Earn Scratch Cards On Next Purchase
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  Spend <span className="font-bold">₹{minOrderThreshold}</span> or more on your next order to automatically unlock an exclusive Scratch Card reward!
+                </p>
+              </div>
+            ) : null}
+          </div>
+        )}
 
         {/* Order Details box */}
         <div className="bg-[#fcfbf9] border border-gray-100 rounded-2xl p-4 mb-8 text-left space-y-3">
@@ -87,7 +166,7 @@ export default function OrderSuccessPage() {
               <p className="text-sm font-mono text-gray-600 tracking-wide">{paymentId}</p>
             </div>
           )}
-          {amount && (
+          {amount > 0 && (
             <div>
               <p className="text-[10px] text-[#6b5b4b] uppercase font-bold tracking-wider mb-1">Amount Paid</p>
               <p className="text-sm font-semibold text-green-600 tracking-wide">₹{amount}</p>

@@ -359,43 +359,60 @@ export class SupabaseOrderRepository implements IOrderRepository {
       .select('*, order_items(*)')
       .order('created_at', { ascending: false });
     if (error || !data) throw error;
-    return data.map((d: any) => ({
-      id: d.id,
-      orderNumber: d.order_number,
-      customerName: d.customer_name,
-      email: d.customer_email || '',
-      phone: d.customer_phone || '',
-      itemsCount: (d.order_items || []).reduce((s: number, i: any) => s + i.quantity, 0),
-      totalAmount: Number(d.total_amount),
-      status: d.status as MockOrder['status'],
-      paymentStatus: d.payment_status as MockOrder['paymentStatus'],
-      paymentMethod: d.payment_method || 'Prepaid',
-      date: new Date(d.created_at).toISOString().split('T')[0],
-      shippingAddress: d.shipping_address,
-      razorpay_order_id: d.razorpay_order_id,
-      razorpay_payment_id: d.razorpay_payment_id,
-      payment_signature: d.payment_signature,
-      gateway: d.gateway,
-      transaction_time: d.transaction_time,
-      invoice_number: d.invoice_number,
-      payment_verified: d.payment_verified,
-      gateway_response: d.gateway_response,
-      tracking_id: d.tracking_id,
-      tracking_url: d.tracking_url,
-      courier_partner: d.courier_partner,
-      dispatch_date: d.dispatch_date,
-      expected_delivery_date: d.expected_delivery_date,
-      delivered_date: d.delivered_date,
-      items: (d.order_items || []).map((item: any) => ({
-        productId: item.product_id,
-        productName: item.product_name,
-        size: item.size,
-        color: item.color,
-        quantity: item.quantity,
-        price: Number(item.price)
-      }))
-    }));
-  }
+      return data.map((d: any) => {
+        const items = (d.order_items || []).map((item: any) => ({
+          productId: item.product_id,
+          productName: item.product_name,
+          size: item.size,
+          color: item.color,
+          quantity: item.quantity,
+          price: Number(item.price)
+        }));
+        const itemsSum = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
+        const discount = Number(d.discount_amount || 0);
+        const tax = d.tax_amount != null ? Number(d.tax_amount) : 0;
+        const total = Number(d.total_amount);
+        const subtotal = d.subtotal != null ? Number(d.subtotal) : itemsSum;
+        const shipping = d.shipping_amount != null 
+          ? Number(d.shipping_amount) 
+          : Math.max(0, total - subtotal + discount - tax);
+
+        return {
+          id: d.id,
+          orderNumber: d.order_number,
+          customerName: d.customer_name,
+          email: d.customer_email || '',
+          phone: d.customer_phone || '',
+          itemsCount: items.reduce((s: number, i: any) => s + i.quantity, 0),
+          totalAmount: total,
+          discountAmount: discount,
+          couponCode: d.coupon_code || undefined,
+          subtotal,
+          shippingAmount: shipping,
+          taxAmount: tax,
+          status: d.status as MockOrder['status'],
+          paymentStatus: d.payment_status as MockOrder['paymentStatus'],
+          paymentMethod: d.payment_method || 'Prepaid',
+          date: new Date(d.created_at).toISOString().split('T')[0],
+          shippingAddress: d.shipping_address,
+          razorpay_order_id: d.razorpay_order_id,
+          razorpay_payment_id: d.razorpay_payment_id,
+          payment_signature: d.payment_signature,
+          gateway: d.gateway,
+          transaction_time: d.transaction_time,
+          invoice_number: d.invoice_number,
+          payment_verified: d.payment_verified,
+          gateway_response: d.gateway_response,
+          tracking_id: d.tracking_id,
+          tracking_url: d.tracking_url,
+          courier_partner: d.courier_partner,
+          dispatch_date: d.dispatch_date,
+          expected_delivery_date: d.expected_delivery_date,
+          delivered_date: d.delivered_date,
+          items,
+        };
+      });
+    }
 
   async getById(id: string): Promise<MockOrder | null> {
     const { data } = await sb()
@@ -404,26 +421,42 @@ export class SupabaseOrderRepository implements IOrderRepository {
       .eq('id', id)
       .maybeSingle();
     if (!data) return null;
+
+    const items = (data.order_items || []).map((item: any) => ({
+      productId: item.product_id,
+      productName: item.product_name,
+      size: item.size,
+      color: item.color,
+      quantity: item.quantity,
+      price: Number(item.price)
+    }));
+    const itemsSum = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
+    const discount = Number(data.discount_amount || 0);
+    const tax = data.tax_amount != null ? Number(data.tax_amount) : 0;
+    const total = Number(data.total_amount);
+    const subtotal = data.subtotal != null ? Number(data.subtotal) : itemsSum;
+    const shipping = data.shipping_amount != null 
+      ? Number(data.shipping_amount) 
+      : Math.max(0, total - subtotal + discount - tax);
+
     return {
       id: data.id,
       orderNumber: data.order_number,
       customerName: data.customer_name,
       email: data.customer_email || '',
       phone: data.customer_phone || '',
-      itemsCount: (data.order_items || []).reduce((s: number, i: any) => s + i.quantity, 0),
-      totalAmount: Number(data.total_amount),
+      itemsCount: items.reduce((s: number, i: any) => s + i.quantity, 0),
+      totalAmount: total,
+      discountAmount: discount,
+      couponCode: data.coupon_code || undefined,
+      subtotal,
+      shippingAmount: shipping,
+      taxAmount: tax,
       status: data.status,
       paymentStatus: data.payment_status,
       paymentMethod: data.payment_method || 'Prepaid',
       date: new Date(data.created_at).toISOString().split('T')[0],
-      items: (data.order_items || []).map((item: any) => ({
-        productId: item.product_id,
-        productName: item.product_name,
-        size: item.size,
-        color: item.color,
-        quantity: item.quantity,
-        price: Number(item.price)
-      })),
+      items,
       shippingAddress: data.shipping_address,
       razorpay_order_id: data.razorpay_order_id,
       razorpay_payment_id: data.razorpay_payment_id,

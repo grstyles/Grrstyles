@@ -14,26 +14,15 @@ import Image from 'next/image';
 
 const CATEGORIES = [
   'Shirts',
-  'Printed Shirts',
   'T-Shirts',
-  'Formal Shirts',
   'Combo Offers',
   'Korean Collection',
   'Baggy Pants',
-  'Korean Trousers',
   'Shoes',
   'Traditional Collection',
   'Festival Collection',
   'Trending Collection',
-  'Jackets',
-  'Night Tracks',
-  'Accessories',
-  'Formal Combo',
-  'Formal Pant',
   'Trousers',
-  'Denim Jeans',
-  'Festival Offers',
-  'Weekend Offers'
 ];
 
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];

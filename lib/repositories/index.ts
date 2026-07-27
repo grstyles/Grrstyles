@@ -38,6 +38,8 @@ import {
   SupabaseShippingRepository,
 } from './supabaseProvider';
 
+import { IScratchCardRepository, SupabaseScratchCardRepository } from './scratchCardRepository';
+
 // ─── Repository Set ─────────────────────────────────────────────────────────────
 
 interface RepositorySet {
@@ -51,6 +53,7 @@ interface RepositorySet {
   categoryCarousel: ICategoryCarouselRepository;
   shipping: IShippingRepository;
   navigation: INavigationRepository;
+  scratchCards: IScratchCardRepository;
 }
 
 // ─── Factory Function ──────────────────────────────────────────────────────────
@@ -68,6 +71,7 @@ function createRepositories(): RepositorySet {
     categoryCarousel: new SupabaseCategoryCarouselRepository(),
     shipping: new SupabaseShippingRepository(),
     navigation: new SupabaseNavigationRepository(),
+    scratchCards: new SupabaseScratchCardRepository(),
   };
 }
 
@@ -76,6 +80,9 @@ function createRepositories(): RepositorySet {
 const repoKey = '__gr_repositories__';
 if (!(globalThis as any)[repoKey]) {
   (globalThis as any)[repoKey] = createRepositories();
+}
+if (!(globalThis as any)[repoKey].scratchCards) {
+  (globalThis as any)[repoKey].scratchCards = new SupabaseScratchCardRepository();
 }
 
 /**
@@ -115,3 +122,11 @@ export type {
   INavigationRepository,
   NavigationHeroImage,
 } from './interfaces';
+
+export type {
+  ScratchCard,
+  ScratchCardSettings,
+  UserScratchCard,
+  ScratchDashboardStats,
+  IScratchCardRepository,
+} from './scratchCardRepository';

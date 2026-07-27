@@ -38,6 +38,9 @@ export interface MockOrder {
   shippingAddress?: any;
   couponCode?: string;
   discountAmount?: number;
+  subtotal?: number;
+  shippingAmount?: number;
+  taxAmount?: number;
   date: string;
   items?: MockOrderItem[];
   razorpay_order_id?: string;
@@ -320,3 +323,64 @@ export interface INavigationRepository {
   updateHeroImage(pageKey: string, imageUrl: string): Promise<NavigationHeroImage | null>;
   deleteHeroImage(pageKey: string): Promise<boolean>;
 }
+
+// ─── Customer Repository ───────────────────────────────────────────────────────
+
+export interface CustomerSummary {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  avatar?: string;
+  registrationDate: string;
+  totalOrders: number;
+  totalSpent: number;
+  lastOrderDate: string | null;
+  status: 'Active' | 'Inactive';
+  accountStatus: 'Registered' | 'Guest' | 'Admin';
+}
+
+export interface CustomerWishlistItem {
+  id: string;
+  productId: string;
+  productName: string;
+  slug: string;
+  price: number;
+  image?: string;
+  addedAt: string;
+}
+
+export interface CustomerAddressItem {
+  id: string;
+  fullName: string;
+  phone: string;
+  email?: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  isDefault: boolean;
+}
+
+export interface CustomerActivityItem {
+  id: string;
+  type: 'registered' | 'order_placed' | 'address_added' | 'wishlist_added';
+  description: string;
+  timestamp: string;
+}
+
+export interface CustomerDetail extends CustomerSummary {
+  avgOrderValue: number;
+  orders: MockOrder[];
+  addresses: CustomerAddressItem[];
+  wishlist: CustomerWishlistItem[];
+  activity: CustomerActivityItem[];
+}
+
+export interface ICustomerRepository {
+  getAllCustomers(): Promise<CustomerSummary[]>;
+  getCustomerById(idOrEmail: string): Promise<CustomerDetail | null>;
+}
+
