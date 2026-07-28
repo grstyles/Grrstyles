@@ -66,7 +66,8 @@ export async function POST(req: Request) {
     let discount = 0;
     if (couponCode) {
       try {
-        const couponResult = await repo.coupons.apply(couponCode, { subtotal: calculatedSubtotal, productIds });
+        const couponProductIds = items.flatMap((i: any) => [i.id, i.productId, i.slug, i.sku].filter(Boolean) as string[]);
+        const couponResult = await repo.coupons.apply(couponCode, { subtotal: calculatedSubtotal, productIds: couponProductIds });
         if (couponResult.valid) {
           if (couponResult.discountType === 'percentage') {
             discount = Math.round((calculatedSubtotal * couponResult.discountValue) / 100);

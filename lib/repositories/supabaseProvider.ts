@@ -160,7 +160,7 @@ export class SupabaseProductRepository implements IProductRepository {
       try {
         const pcRows = product.coupons.map((c: string) => ({
           product_id: data.id,
-          coupon_id: c
+          coupon_code: c
         }));
         await sb().from('product_coupons').insert(pcRows);
       } catch (err) {
@@ -549,9 +549,27 @@ export class SupabaseCouponRepository implements ICouponRepository {
         return { valid: false, discountValue: 0, discountType: 'percentage', message: `Minimum order value of ₹${data.min_order_value} required.` };
       }
       
-      const applicableProducts = data.product_coupons?.map((pc: any) => pc.product_id) || [];
-      if (applicableProducts.length > 0) {
-        const hasApplicableProduct = validationData.productIds.some(id => applicableProducts.includes(id));
+      const applicableProductIds = data.product_coupons?.map((pc: any) => pc.product_id).filter(Boolean) || [];
+      if (applicableProductIds.length > 0) {
+        // Collect all possible identifiers (id, slug, sku) for applicable products
+        const validIdentifiers = new Set<string>(applicableProductIds);
+        try {
+          const { data: matchedProducts } = await sb()
+            .from('products')
+            .select('id, slug, sku')
+            .in('id', applicableProductIds);
+          if (matchedProducts) {
+            matchedProducts.forEach((p: any) => {
+              if (p.id) validIdentifiers.add(p.id);
+              if (p.slug) validIdentifiers.add(p.slug);
+              if (p.sku) validIdentifiers.add(p.sku);
+            });
+          }
+        } catch (e) {
+          console.warn('Error expanding applicable product identifiers:', e);
+        }
+
+        const hasApplicableProduct = validationData.productIds.some(id => validIdentifiers.has(id));
         if (!hasApplicableProduct) {
           return { valid: false, discountValue: 0, discountType: 'percentage', message: 'Coupon is not applicable to the items in your cart.' };
         }

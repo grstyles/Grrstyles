@@ -30,7 +30,8 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
   useEffect(() => {
     repo.products.getAll().then(setProducts);
     repo.banners.getActive().then(setBanners);
-    repo.categoryCarousel.getActive().then(setCarouselCategories);
+    const loadCategories = () => repo.categoryCarousel.getActive().then(setCarouselCategories);
+    loadCategories();
     
     // Simulate fetching dynamic marketing config for homepage order
     const savedOrder = localStorage.getItem('gr_homepage_order');
@@ -44,9 +45,14 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
     const handleStorage = () => {
       const updated = localStorage.getItem('gr_homepage_order');
       if (updated) setSectionOrder(JSON.parse(updated));
+      loadCategories();
     };
     window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    window.addEventListener('category_carousel_updated', loadCategories);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('category_carousel_updated', loadCategories);
+    };
   }, []);
 
   const trendingCollections = products.filter((p) => p.bestSeller || p.metadata?.featured).slice(0, 4);

@@ -9,7 +9,15 @@ export default function CategoriesSection() {
   const [categories, setCategories] = useState<CategoryCarouselItem[]>([]);
 
   useEffect(() => {
-    repo.categoryCarousel.getActive().then(setCategories);
+    const load = () => repo.categoryCarousel.getActive().then(setCategories);
+    load();
+
+    window.addEventListener('category_carousel_updated', load);
+    window.addEventListener('storage', load);
+    return () => {
+      window.removeEventListener('category_carousel_updated', load);
+      window.removeEventListener('storage', load);
+    };
   }, []);
 
   return (

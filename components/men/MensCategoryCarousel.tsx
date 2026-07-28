@@ -9,9 +9,15 @@ export default function MensCategoryCarousel() {
   const [categories, setCategories] = useState<CategoryCarouselItem[]>([]);
 
   useEffect(() => {
-    // Optionally, if men's categories should be filtered by slug, we could do it here. 
-    // But since it's "Shop By Category", getting all active makes sense for now.
-    repo.categoryCarousel.getActive().then(setCategories);
+    const load = () => repo.categoryCarousel.getActive().then(setCategories);
+    load();
+
+    window.addEventListener('category_carousel_updated', load);
+    window.addEventListener('storage', load);
+    return () => {
+      window.removeEventListener('category_carousel_updated', load);
+      window.removeEventListener('storage', load);
+    };
   }, []);
 
   return (

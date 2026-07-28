@@ -297,7 +297,7 @@ export default function CheckoutPage() {
     if (loading) return;
 
     if (appliedPromo) {
-      const productIds = cartItems.map((item) => item.id);
+      const productIds = cartItems.flatMap((item) => [item.id, item.slug, item.sku].filter(Boolean) as string[]);
       const valRes = await repo.coupons.apply(appliedPromo, { subtotal: total, productIds });
       if (!valRes.valid) {
         dispatch(addToast({ message: valRes.message, type: 'error' }));

@@ -202,7 +202,7 @@ export default function CartPage() {
     }
 
     try {
-      const productIds = cartItems.map(item => item.id);
+      const productIds = cartItems.flatMap(item => [item.id, item.slug, item.sku].filter(Boolean) as string[]);
       const result = await repo.coupons.apply(code, { subtotal, productIds });
       if (result.valid) {
         dispatch(applyPromo({ code, discountValue: result.discountValue, discountType: result.discountType }));
