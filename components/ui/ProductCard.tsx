@@ -113,6 +113,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   return (
     <motion.div
+      initial={false}
       whileHover={{ y: -6 }}
       transition={{ duration: 0.3 }}
       className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100/50"
@@ -124,6 +125,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             src={imageUrl}
             alt={product.title}
             fill
+            priority
             className="object-cover group-hover:scale-105 transition-transform duration-500"
             sizes="(max-width: 768px) 50vw, 33vw"
           />

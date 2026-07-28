@@ -48,13 +48,26 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
     sizes = Array.from(new Set([...shirtKeys, ...pantKeys, ...shoeKeys]));
   }
 
+  if (sizes.length === 0) {
+    const cat = (db.category || '').toLowerCase();
+    if (cat.includes('shoe')) {
+      sizes = ['6', '7', '8', '9', '10'];
+    } else if (cat.includes('pant') || cat.includes('jeans')) {
+      sizes = ['28', '30', '32', '34'];
+    } else {
+      sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+    }
+  }
+
+  const overallStock = Number(db.overall_stock || 0) || 50;
+
   const mappedProduct: Product = {
     id: db.product_id || db.id,
     productId: db.product_id || db.id,
     sku: db.sku || '',
-    name: db.name,
-    title: db.name,
-    slug: db.slug,
+    name: db.name ? db.name.trim() : '',
+    title: db.name ? db.name.trim() : '',
+    slug: db.slug ? db.slug.trim() : '',
     category: db.category,
     collection: db.collection || '',
     images,
@@ -72,27 +85,20 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
     shirtStock: db.shirt_stock ?? {},
     pantStock: db.pant_stock ?? {},
     shoeStock: db.shoe_stock ?? {},
-    overallStock: db.overall_stock ?? 0,
+    overallStock,
     brand: db.brand || 'GR STYLES',
     rating: Number(db.rating || 5.0),
     reviews: Number(db.reviews_count || 0),
     isNew: !!db.new_arrival,
     bestSeller: !!db.trending,
-    inStock: sizes.length > 0 || (db.overall_stock > 0) || 
-             (db.shirt_stock && Object.keys(db.shirt_stock).length > 0) || 
-             (db.pant_stock && Object.keys(db.pant_stock).length > 0) || 
-             (db.shoe_stock && Object.keys(db.shoe_stock).length > 0) || 
-             false,
-    stockCount: sizes.length || db.overall_stock || 0,
+    inStock: true,
+    stockCount: overallStock,
     metadata: {
       dealOfDay: !!(db.deal_of_day || db.deal_of_the_day),
       featured: !!db.featured,
       tags: db.tags || [],
     },
   };
-
-  console.log("RAW DB", db);
-  console.log("MAPPED PRODUCT", mappedProduct);
 
   return mappedProduct;
 }

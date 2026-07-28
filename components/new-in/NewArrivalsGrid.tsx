@@ -28,26 +28,8 @@ export default function NewArrivalsGrid() {
   ];
 
   useEffect(() => {
-    // Simple stagger animation on mount or filter change
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        ".product-card-anim",
-        { y: 50, opacity: 0 },
-        {
-          y: 0,
-          opacity: 1,
-          duration: 0.8,
-          stagger: 0.1,
-          ease: "power3.out",
-          scrollTrigger: {
-            trigger: gridRef.current,
-            start: "top 80%",
-          },
-        },
-      );
-    }, gridRef);
-
-    return () => ctx.revert();
+    // Stable first paint without opacity fade-in flash
+    return () => {};
   }, [activeCategory]);
 
   // Use only first 8 products for demo, filter if needed

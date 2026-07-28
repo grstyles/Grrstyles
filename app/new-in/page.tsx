@@ -106,22 +106,21 @@ const marqueeItems = [
 // ANIMATION VARIANTS
 // =============================================
 const fadeUp = {
-  hidden: { opacity: 0, y: 40 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.8 } }
+  hidden: { opacity: 1, y: 0 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
 };
 
 const fadeIn = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.8 } }
+  hidden: { opacity: 1 },
+  visible: { opacity: 1, transition: { duration: 0.4 } }
 };
 
 const staggerContainer = {
-  hidden: { opacity: 0 },
+  hidden: { opacity: 1 },
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.15,
-      delayChildren: 0.2
+      staggerChildren: 0.05
     }
   }
 };
@@ -354,10 +353,10 @@ export default function NewInPage() {
           {products.slice(0, 2).map((product, index) => (
             <motion.div
               key={product.id}
-              initial={{ opacity: 0, y: 30 }}
+              initial={false}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: index * 0.15 }}
+              transition={{ duration: 0.4 }}
               className="group relative overflow-hidden bg-[#F5F0EB]"
             >
               <Link href={`/product/${product.slug || product.id}`} className="block">
@@ -366,6 +365,7 @@ export default function NewInPage() {
                     src={product.images?.[0] || "/placeholder.png"}
                     alt={product.name || "Product"}
                     fill
+                    priority
                     className="object-cover transition-transform duration-700 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />

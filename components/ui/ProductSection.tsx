@@ -29,26 +29,9 @@ export default function ProductSection({
   const sectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        '.section-product-card',
-        { y: 40, opacity: 0 },
-        {
-          y: 0,
-          opacity: 1,
-          duration: 0.6,
-          stagger: 0.08,
-          ease: 'power2.out',
-          scrollTrigger: {
-            trigger: sectionRef.current,
-            start: 'top 85%',
-          },
-        }
-      );
-    }, sectionRef);
-
-    return () => ctx.revert();
-  }, [products]);
+    // Stable first paint without opacity fade-in flash
+    return () => {};
+  }, []);
 
   return (
     <section ref={sectionRef} className="py-16 md:py-20 bg-[#faf8f6] border-b border-gray-100">

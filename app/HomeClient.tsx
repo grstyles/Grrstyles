@@ -28,8 +28,12 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTIONS);
 
   useEffect(() => {
-    repo.products.getAll().then(setProducts);
-    repo.banners.getActive().then(setBanners);
+    if (!initialProducts || initialProducts.length === 0) {
+      repo.products.getAll().then(setProducts);
+    }
+    if (!initialBanners || initialBanners.length === 0) {
+      repo.banners.getActive().then(setBanners);
+    }
     const loadCategories = () => repo.categoryCarousel.getActive().then(setCarouselCategories);
     loadCategories();
     

@@ -109,13 +109,14 @@ export default function PremiumProductCard({ product }: PremiumProductCardProps)
 
   return (
     <motion.div
+      initial={false}
       whileHover={{ y: -6 }}
       transition={{ duration: 0.3 }}
       className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100/50"
     >
       <Link href={`/product/${product.slug}`} className="block">
         <div className="relative aspect-[3/4] bg-[#f5f0eb] overflow-hidden">
-          <Image src={imageUrl} alt={product.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+          <Image src={imageUrl} alt={product.title} fill priority className="object-cover group-hover:scale-105 transition-transform duration-500" />
           {/* Badges */}
           <div className="absolute bottom-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
             {product.discountPercent && product.discountPercent > 0 && (
