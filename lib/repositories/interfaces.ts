@@ -36,7 +36,12 @@ export interface MockOrder {
   paymentStatus: 'Pending' | 'Paid' | 'Failed' | 'Refunded';
   paymentMethod: string;
   shippingAddress?: any;
+  couponId?: string;
   couponCode?: string;
+  discountType?: string;
+  discountValue?: number;
+  actualDiscountApplied?: number;
+  finalTotalAfterDiscount?: number;
   discountAmount?: number;
   subtotal?: number;
   shippingAmount?: number;
@@ -62,16 +67,27 @@ export interface MockOrder {
 export interface MockCoupon {
   id?: string;
   code: string;
-  discountType: 'percentage' | 'flat';
+  name?: string;
+  discountType: 'percentage' | 'fixed' | 'flat';
   discountValue: number;
+  maximumDiscount?: number | null;
+  minimumPurchase?: number;
+  minOrderValue?: number;
+  maxCartValue?: number | null;
   description: string;
   isActive: boolean;
-  minOrderValue?: number;
-  startDate?: string;
-  endDate?: string;
-  usageLimit?: number;
+  startDate?: string | null;
+  endDate?: string | null;
+  expiryDate?: string | null;
+  usageLimit?: number | null;
+  usagePerUser?: number | null;
   usageCount: number;
   applicableProducts?: string[];
+  applicableCategories?: string[];
+  excludeSaleProducts?: boolean;
+  firstOrderOnly?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ─── Product Repository ───────────────────────────────────────────────────────
@@ -150,7 +166,12 @@ export interface CreateOrderInput {
   status?: MockOrder['status'];
   totalAmount: number;
   discountAmount?: number;
+  couponId?: string;
   couponCode?: string;
+  discountType?: string;
+  discountValue?: number;
+  actualDiscountApplied?: number;
+  finalTotalAfterDiscount?: number;
   items: {
     productId: string;
     productName: string;

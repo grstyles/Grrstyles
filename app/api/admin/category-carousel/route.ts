@@ -42,7 +42,7 @@ export async function GET() {
       return NextResponse.json({ success: true, data: DEFAULT_CATEGORIES });
     }
 
-    const items = (data && data.length > 0) ? data.map(sanitizeItem) : DEFAULT_CATEGORIES;
+    const items = Array.isArray(data) ? data.map(sanitizeItem) : DEFAULT_CATEGORIES;
     return NextResponse.json({ success: true, data: items });
   } catch (err: any) {
     console.error('[API /api/admin/category-carousel GET] Error:', err);

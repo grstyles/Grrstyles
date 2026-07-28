@@ -10,6 +10,7 @@ import { addToCart } from '@/lib/redux/slices/cartSlice';
 import { addToast, openQuickView } from '@/lib/redux/slices/uiSlice';
 import { RootState } from '@/lib/redux/store';
 import { Product, getProductSizes } from '@/lib/data/products';
+import DiscountBadge from '@/components/ui/DiscountBadge';
 
 export interface ProductCardProps {
   product: Product;
@@ -130,13 +131,18 @@ export default function ProductCard({ product }: ProductCardProps) {
             sizes="(max-width: 768px) 50vw, 33vw"
           />
           
+          {/* Top-Left Discount Badge */}
+          <div className="absolute top-3 left-3 z-20">
+            <DiscountBadge
+              discountPercent={product.discountPercent}
+              price={product.price}
+              discountedPrice={product.discountedPrice}
+              size="sm"
+            />
+          </div>
+
           {/* Badges */}
           <div className="absolute bottom-2.5 right-2.5 flex flex-col items-end gap-1 z-10">
-            {product.discountPercent && product.discountPercent > 0 && (
-              <span className="bg-red-600 text-white text-[7.5px] tracking-wide font-extrabold px-1.5 py-0.5 rounded-[3px] shadow-sm uppercase">
-                {product.discountPercent}% OFF
-              </span>
-            )}
             {product.bestSeller && (
               <span className="bg-gradient-to-r from-yellow-400 to-amber-500 text-white text-[7.5px] tracking-wide font-extrabold px-1.5 py-0.5 rounded-[3px] shadow-sm flex items-center gap-0.5 uppercase">
                 <Star size={7} className="fill-white" />

@@ -102,9 +102,10 @@ export const categoryService = {
 
     try {
       const { data, error } = await sb()
-        .from('categories')
+        .from('category_carousel')
         .select('*')
-        .order('name', { ascending: true });
+        .eq('enabled', true)
+        .order('priority', { ascending: true });
 
       if (error || !data || data.length === 0) {
         return mockCategories.map(c => ({
@@ -113,11 +114,11 @@ export const categoryService = {
         }));
       }
       return data.map((d: any) => ({
-        id: d.id,
-        name: d.name,
-        slug: d.slug || normalizeSlug(d.name),
+        id: String(d.id),
+        name: d.title || d.name || '',
+        slug: d.slug || normalizeSlug(d.title || d.name),
         description: d.description || '',
-        image: d.image || getCategoryImage(d.name || d.slug),
+        image: d.image_url || d.image || getCategoryImage(d.title || d.slug),
       }));
     } catch (e) {
       return mockCategories.map(c => ({
@@ -136,7 +137,7 @@ export const categoryService = {
     try {
       const normalizedSlug = normalizeSlug(slug);
       const { data, error } = await sb()
-        .from('categories')
+        .from('category_carousel')
         .select('*')
         .eq('slug', normalizedSlug)
         .maybeSingle();
@@ -146,11 +147,11 @@ export const categoryService = {
       }
 
       return {
-        id: data.id,
-        name: data.name,
-        slug: data.slug || normalizeSlug(data.name),
+        id: String(data.id),
+        name: data.title || data.name || '',
+        slug: data.slug || normalizeSlug(data.title || data.name),
         description: data.description || '',
-        image: data.image || getCategoryImage(data.name || data.slug),
+        image: data.image_url || data.image || getCategoryImage(data.title || data.slug),
       };
     } catch (e) {
       return this.getLocalBySlug(slug);

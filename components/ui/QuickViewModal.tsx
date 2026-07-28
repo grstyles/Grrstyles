@@ -12,6 +12,7 @@ import { addToast } from "@/lib/redux/slices/uiSlice";
 import { RootState } from "@/lib/redux/store";
 import { useState } from "react";
 import { getProductSizes, isPantCategory, isShirtCategory, isShoeCategory, isComboCategory } from "@/lib/data/products";
+import DiscountBadge from "@/components/ui/DiscountBadge";
 
 interface QuickViewModalProps {
   product: any | null;
@@ -251,12 +252,16 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
         <div className="grid grid-cols-1 md:grid-cols-5 gap-0">
           {/* Gallery section */}
           <div className="md:col-span-2 relative bg-[#f5f0eb] aspect-square md:aspect-auto md:h-full min-h-[300px]">
-            <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
-              {product.discountPercent > 0 && (
-                <span className="bg-red-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md">
-                  {product.discountPercent}% OFF
-                </span>
-              )}
+            <div className="absolute top-3 left-3 z-20">
+              <DiscountBadge
+                discountPercent={product.discountPercent}
+                price={product.price}
+                discountedPrice={product.discountedPrice}
+                size="sm"
+              />
+            </div>
+
+            <div className="absolute top-3 right-12 z-10">
               {product.inStock && (
                 <span className="bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md">
                   In stock

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { repo } from '@/lib/repositories';
 import { calculateOrderTotals } from '@/lib/utils/shipping';
+import { validateAndCalculateCoupon } from '@/lib/utils/couponEngine';
 
 
 const supabase = createClient(
@@ -44,17 +45,68 @@ export async function POST(req: Request) {
 
     const calculatedSubtotal = itemsForCalculation.reduce((sum: number, item: any) => sum + item.sellingPrice * item.quantity, 0);
 
-    // Apply coupon if provided
+    // Apply coupon using dual coupon engine
     let discount = 0;
+    let couponAudit: {
+      coupon_id?: string | null;
+      coupon_code?: string | null;
+      discount_type?: string | null;
+      discount_value?: number | null;
+      actual_discount_applied?: number | null;
+      final_total_after_discount?: number | null;
+    } = {};
+
     if (orderPayload.couponCode) {
       try {
-        const couponProductIds = cartItems.flatMap((i: any) => [i.id, i.productId, i.slug, i.sku].filter(Boolean) as string[]);
-        const couponResult = await repo.coupons.apply(orderPayload.couponCode, { subtotal: calculatedSubtotal, productIds: couponProductIds });
-        if (couponResult.valid) {
-          if (couponResult.discountType === 'percentage') {
-            discount = Math.round((calculatedSubtotal * couponResult.discountValue) / 100);
-          } else {
-            discount = couponResult.discountValue;
+        const { data: couponRow } = await supabase
+          .from('coupons')
+          .select('*')
+          .eq('code', orderPayload.couponCode.toUpperCase().trim())
+          .maybeSingle();
+
+        if (couponRow) {
+          const couponObj = {
+            id: couponRow.id,
+            code: couponRow.code,
+            name: couponRow.name,
+            discountType: (couponRow.discount_type === 'flat' || couponRow.discount_type === 'fixed') ? 'fixed' : 'percentage',
+            discountValue: Number(couponRow.discount_value ?? couponRow.discount ?? 0),
+            maximumDiscount: couponRow.maximum_discount != null ? Number(couponRow.maximum_discount) : null,
+            minimumPurchase: Number(couponRow.minimum_purchase ?? couponRow.min_order_value ?? 0),
+            maxCartValue: couponRow.max_cart_value != null ? Number(couponRow.max_cart_value) : null,
+            description: couponRow.description || '',
+            isActive: couponRow.is_active ?? couponRow.active ?? true,
+            startDate: couponRow.start_date,
+            endDate: couponRow.expiry_date || couponRow.end_date,
+            usageLimit: couponRow.usage_limit != null ? Number(couponRow.usage_limit) : null,
+            usageCount: Number(couponRow.used_count ?? couponRow.usage_count ?? 0),
+            firstOrderOnly: Boolean(couponRow.first_order_only),
+          };
+
+          const res = validateAndCalculateCoupon(couponObj as any, calculatedSubtotal, { userId });
+          if (res.valid) {
+            discount = res.calculatedDiscount;
+            couponAudit = {
+              coupon_id: couponRow.id || null,
+              coupon_code: couponRow.code,
+              discount_type: res.discountType,
+              discount_value: res.discountValue,
+              actual_discount_applied: res.calculatedDiscount,
+              final_total_after_discount: res.finalTotal,
+            };
+
+            // Increment used_count on coupon
+            try {
+              await supabase
+                .from('coupons')
+                .update({ 
+                  used_count: (Number(couponRow.used_count || 0) + 1),
+                  usage_count: (Number(couponRow.usage_count || 0) + 1)
+                })
+                .eq('code', couponRow.code);
+            } catch (incErr) {
+              console.warn('Failed to increment coupon used_count (COD):', incErr);
+            }
           }
         }
       } catch (err) {
@@ -63,8 +115,6 @@ export async function POST(req: Request) {
     }
 
     // Shipping configuration — use the service-role client (bypasses RLS).
-    // repo.shipping.getSettings() uses the anon key and gets filtered by RLS,
-    // returning [] and falling back to hardcoded defaults.
     const { data: shippingRow, error: shippingErr } = await supabase
       .from('shipping_settings')
       .select('shipping_charge, free_shipping_above, free_delivery')
@@ -89,24 +139,50 @@ export async function POST(req: Request) {
     const orderNumber = `GR-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
 
     // 1. Insert Order
-    const { data: orderData, error: orderError } = await supabase
+    const dbOrderPayload: any = {
+      order_number: orderNumber,
+      user_id: userId || null,
+      customer_name: orderPayload.customerName,
+      customer_email: orderPayload.email,
+      customer_phone: orderPayload.phone,
+      shipping_address: orderPayload.shippingAddress,
+      payment_method: 'cod',
+      total_amount: verifiedTotalAmount,
+      discount_amount: verifiedDiscountAmount,
+      coupon_id: couponAudit.coupon_id || null,
+      coupon_code: couponAudit.coupon_code || orderPayload.couponCode || null,
+      discount_type: couponAudit.discount_type || null,
+      discount_value: couponAudit.discount_value || null,
+      actual_discount_applied: verifiedDiscountAmount,
+      final_total_after_discount: verifiedTotalAmount,
+      status: 'Pending',
+      payment_status: 'Pending'
+    };
+
+    let { data: orderData, error: orderError } = await supabase
       .from('orders')
-      .insert({
-        order_number: orderNumber,
-        user_id: userId || null,
-        customer_name: orderPayload.customerName,
-        customer_email: orderPayload.email,
-        customer_phone: orderPayload.phone,
-        shipping_address: orderPayload.shippingAddress,
-        payment_method: 'cod',
-        total_amount: verifiedTotalAmount,
-        discount_amount: verifiedDiscountAmount,
-        coupon_code: orderPayload.couponCode || null,
-        status: 'Pending',
-        payment_status: 'Pending'
-      })
+      .insert(dbOrderPayload)
       .select('id')
       .single();  
+
+    if (orderError && (orderError.code === 'PGRST204' || orderError.message?.includes('schema cache'))) {
+      console.warn('Supabase schema cache error in COD checkout, retrying order insert with standard columns:', orderError.message);
+      const fallbackPayload = { ...dbOrderPayload };
+      delete fallbackPayload.coupon_id;
+      delete fallbackPayload.discount_type;
+      delete fallbackPayload.discount_value;
+      delete fallbackPayload.actual_discount_applied;
+      delete fallbackPayload.final_total_after_discount;
+
+      const retryResult = await supabase
+        .from('orders')
+        .insert(fallbackPayload)
+        .select('id')
+        .single();
+
+      orderData = retryResult.data;
+      orderError = retryResult.error;
+    }
 
     if (orderError || !orderData) {
       console.error('Order Insert Error:', orderError);

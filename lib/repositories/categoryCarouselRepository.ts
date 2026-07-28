@@ -124,24 +124,20 @@ function saveLocalItems(items: CategoryCarouselItem[]): void {
 
 function mergeItems(remoteItems: CategoryCarouselItem[] = []): CategoryCarouselItem[] {
   const deleted = getDeletedIds();
-  const local = loadLocalItems();
   const map = new Map<string, CategoryCarouselItem>();
 
-  // 1. Base: DEFAULT_CATEGORIES
-  DEFAULT_CATEGORIES.forEach(item => {
-    if (!deleted.has(item.id)) {
-      map.set(item.id, sanitizeItem(item));
-    }
-  });
+  // If remote items exist, use remote items as primary truth
+  if (remoteItems && remoteItems.length > 0) {
+    remoteItems.forEach(item => {
+      if (item && item.id && !deleted.has(item.id)) {
+        map.set(item.id, sanitizeItem(item));
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.priority - b.priority);
+  }
 
-  // 2. Overlay Remote Items (from Supabase if configured)
-  remoteItems.forEach(item => {
-    if (item && item.id && !deleted.has(item.id)) {
-      map.set(item.id, sanitizeItem(item));
-    }
-  });
-
-  // 3. Overlay Local Items (user additions/edits take precedence)
+  // Fallback to local storage items
+  const local = loadLocalItems();
   local.forEach(item => {
     if (item && item.id && !deleted.has(item.id)) {
       map.set(item.id, sanitizeItem(item));
@@ -157,7 +153,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
   }
 
   async getAll(): Promise<CategoryCarouselItem[]> {
-    let remote: CategoryCarouselItem[] = [];
+    let remote: CategoryCarouselItem[] | null = null;
 
     // Try fetching via API route first (which uses service role key on server)
     if (typeof window !== 'undefined') {
@@ -174,7 +170,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
       }
     }
 
-    if (remote.length === 0) {
+    if (remote === null) {
       const client = this.client;
       if (client) {
         try {
@@ -183,14 +179,14 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
             .select('*')
             .order('priority', { ascending: true });
           
-          if (!error && data && data.length > 0) {
+          if (!error && Array.isArray(data) && data.length > 0) {
             remote = data.map(sanitizeItem);
           }
         } catch (error) {}
       }
     }
 
-    const merged = mergeItems(remote);
+    const merged = mergeItems(remote || []);
     saveLocalItems(merged);
     return merged;
   }

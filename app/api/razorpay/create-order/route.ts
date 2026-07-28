@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
 import { repo } from '@/lib/repositories';
 import { calculateOrderTotals } from '@/lib/utils/shipping';
+import { validateAndCalculateCoupon } from '@/lib/utils/couponEngine';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
@@ -62,21 +63,42 @@ export async function POST(req: Request) {
 
     const calculatedSubtotal = itemsForCalculation.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
 
-    // Apply coupon if provided
+    // Apply coupon if provided using dual coupon engine
     let discount = 0;
     if (couponCode) {
       try {
-        const couponProductIds = items.flatMap((i: any) => [i.id, i.productId, i.slug, i.sku].filter(Boolean) as string[]);
-        const couponResult = await repo.coupons.apply(couponCode, { subtotal: calculatedSubtotal, productIds: couponProductIds });
-        if (couponResult.valid) {
-          if (couponResult.discountType === 'percentage') {
-            discount = Math.round((calculatedSubtotal * couponResult.discountValue) / 100);
-          } else {
-            discount = couponResult.discountValue;
+        const { data: couponRow } = await supabase
+          .from('coupons')
+          .select('*')
+          .eq('code', couponCode.toUpperCase().trim())
+          .maybeSingle();
+
+        if (couponRow) {
+          const couponObj = {
+            id: couponRow.id,
+            code: couponRow.code,
+            name: couponRow.name,
+            discountType: (couponRow.discount_type === 'flat' || couponRow.discount_type === 'fixed') ? 'fixed' : 'percentage',
+            discountValue: Number(couponRow.discount_value ?? couponRow.discount ?? 0),
+            maximumDiscount: couponRow.maximum_discount != null ? Number(couponRow.maximum_discount) : null,
+            minimumPurchase: Number(couponRow.minimum_purchase ?? couponRow.min_order_value ?? 0),
+            maxCartValue: couponRow.max_cart_value != null ? Number(couponRow.max_cart_value) : null,
+            description: couponRow.description || '',
+            isActive: couponRow.is_active ?? couponRow.active ?? true,
+            startDate: couponRow.start_date,
+            endDate: couponRow.expiry_date || couponRow.end_date,
+            usageLimit: couponRow.usage_limit != null ? Number(couponRow.usage_limit) : null,
+            usageCount: Number(couponRow.used_count ?? couponRow.usage_count ?? 0),
+            firstOrderOnly: Boolean(couponRow.first_order_only),
+          };
+
+          const res = validateAndCalculateCoupon(couponObj as any, calculatedSubtotal, { userId });
+          if (res.valid) {
+            discount = res.calculatedDiscount;
           }
         }
       } catch (err) {
-        console.warn('Coupon validation failed:', err);
+        console.warn('Coupon validation failed (create-order):', err);
       }
     }
 

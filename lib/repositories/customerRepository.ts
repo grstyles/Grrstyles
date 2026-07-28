@@ -11,6 +11,10 @@ import {
 
 export class SupabaseCustomerRepository implements ICustomerRepository {
   private getDb() {
+    if (typeof window !== 'undefined') {
+      const client = getClient();
+      if (client) return client;
+    }
     const admin = getAdminClient();
     if (admin) return admin;
     const client = getClient();

@@ -154,6 +154,10 @@ export interface IScratchCardRepository {
 
 export class SupabaseScratchCardRepository implements IScratchCardRepository {
   private getDb() {
+    if (typeof window !== 'undefined') {
+      return getClient();
+    }
+
     try {
       const admin = getAdminClient();
       if (admin) return admin;

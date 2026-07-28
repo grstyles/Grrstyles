@@ -408,9 +408,21 @@ export default function AdminOrderDetailsPage() {
                       <span>{shipping > 0 ? formatPrice(shipping) : 'Free'}</span>
                     </div>
                     {discount > 0 && (
-                      <div className="flex justify-between text-green-600 font-medium">
-                        <span>Discount {order.couponCode ? `(${order.couponCode})` : ''}</span>
-                        <span>-{formatPrice(discount)}</span>
+                      <div className="space-y-1 py-1 bg-green-50/70 p-2.5 rounded-xl border border-green-100">
+                        <div className="flex justify-between text-green-700 font-bold text-xs">
+                          <span className="flex items-center gap-1">
+                            🏷️ Discount {order.couponCode ? `(${order.couponCode})` : ''}
+                          </span>
+                          <span>-{formatPrice(discount)}</span>
+                        </div>
+                        {order.discountType && (
+                          <div className="flex justify-between text-[11px] text-green-600">
+                            <span>Type: {order.discountType === 'percentage' ? 'Percentage (%)' : 'Fixed Amount (₹)'}</span>
+                            {order.discountValue != null && (
+                              <span>Configured: {order.discountType === 'percentage' ? `${order.discountValue}%` : `₹${order.discountValue}`}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                     {tax > 0 && (

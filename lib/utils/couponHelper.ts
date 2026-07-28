@@ -3,6 +3,7 @@ import { CartItem } from '@/lib/redux/slices/cartSlice';
 import { applyPromo } from '@/lib/redux/slices/cartSlice';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { AppDispatch } from '@/lib/redux/store';
+import { validateAndCalculateCoupon } from './couponEngine';
 
 export interface EligibleCouponResult {
   code: string;
@@ -14,7 +15,7 @@ export interface EligibleCouponResult {
 }
 
 /**
- * Finds all active, valid, and unexpired coupons for the current cart/subtotal
+ * Finds all active, valid, and unexpired storewide coupons for the current cart/subtotal
  * and returns the single coupon yielding the HIGHEST discount.
  */
 export async function findBestEligibleCoupon(
@@ -27,48 +28,20 @@ export async function findBestEligibleCoupon(
     return null;
   }
 
-  const productIds = cartItems.flatMap((item: any) =>
-    [item.id, item.productId, item.slug, item.sku].filter(Boolean) as string[]
-  );
-
   const eligibleCandidates: EligibleCouponResult[] = [];
-  const now = new Date();
 
   // 1. Fetch storewide / public coupons
   try {
     const allCoupons = await repo.coupons.getAll();
     for (const c of allCoupons) {
-      if (!c.isActive) continue;
-
-      // Check start and end dates
-      if (c.startDate && new Date(c.startDate) > now) continue;
-      if (c.endDate && new Date(c.endDate) < now) continue;
-
-      // Check usage limit
-      if (c.usageLimit && c.usageCount >= c.usageLimit) continue;
-
-      // Check minimum order value
-      const minVal = c.minOrderValue || 0;
-      if (minVal > 0 && subtotal < minVal) continue;
-
-      // Validate via repository apply logic
-      const valRes = await repo.coupons.apply(c.code, { subtotal, productIds });
-      if (!valRes.valid) continue;
-
-      let calcDiscount = 0;
-      if (c.discountType === 'percentage') {
-        calcDiscount = Math.round((subtotal * c.discountValue) / 100);
-      } else {
-        calcDiscount = c.discountValue;
-      }
-
-      if (calcDiscount > 0) {
+      const res = validateAndCalculateCoupon(c, subtotal, { userId, userEmail });
+      if (res.valid && res.calculatedDiscount > 0) {
         eligibleCandidates.push({
           code: c.code,
-          discountType: c.discountType,
+          discountType: (c.discountType === 'fixed' || c.discountType === 'flat') ? 'flat' : 'percentage',
           discountValue: c.discountValue,
-          calculatedDiscount: Math.min(calcDiscount, subtotal),
-          description: c.description || `${c.discountValue}${c.discountType === 'percentage' ? '%' : '₹'} off`,
+          calculatedDiscount: res.calculatedDiscount,
+          description: c.description || c.name || `${c.discountValue}${c.discountType === 'percentage' ? '%' : '₹'} off`,
         });
       }
     }
@@ -81,11 +54,11 @@ export async function findBestEligibleCoupon(
     try {
       const userCards = await repo.scratchCards.getUserCards(userId, userEmail || undefined);
       for (const card of userCards) {
-        if (card.status !== 'Active' && card.status !== 'CLAIMED') continue;
+        if (card.status !== 'CLAIMED' && card.status !== 'SCRATCHED') continue;
 
-        const code = card.coupon_code || `GR${card.reward_amount || 500}ABCD`;
+        const code = card.coupon_code || `GR${card.reward_value || 500}ABCD`;
         const rewardType: 'percentage' | 'flat' = (card.reward_type === 'percentage_discount' || card.reward_type === 'percentage') ? 'percentage' : 'flat';
-        const rewardVal = Number(card.reward_value || card.reward_amount || 500);
+        const rewardVal = Number(card.reward_value || 500);
 
         let calcDiscount = 0;
         if (rewardType === 'percentage') {

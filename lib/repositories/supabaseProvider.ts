@@ -15,6 +15,7 @@ import { getClient, getAdminClient } from '@/lib/supabase';
 const sb = () => getClient()!;
 import { mapDbProduct } from '@/services/productService';
 import { normalizeCategory, normalizeSlug, normalizeCollection, matchCategory } from '../utils/categoryImageMap';
+import { validateAndCalculateCoupon } from '@/lib/utils/couponEngine';
 import {
   IProductRepository,
   IOrderRepository,
@@ -386,7 +387,12 @@ export class SupabaseOrderRepository implements IOrderRepository {
           itemsCount: items.reduce((s: number, i: any) => s + i.quantity, 0),
           totalAmount: total,
           discountAmount: discount,
+          couponId: d.coupon_id || undefined,
           couponCode: d.coupon_code || undefined,
+          discountType: d.discount_type || undefined,
+          discountValue: d.discount_value != null ? Number(d.discount_value) : undefined,
+          actualDiscountApplied: d.actual_discount_applied != null ? Number(d.actual_discount_applied) : discount,
+          finalTotalAfterDiscount: d.final_total_after_discount != null ? Number(d.final_total_after_discount) : total,
           subtotal,
           shippingAmount: shipping,
           taxAmount: tax,
@@ -448,7 +454,12 @@ export class SupabaseOrderRepository implements IOrderRepository {
       itemsCount: items.reduce((s: number, i: any) => s + i.quantity, 0),
       totalAmount: total,
       discountAmount: discount,
+      couponId: data.coupon_id || undefined,
       couponCode: data.coupon_code || undefined,
+      discountType: data.discount_type || undefined,
+      discountValue: data.discount_value != null ? Number(data.discount_value) : undefined,
+      actualDiscountApplied: data.actual_discount_applied != null ? Number(data.actual_discount_applied) : discount,
+      finalTotalAfterDiscount: data.final_total_after_discount != null ? Number(data.final_total_after_discount) : total,
       subtotal,
       shippingAmount: shipping,
       taxAmount: tax,
@@ -508,108 +519,110 @@ export class SupabaseCouponRepository implements ICouponRepository {
     const { data, error } = await sb().from('coupons').select('*, product_coupons(product_id)');
     if (error || !data) return [];
     return data.map((c: any) => ({
+      id: c.id,
       code: c.code,
-      discountType: c.discount_type || 'percentage',
-      discountValue: Number(c.discount || 0),
-      description: c.description,
-      isActive: c.active,
-      minOrderValue: Number(c.min_order_value || 0),
+      name: c.name || c.description,
+      discountType: (c.discount_type === 'flat' || c.discount_type === 'fixed') ? 'fixed' : 'percentage',
+      discountValue: Number(c.discount_value ?? c.discount ?? 0),
+      maximumDiscount: c.maximum_discount != null ? Number(c.maximum_discount) : null,
+      minimumPurchase: Number(c.minimum_purchase ?? c.min_order_value ?? 0),
+      minOrderValue: Number(c.minimum_purchase ?? c.min_order_value ?? 0),
+      maxCartValue: c.max_cart_value != null ? Number(c.max_cart_value) : null,
+      description: c.description || '',
+      isActive: c.is_active ?? c.active ?? true,
       startDate: c.start_date,
-      endDate: c.expiry_date,
-      usageLimit: c.usage_limit,
-      usageCount: c.used_count || 0,
+      endDate: c.expiry_date || c.end_date,
+      expiryDate: c.expiry_date || c.end_date,
+      usageLimit: c.usage_limit != null ? Number(c.usage_limit) : null,
+      usagePerUser: c.usage_per_user != null ? Number(c.usage_per_user) : 1,
+      usageCount: Number(c.used_count ?? c.usage_count ?? 0),
       applicableProducts: c.product_coupons?.map((pc: any) => pc.product_id) || [],
+      applicableCategories: c.applicable_categories || [],
+      excludeSaleProducts: Boolean(c.exclude_sale_products),
+      firstOrderOnly: Boolean(c.first_order_only),
+      createdAt: c.created_at,
+      updatedAt: c.updated_at,
     }));
   }
 
   async apply(code: string, validationData?: { subtotal: number; productIds: string[] }): Promise<{ valid: boolean; discountValue: number; discountType: 'percentage' | 'flat'; message: string }> {
+    const cleanCode = code.toUpperCase().trim();
     const { data } = await sb()
       .from('coupons')
       .select('*, product_coupons(product_id)')
-      .eq('code', code.toUpperCase().trim())
-      .eq('active', true)
+      .eq('code', cleanCode)
       .maybeSingle();
       
     if (!data) return { valid: false, discountValue: 0, discountType: 'percentage', message: 'Invalid coupon code.' };
     
-    // Check dates
-    const now = new Date();
-    if (data.start_date && new Date(data.start_date) > now) {
-      return { valid: false, discountValue: 0, discountType: 'percentage', message: 'Coupon is not yet active.' };
-    }
-    if (data.expiry_date && new Date(data.expiry_date) < now) {
-      return { valid: false, discountValue: 0, discountType: 'percentage', message: 'Coupon has expired.' };
-    }
-    if (data.usage_limit && data.used_count >= data.usage_limit) {
-      return { valid: false, discountValue: 0, discountType: 'percentage', message: 'Coupon usage limit reached.' };
-    }
+    const couponObj: MockCoupon = {
+      id: data.id,
+      code: data.code,
+      name: data.name,
+      discountType: (data.discount_type === 'flat' || data.discount_type === 'fixed') ? 'fixed' : 'percentage',
+      discountValue: Number(data.discount_value ?? data.discount ?? 0),
+      maximumDiscount: data.maximum_discount != null ? Number(data.maximum_discount) : null,
+      minimumPurchase: Number(data.minimum_purchase ?? data.min_order_value ?? 0),
+      minOrderValue: Number(data.minimum_purchase ?? data.min_order_value ?? 0),
+      maxCartValue: data.max_cart_value != null ? Number(data.max_cart_value) : null,
+      description: data.description || '',
+      isActive: data.is_active ?? data.active ?? true,
+      startDate: data.start_date,
+      endDate: data.expiry_date || data.end_date,
+      expiryDate: data.expiry_date || data.end_date,
+      usageLimit: data.usage_limit != null ? Number(data.usage_limit) : null,
+      usagePerUser: data.usage_per_user != null ? Number(data.usage_per_user) : 1,
+      usageCount: Number(data.used_count ?? data.usage_count ?? 0),
+      firstOrderOnly: Boolean(data.first_order_only),
+      excludeSaleProducts: Boolean(data.exclude_sale_products),
+    };
 
-    if (validationData) {
-      if (data.min_order_value && validationData.subtotal < data.min_order_value) {
-        return { valid: false, discountValue: 0, discountType: 'percentage', message: `Minimum order value of ₹${data.min_order_value} required.` };
-      }
-      
-      const applicableProductIds = data.product_coupons?.map((pc: any) => pc.product_id).filter(Boolean) || [];
-      if (applicableProductIds.length > 0) {
-        // Collect all possible identifiers (id, slug, sku) for applicable products
-        const validIdentifiers = new Set<string>(applicableProductIds);
-        try {
-          const { data: matchedProducts } = await sb()
-            .from('products')
-            .select('id, slug, sku')
-            .in('id', applicableProductIds);
-          if (matchedProducts) {
-            matchedProducts.forEach((p: any) => {
-              if (p.id) validIdentifiers.add(p.id);
-              if (p.slug) validIdentifiers.add(p.slug);
-              if (p.sku) validIdentifiers.add(p.sku);
-            });
-          }
-        } catch (e) {
-          console.warn('Error expanding applicable product identifiers:', e);
-        }
+    const subtotal = validationData?.subtotal || 0;
+    const res = validateAndCalculateCoupon(couponObj, subtotal);
 
-        const hasApplicableProduct = validationData.productIds.some(id => validIdentifiers.has(id));
-        if (!hasApplicableProduct) {
-          return { valid: false, discountValue: 0, discountType: 'percentage', message: 'Coupon is not applicable to the items in your cart.' };
-        }
-      }
-    }
-    
-    const dType = data.discount_type || 'percentage';
-    const dVal = Number(data.discount || 0);
-    const msgType = dType === 'percentage' ? `${dVal}% off` : `₹${dVal} off`;
-    
     return {
-      valid: true,
-      discountValue: dVal,
-      discountType: dType,
-      message: `Coupon applied! ${msgType} – ${data.description}`,
+      valid: res.valid,
+      discountValue: res.calculatedDiscount,
+      discountType: res.discountType === 'fixed' ? 'flat' : 'percentage',
+      message: res.valid
+        ? `Coupon applied! ${res.discountType === 'percentage' ? `${res.discountValue}% off` : `₹${res.discountValue} off`} – ${res.couponName}`
+        : res.message,
     };
   }
 
   async create(coupon: Omit<MockCoupon, 'usageCount'>): Promise<MockCoupon | null> {
+    const payload: any = {
+      code: coupon.code.toUpperCase().trim(),
+      name: coupon.name || coupon.description || coupon.code,
+      discount_type: coupon.discountType === 'fixed' ? 'fixed' : 'percentage',
+      discount_value: coupon.discountValue,
+      discount: coupon.discountValue,
+      maximum_discount: coupon.maximumDiscount != null ? coupon.maximumDiscount : null,
+      minimum_purchase: coupon.minimumPurchase ?? coupon.minOrderValue ?? 0,
+      min_order_value: coupon.minimumPurchase ?? coupon.minOrderValue ?? 0,
+      max_cart_value: coupon.maxCartValue != null ? coupon.maxCartValue : null,
+      description: coupon.description,
+      is_active: coupon.isActive,
+      active: coupon.isActive,
+      start_date: coupon.startDate || null,
+      expiry_date: coupon.expiryDate || coupon.endDate || null,
+      end_date: coupon.expiryDate || coupon.endDate || null,
+      usage_limit: coupon.usageLimit || null,
+      usage_per_user: coupon.usagePerUser || 1,
+      used_count: 0,
+      first_order_only: coupon.firstOrderOnly || false,
+      exclude_sale_products: coupon.excludeSaleProducts || false,
+    };
+
     const { data, error } = await sb()
       .from('coupons')
-      .insert({
-        code: coupon.code.toUpperCase().trim(),
-        discount_type: coupon.discountType,
-        discount: coupon.discountValue,
-        description: coupon.description,
-        active: coupon.isActive,
-        min_order_value: coupon.minOrderValue || 0,
-        start_date: coupon.startDate || null,
-        expiry_date: coupon.endDate || null,
-        usage_limit: coupon.usageLimit || null,
-        used_count: 0
-      })
+      .insert(payload)
       .select('*')
       .single();
       
     if (error) throw new Error(error.message);
     if (!data) return null;
     
-    // Insert product_coupons if applicableProducts provided
     if (coupon.applicableProducts && coupon.applicableProducts.length > 0) {
       const pcRows = coupon.applicableProducts.map(pid => ({
         coupon_code: data.code,
@@ -619,22 +632,28 @@ export class SupabaseCouponRepository implements ICouponRepository {
     }
     
     return { 
+      id: data.id,
       code: data.code, 
-      discountType: data.discount_type, 
-      discountValue: Number(data.discount || 0), 
+      name: data.name,
+      discountType: (data.discount_type === 'flat' || data.discount_type === 'fixed') ? 'fixed' : 'percentage', 
+      discountValue: Number(data.discount_value ?? data.discount ?? 0), 
+      maximumDiscount: data.maximum_discount,
+      minimumPurchase: Number(data.minimum_purchase ?? data.min_order_value ?? 0),
+      maxCartValue: data.max_cart_value,
       description: data.description, 
-      isActive: data.active,
-      minOrderValue: Number(data.min_order_value),
+      isActive: data.is_active ?? data.active ?? true,
       startDate: data.start_date,
-      endDate: data.expiry_date,
+      endDate: data.expiry_date || data.end_date,
+      expiryDate: data.expiry_date || data.end_date,
       usageLimit: data.usage_limit,
+      usagePerUser: data.usage_per_user,
       usageCount: 0,
       applicableProducts: coupon.applicableProducts || []
     };
   }
 
   async toggle(code: string, isActive: boolean): Promise<boolean> {
-    const { error } = await sb().from('coupons').update({ active: isActive }).eq('code', code);
+    const { error } = await sb().from('coupons').update({ active: isActive, is_active: isActive }).eq('code', code);
     return !error;
   }
 

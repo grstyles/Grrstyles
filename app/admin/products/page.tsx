@@ -12,19 +12,6 @@ import { useDispatch } from 'react-redux';
 import { formatPrice } from '@/lib/utils/helpers';
 import Image from 'next/image';
 
-const CATEGORIES = [
-  'Shirts',
-  'T-Shirts',
-  'Combo Offers',
-  'Korean Collection',
-  'Baggy Pants',
-  'Shoes',
-  'Traditional Collection',
-  'Festival Collection',
-  'Trending Collection',
-  'Trousers',
-];
-
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
 const PANT_SIZES  = ['28', '30', '32', '34', '36', '38', '40', '42'];
 const SHOE_SIZES  = ['6', '7', '8', '9', '10', '11'];
@@ -92,10 +79,13 @@ export default function AdminProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCat, setFilterCat] = useState('All');
 
+  const [dbCategories, setDbCategories] = useState<{ id: string; title: string; enabled: boolean }[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
   // Form state
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
-  const [category, setCategory] = useState('Shirts');
+  const [category, setCategory] = useState('');
   const [collection, setCollection] = useState('');
   const [brand, setBrand] = useState('GR STYLES');
   const [tagsInput, setTagsInput] = useState('');
@@ -128,7 +118,41 @@ export default function AdminProductsPage() {
   const [selectedCoupons, setSelectedCoupons] = useState<string[]>([]);
 
   const dynamicCollections = Array.from(new Set(items.map(p => p.collection).filter(Boolean))) as string[];
-  const dynamicCategories = Array.from(new Set([...CATEGORIES, ...items.map(p => p.category).filter(Boolean)])) as string[];
+  
+  const activeDbCategoryTitles = dbCategories.filter(c => c.enabled).map(c => c.title);
+  const availableCategoryOptions = Array.from(new Set([
+    ...activeDbCategoryTitles,
+    ...(category ? [category] : [])
+  ])).filter(Boolean);
+
+  const filterCategoryOptions = Array.from(new Set([
+    ...dbCategories.map(c => c.title),
+    ...items.map(p => p.category).filter(Boolean)
+  ])).filter(Boolean);
+
+  const loadCategoriesFromDb = async () => {
+    setLoadingCategories(true);
+    try {
+      const cats = await repo.categoryCarousel.getAll();
+      const mapped = cats.map(c => ({ id: c.id, title: c.title, enabled: c.enabled }));
+      setDbCategories(mapped);
+    } catch (err) {
+      console.error('Failed to load categories from DB:', err);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCategoriesFromDb();
+    const handleCategoryUpdate = () => {
+      loadCategoriesFromDb();
+    };
+    window.addEventListener('category_carousel_updated', handleCategoryUpdate);
+    return () => {
+      window.removeEventListener('category_carousel_updated', handleCategoryUpdate);
+    };
+  }, []);
 
   const loadProductsAndCoupons = async () => {
     setLoading(true);
@@ -258,7 +282,8 @@ export default function AdminProductsPage() {
     setEditingId(null);
     setName('');
     setSku('');
-    setCategory('Shirts');
+    const defaultCat = activeDbCategoryTitles.length > 0 ? activeDbCategoryTitles[0] : '';
+    setCategory(defaultCat);
     setCollection('');
     setBrand('GR STYLES');
     setTagsInput('');
@@ -578,34 +603,50 @@ export default function AdminProductsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Category *</label>
-                  <input
-                    list="dynamic-categories"
-                    required
-                    value={category}
-                    onChange={(e) => {
-                      const newCat = e.target.value;
-                      setCategory(newCat);
-                      if (isComboCat(newCat, collection, isDealOfDay, isComboOffer)) {
-                        setIsComboOffer(true);
-                        setSizeTabOverride('combo');
-                      } else if (isPantCat(newCat)) {
-                        setSizeTabOverride('pants');
-                      } else if (isShirtCat(newCat)) {
-                        setSizeTabOverride('shirts');
-                      } else if (isShoeCat(newCat)) {
-                        setSizeTabOverride('shoes');
-                      } else if (isAccessoryCat(newCat)) {
-                        setSizeTabOverride('overall');
-                      } else {
-                        setSizeTabOverride('all');
-                      }
-                    }}
-                    placeholder="e.g. Shirts, Pants, Shoes"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm font-medium"
-                  />
-                  <datalist id="dynamic-categories">
-                    {dynamicCategories.map((c) => <option key={c} value={c} />)}
-                  </datalist>
+                  {loadingCategories ? (
+                    <div className="w-full px-4 py-3 border border-gray-200 rounded-xl text-xs text-gray-400 flex items-center gap-2">
+                      <RefreshCw size={14} className="animate-spin" /> Loading categories...
+                    </div>
+                  ) : availableCategoryOptions.length === 0 ? (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                      No active categories found. Please create one in <strong>Marketing → Category Carousel</strong>.
+                    </div>
+                  ) : (
+                    <select
+                      required
+                      value={category}
+                      onChange={(e) => {
+                        const newCat = e.target.value;
+                        setCategory(newCat);
+                        if (isComboCat(newCat, collection, isDealOfDay, isComboOffer)) {
+                          setIsComboOffer(true);
+                          setSizeTabOverride('combo');
+                        } else if (isPantCat(newCat)) {
+                          setSizeTabOverride('pants');
+                        } else if (isShirtCat(newCat)) {
+                          setSizeTabOverride('shirts');
+                        } else if (isShoeCat(newCat)) {
+                          setSizeTabOverride('shoes');
+                        } else if (isAccessoryCat(newCat)) {
+                          setSizeTabOverride('overall');
+                        } else {
+                          setSizeTabOverride('all');
+                        }
+                      }}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm font-medium bg-white"
+                    >
+                      <option value="" disabled>Select Category</option>
+                      {availableCategoryOptions.map((c) => {
+                        const dbCat = dbCategories.find(item => item.title === c);
+                        const isInactive = dbCat && !dbCat.enabled;
+                        return (
+                          <option key={c} value={c}>
+                            {c} {isInactive ? '(Inactive)' : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Collection</label>
@@ -1108,7 +1149,7 @@ export default function AdminProductsPage() {
               className="px-3 py-2 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:border-black"
             >
               <option value="All">All Categories</option>
-              {dynamicCategories.map((cat) => (
+              {filterCategoryOptions.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>

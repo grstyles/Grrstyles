@@ -144,7 +144,7 @@ export default function OrderSuccessPage() {
               <div className="p-4 bg-amber-50/80 border border-amber-200/70 rounded-2xl text-left space-y-1">
                 <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
                   <Gift size={16} className="text-amber-600" />
-                  Earn Scratch Cards On Next Purchase
+                  congratulations
                 </div>
                 <p className="text-[11px] text-amber-800 leading-relaxed">
                   Spend <span className="font-bold">₹{minOrderThreshold}</span> or more on your next order to automatically unlock an exclusive Scratch Card reward!

@@ -143,6 +143,46 @@ export default function CheckoutPage() {
   const discountValue = useSelector((state: RootState) => state.cart.discountValue);
   const discountType = useSelector((state: RootState) => state.cart.discountType);
   const appliedPromo = useSelector((state: RootState) => state.cart.appliedPromo);
+  const [couponInput, setCouponInput] = useState('');
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+  const [couponStatusMsg, setCouponStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const handleApplyCoupon = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanCode = couponInput.toUpperCase().trim();
+    if (!cleanCode) {
+      setCouponStatusMsg({ text: 'Please enter a coupon code.', type: 'error' });
+      return;
+    }
+
+    setApplyingCoupon(true);
+    setCouponStatusMsg(null);
+
+    try {
+      const productIds = cartItems.flatMap((item) => [item.id, item.slug, item.sku].filter(Boolean) as string[]);
+      const valRes = await repo.coupons.apply(cleanCode, { subtotal: total, productIds });
+
+      if (valRes.valid) {
+        dispatch(applyPromo({
+          code: cleanCode,
+          discountValue: valRes.discountValue,
+          discountType: valRes.discountType === 'percentage' ? 'percentage' : 'flat',
+        }));
+        setCouponStatusMsg({ text: `🎉 Coupon Applied Successfully!`, type: 'success' });
+        dispatch(addToast({ message: `🎉 Coupon "${cleanCode}" applied successfully!`, type: 'success' }));
+        setCouponInput('');
+      } else {
+        dispatch(removePromo());
+        setCouponStatusMsg({ text: valRes.message, type: 'error' });
+        dispatch(addToast({ message: valRes.message, type: 'error' }));
+      }
+    } catch (err: any) {
+      setCouponStatusMsg({ text: err?.message || 'Invalid coupon code.', type: 'error' });
+      dispatch(addToast({ message: err?.message || 'Invalid coupon code.', type: 'error' }));
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
 
   // Standalone Auto-Apply Best Coupon Effect on Checkout load
   useEffect(() => {
@@ -1066,6 +1106,39 @@ export default function CheckoutPage() {
               })}
             </div>
 
+            {/* Manual Coupon Entry Form */}
+            <div className="mb-4 space-y-2">
+              <form onSubmit={handleApplyCoupon} className="flex gap-2">
+                <input
+                  type="text"
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  placeholder="Enter Coupon Code"
+                  className="flex-1 px-3.5 py-2.5 border border-gray-300 rounded-xl text-xs uppercase font-mono font-bold focus:outline-none focus:border-black placeholder:normal-case placeholder:font-normal placeholder-gray-400 bg-white"
+                />
+                <button
+                  type="submit"
+                  disabled={applyingCoupon || !couponInput.trim()}
+                  className="bg-black hover:bg-gray-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl uppercase tracking-wider transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {applyingCoupon ? 'Applying...' : 'Apply Coupon'}
+                </button>
+              </form>
+
+              {couponStatusMsg && (
+                <div
+                  className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${
+                    couponStatusMsg.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium'
+                      : 'bg-red-50 text-red-700 border border-red-200 font-medium'
+                  }`}
+                >
+                  {couponStatusMsg.type === 'success' ? <Tag size={14} className="text-emerald-600 shrink-0" /> : <X size={14} className="text-red-500 shrink-0" />}
+                  <span>{couponStatusMsg.text}</span>
+                </div>
+              )}
+            </div>
+
             {/* Applied Coupon Display Card */}
             {appliedPromo && (
               <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-xs">
@@ -1104,6 +1177,7 @@ export default function CheckoutPage() {
                     type="button"
                     onClick={() => {
                       dispatch(removePromo());
+                      setCouponStatusMsg(null);
                       dispatch(addToast({ message: 'Coupon removed from checkout.', type: 'info' }));
                     }}
                     className="p-1 text-red-600 hover:text-red-800 bg-white hover:bg-red-50 border border-red-200 rounded-lg transition shadow-2xs"

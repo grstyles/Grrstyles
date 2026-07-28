@@ -79,6 +79,7 @@ interface CartItem {
   title: string;
   brand: string;
   slug: string;
+  sku?: string;
   price: number;
   discountedPrice: number;
   quantity: number;

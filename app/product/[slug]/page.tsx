@@ -26,6 +26,9 @@ import { productService } from '@/services/productService';
 import { Product, getProductSizes, isPantCategory, isShirtCategory, isShoeCategory, isComboCategory } from '@/lib/data/products';
 import { useAuth } from '@/lib/context/AuthContext';
 import { X, Tag } from 'lucide-react';
+import DiscountBadge from '@/components/ui/DiscountBadge';
+import { validateAndCalculateCoupon } from '@/lib/utils/couponEngine';
+import { getClient } from '@/lib/supabase';
 
 
 export default function ProductDetailsPage() {
@@ -101,6 +104,8 @@ export default function ProductDetailsPage() {
   const { user } = useAuth();
   
   const [applicableCoupons, setApplicableCoupons] = useState<MockCoupon[]>([]);
+  const [bestCouponBadge, setBestCouponBadge] = useState<string | null>(null);
+  const [bestCouponCode, setBestCouponCode] = useState<string | null>(null);
   
   // Reviews state
   const [reviews, setReviews] = useState<any[]>([]);
@@ -232,6 +237,65 @@ export default function ProductDetailsPage() {
       active = false;
     };
   }, [slug]);
+
+  useEffect(() => {
+    if (!product) return;
+
+    const refreshCoupons = async () => {
+      try {
+        const allCoupons = await repo.coupons.getAll();
+        const effectivePrice = product.discountedPrice || product.price || 0;
+        const now = new Date();
+        
+        const valid = allCoupons.filter(c => 
+          c.isActive && 
+          (!c.startDate || new Date(c.startDate) <= now) &&
+          (!c.endDate || new Date(c.endDate) > now) &&
+          (!c.applicableProducts || c.applicableProducts.length === 0 || c.applicableProducts.includes(product.id) || (product.productId && c.applicableProducts.includes(product.productId)))
+        );
+        setApplicableCoupons(valid);
+
+        const candidates: { coupon: MockCoupon; discountAmount: number; badgeText: string; code: string }[] = [];
+        for (const c of valid) {
+          const res = validateAndCalculateCoupon(c, effectivePrice, { userId: user?.id, userEmail: user?.email });
+          if (res.valid && res.calculatedDiscount > 0) {
+            const badgeText = res.discountType === 'percentage' 
+              ? `${c.discountValue}% OFF` 
+              : `₹${c.discountValue} OFF`;
+            candidates.push({
+              coupon: c,
+              discountAmount: res.calculatedDiscount,
+              badgeText,
+              code: c.code,
+            });
+          }
+        }
+
+        candidates.sort((a, b) => b.discountAmount - a.discountAmount);
+        setBestCouponBadge(candidates[0]?.badgeText || null);
+        setBestCouponCode(candidates[0]?.code || valid[0]?.code || allCoupons.find(c => c.isActive)?.code || null);
+      } catch (err) {
+
+        console.warn('Error loading coupons:', err);
+      }
+    };
+
+    refreshCoupons();
+
+    const client = getClient();
+    if (client) {
+      const channel = client
+        .channel(`public:coupons:product-${product.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'coupons' }, () => {
+          refreshCoupons();
+        })
+        .subscribe();
+
+      return () => {
+        client.removeChannel(channel);
+      };
+    }
+  }, [product, user]);
 
   useEffect(() => {
     if (product) {
@@ -459,13 +523,10 @@ export default function ProductDetailsPage() {
           {/* Left Column - Gallery */}
           <div className="space-y-4">
             <div className="relative aspect-[3/4] bg-[#f5f0eb] rounded-2xl overflow-hidden">
-              <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-                {product.discountPercent > 0 && (
-                  <span className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-                    On sale
-                  </span>
-                )}
+              <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
+                {/* Left corner percent badge removed as requested */}
               </div>
+
               
               <div className="absolute top-4 right-4 z-10">
                 {product.inStock && (
@@ -596,7 +657,7 @@ export default function ProductDetailsPage() {
               </span>
             </div>
 
-            <div className="flex items-baseline gap-3 mb-3">
+            <div className="flex items-center gap-3 mb-3 flex-wrap">
               <span className="text-3xl font-bold text-[#1a1a1a]">
                 ₹{product.discountedPrice?.toLocaleString() || product.price?.toLocaleString()}
               </span>
@@ -606,6 +667,18 @@ export default function ProductDetailsPage() {
                 </span>
               )}
             </div>
+
+            {(bestCouponCode || (applicableCoupons.length > 0 && applicableCoupons[0].code)) && (
+              <div className="mb-4 inline-flex items-center gap-2 bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 px-3.5 py-2 rounded-xl text-red-700 shadow-sm">
+                <Tag size={16} className="text-red-500" />
+                <span className="text-xs font-medium">Use Coupon Code:</span>
+                <span className="font-mono font-extrabold text-sm bg-white text-red-600 px-2.5 py-0.5 rounded border border-red-200 uppercase tracking-wider select-all">
+                  {bestCouponCode || applicableCoupons[0].code}
+                </span>
+              </div>
+            )}
+
+
 
             <p className="text-sm text-[#6b5b4b] leading-relaxed mb-4 max-w-md">
               {product.description}
