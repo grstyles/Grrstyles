@@ -76,9 +76,9 @@ export async function POST(req: Request) {
     }
 
     const shippingCfg = {
-      shippingCharge:    Number(shippingRow?.shipping_charge    ?? 0),
-      freeShippingAbove: Number(shippingRow?.free_shipping_above ?? 0),
-      freeDelivery:     Boolean(shippingRow?.free_delivery       ?? true),
+      shippingCharge:    Number(shippingRow?.shipping_charge    ?? 100),
+      freeShippingAbove: Number(shippingRow?.free_shipping_above ?? 999),
+      freeDelivery:     Boolean(shippingRow?.free_delivery       ?? false),
     };
 
     // Calculate totals using centralized utility

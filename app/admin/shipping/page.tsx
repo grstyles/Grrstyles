@@ -40,9 +40,9 @@ export default function AdminShippingSettingsPage() {
         console.log('✅ Loaded shipping settings:', data);
 
         setSettings({
-          shippingCharge: String(data.shipping_charge ?? 100),
-          freeShippingAbove: String(data.free_shipping_above ?? 999),
-          freeDelivery: Boolean(data.free_delivery ?? false),
+          shippingCharge: String(data.shippingCharge ?? data.shipping_charge ?? 100),
+          freeShippingAbove: String(data.freeShippingAbove ?? data.free_shipping_above ?? 999),
+          freeDelivery: Boolean(data.freeDelivery ?? data.free_delivery ?? false),
         });
 
         setError(null);
@@ -103,9 +103,9 @@ export default function AdminShippingSettingsPage() {
         if (refreshRes.ok) {
           const freshData = await refreshRes.json();
           setSettings({
-            shippingCharge: String(freshData.shipping_charge ?? 100),
-            freeShippingAbove: String(freshData.free_shipping_above ?? 999),
-            freeDelivery: Boolean(freshData.free_delivery ?? false),
+            shippingCharge: String(freshData.shippingCharge ?? freshData.shipping_charge ?? 100),
+            freeShippingAbove: String(freshData.freeShippingAbove ?? freshData.free_shipping_above ?? 999),
+            freeDelivery: Boolean(freshData.freeDelivery ?? freshData.free_delivery ?? false),
           });
         }
       } else {

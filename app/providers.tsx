@@ -46,14 +46,17 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
     const performSyncOnLogin = async () => {
       // Cart Merge
       const dbCart = await syncService.fetchDbCart(userId);
-      const mergedCart = [...dbCart];
+      const mergedCart = dbCart.map((item) => ({ ...item }));
 
       for (const localItem of cartItems) {
         const dbIdx = mergedCart.findIndex((db) => db.id === localItem.id && db.size === localItem.size && db.shirtSize === localItem.shirtSize && db.pantSize === localItem.pantSize && db.shoeSize === localItem.shoeSize);
         if (dbIdx !== -1) {
-          mergedCart[dbIdx].quantity = Math.max(mergedCart[dbIdx].quantity, localItem.quantity);
+          mergedCart[dbIdx] = {
+            ...mergedCart[dbIdx],
+            quantity: Math.max(mergedCart[dbIdx].quantity, localItem.quantity)
+          };
         } else {
-          mergedCart.push(localItem);
+          mergedCart.push({ ...localItem });
         }
       }
 

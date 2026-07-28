@@ -8,12 +8,13 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/lib/redux/store';
 import { formatPrice } from '@/lib/utils/helpers';
 import { calculateOrderTotals } from '@/lib/utils/shipping';
-import { clearSelectedItems, setDirectCheckoutItem } from '@/lib/redux/slices/cartSlice';
+import { clearSelectedItems, setDirectCheckoutItem, removePromo, applyPromo } from '@/lib/redux/slices/cartSlice';
 import { repo, UserAddress } from '@/lib/repositories';
 import { RAZORPAY_KEY_ID } from '@/lib/config';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useAuth } from '@/lib/context/AuthContext';
-import { Package, CheckCircle, CreditCard, Smartphone } from 'lucide-react';
+import { autoApplyBestCoupon } from '@/lib/utils/couponHelper';
+import { Package, CheckCircle, CreditCard, Smartphone, Tag, Sparkles, X, RefreshCw } from 'lucide-react';
 
 export default function CheckoutPage() {
   const dispatch = useDispatch();
@@ -142,6 +143,13 @@ export default function CheckoutPage() {
   const discountValue = useSelector((state: RootState) => state.cart.discountValue);
   const discountType = useSelector((state: RootState) => state.cart.discountType);
   const appliedPromo = useSelector((state: RootState) => state.cart.appliedPromo);
+
+  // Standalone Auto-Apply Best Coupon Effect on Checkout load
+  useEffect(() => {
+    if (!appliedPromo && cartItems.length > 0 && total > 0) {
+      autoApplyBestCoupon(cartItems, total, dispatch, user?.id, user?.email);
+    }
+  }, [appliedPromo, cartItems, total, user, dispatch]);
 
   // Shipping config — initialise with freeDelivery=true (show ₹0) until the
   // API responds.  The real values overwrite this inside the useEffect below.
@@ -1057,6 +1065,55 @@ export default function CheckoutPage() {
                 );
               })}
             </div>
+
+            {/* Applied Coupon Display Card */}
+            {appliedPromo && (
+              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                    <Tag size={15} />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-emerald-950 flex items-center gap-1.5 flex-wrap">
+                      <span>Applied Coupon:</span>
+                      <span className="font-mono font-black uppercase text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-300 shadow-2xs">
+                        {appliedPromo}
+                      </span>
+                    </div>
+                    {discount > 0 && (
+                      <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">
+                        🎉 Saved {formatPrice(discount)} on this order
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      autoApplyBestCoupon(cartItems, total, dispatch, user?.id, user?.email);
+                    }}
+                    className="px-2.5 py-1 text-[10px] font-bold text-gray-700 hover:text-black bg-white hover:bg-gray-100 border border-gray-200 rounded-lg flex items-center gap-1 transition shadow-2xs"
+                    title="Change / Re-evaluate Coupon"
+                  >
+                    <RefreshCw size={11} />
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      dispatch(removePromo());
+                      dispatch(addToast({ message: 'Coupon removed from checkout.', type: 'info' }));
+                    }}
+                    className="p-1 text-red-600 hover:text-red-800 bg-white hover:bg-red-50 border border-red-200 rounded-lg transition shadow-2xs"
+                    title="Remove Coupon"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Totals */}
             <div className="space-y-3 border-t border-gray-200 pt-6">

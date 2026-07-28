@@ -25,6 +25,16 @@ export function calculateOrderTotals(
   shippingCfg: Partial<ShippingSettings>,
   couponDiscount: number = 0
 ): OrderPricingBreakdown {
+  if (!items || items.length === 0) {
+    return {
+      subtotal: 0,
+      shipping: 0,
+      discount: 0,
+      tax: 0,
+      total: 0,
+    };
+  }
+
   // Calculate subtotal using selling/discounted price
   const subtotal = items.reduce((sum, item) => {
     const price =
@@ -33,8 +43,18 @@ export function calculateOrderTotals(
       item.price ??
       0;
 
-    return sum + price * item.quantity;
+    return sum + Math.max(0, price) * (item.quantity || 1);
   }, 0);
+
+  if (subtotal <= 0) {
+    return {
+      subtotal: 0,
+      shipping: 0,
+      discount: 0,
+      tax: 0,
+      total: 0,
+    };
+  }
 
   // Shipping calculation
   let shipping = 0;
