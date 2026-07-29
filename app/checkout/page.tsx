@@ -19,8 +19,9 @@ import { Package, CheckCircle, CreditCard, Smartphone, Tag, Sparkles, X, Refresh
 export default function CheckoutPage() {
   const dispatch = useDispatch();
   const router = useRouter();
-  const { user, requireAuth } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [authChecked, setAuthChecked] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
   const directCheckoutItem = useSelector((state: RootState) => state.cart.directCheckoutItem);
   const cartItemsAll = useSelector((state: RootState) => state.cart.items);
   const cartItems = directCheckoutItem ? [directCheckoutItem] : cartItemsAll.filter((item) => item.selected !== false);
@@ -251,16 +252,29 @@ export default function CheckoutPage() {
   const tax = totals.tax;
   const finalTotal = totals.total;
 
+  // Auth gate: wait for auth to finish loading, then check if user exists
   useEffect(() => {
-    requireAuth(
-      () => {
-        setAuthChecked(true);
-      },
-      () => {
-        router.push('/cart');
+    if (authLoading) return; // wait for auth to resolve
+
+    if (user) {
+      setAuthChecked(true);
+    } else {
+      // Not logged in — redirect to login page
+      router.push('/login?redirect=/checkout');
+    }
+  }, [authLoading, user, router]);
+
+  // 10-second timeout safeguard — ensures the spinner never stays forever
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!authChecked) {
+        console.error('Checkout initialization timed out.');
+        setInitError('Checkout took too long to load. Please refresh the page.');
+        setAuthChecked(true); // unblock the spinner
       }
-    );
-  }, [requireAuth, router]);
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [authChecked]);
 
   useEffect(() => {
     if (user) {
@@ -836,8 +850,23 @@ export default function CheckoutPage() {
 
   if (!authChecked) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
         <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-gray-500">Loading checkout...</p>
+      </div>
+    );
+  }
+
+  if (initError) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-4">
+        <p className="text-red-600 font-semibold text-center">{initError}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="bg-black text-white px-6 py-2 rounded-lg font-medium hover:bg-gray-800 transition-colors"
+        >
+          Refresh Page
+        </button>
       </div>
     );
   }

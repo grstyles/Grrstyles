@@ -53,14 +53,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return;
     }
-    console.log('[AuthProvider] Initializing session...');
     setLoading(true);
-    // Small delay for session readiness
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const currentUser = await authService.getCurrentUser();
-    console.log('[AuthProvider] Current user:', currentUser?.email || 'None');
-    setUser(currentUser);
-    setLoading(false);
+    try {
+      // Small delay for session readiness
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const currentUser = await authService.getCurrentUser();
+      setUser(currentUser);
+    } catch (error) {
+      console.error('[AuthProvider] Failed to initialize session:', error);
+      setUser(null);
+    } finally {
+      // Always clear loading — no matter what happens above
+      setLoading(false);
+    }
   };
   initOnce();
 
