@@ -3,11 +3,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Settings, Store, Mail, Phone, Image, Upload,
-  Save, CheckCircle2, Globe, MapPin, Clock, X
+  Save, CheckCircle2, Globe, MapPin, Clock, X, Banknote
 } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { addToast } from '@/lib/redux/slices/uiSlice';
-import { repo } from '@/lib/repositories';
+
 
 interface StoreSettings {
   storeName: string;
@@ -26,7 +26,9 @@ interface StoreSettings {
   taxPercent: string;
   freeShippingAbove: string;
   shippingCharge: string;
-  freeDelivery: boolean; // Added freeDelivery
+  freeDelivery: boolean;
+  /** Whether COD is shown to customers at checkout */
+  codEnabled: boolean;
 }
 
 const defaultSettings: StoreSettings = {
@@ -46,7 +48,8 @@ const defaultSettings: StoreSettings = {
   taxPercent: '18',
   freeShippingAbove: '999',
   shippingCharge: '100',
-  freeDelivery: false, // Added default
+  freeDelivery: false,
+  codEnabled: true, // COD on by default
 };
 
 const SectionCard = ({ title, icon: Icon, children }: {
@@ -83,15 +86,19 @@ export default function AdminSettingsPage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      const data = await repo.shipping.getSettings();
-      setSettings((prev) => ({
-        ...prev,
-        freeShippingAbove: String(data.freeShippingAbove),
-        shippingCharge: String(data.shippingCharge),
-        freeDelivery: data.freeDelivery, // Load freeDelivery
-      }));
-    })();
+    fetch('/api/admin/shipping')
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (!data) return;
+        setSettings((prev) => ({
+          ...prev,
+          freeShippingAbove: String(data.freeShippingAbove ?? prev.freeShippingAbove),
+          shippingCharge: String(data.shippingCharge ?? prev.shippingCharge),
+          freeDelivery: Boolean(data.freeDelivery ?? prev.freeDelivery),
+          codEnabled: data.codEnabled !== undefined ? Boolean(data.codEnabled) : prev.codEnabled,
+        }));
+      })
+      .catch((err) => console.warn('[Settings] Failed to load shipping settings:', err));
   }, []);
 
   const handleChange = (field: keyof StoreSettings, value: string | boolean) => {
@@ -126,25 +133,33 @@ export default function AdminSettingsPage() {
     // Preserve scroll position
     const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
     setSaving(true);
-    // Update shipping settings in Supabase
-    const success = await repo.shipping.updateSettings({
-      shippingCharge: Number(settings.shippingCharge),
-      freeShippingAbove: Number(settings.freeShippingAbove),
-      freeDelivery: settings.freeDelivery, // Save freeDelivery
-    });
-    // Simulate brief delay
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    setSaving(false);
-    setSaved(true);
-    dispatch(
-      addToast({
-        message: success
-          ? '✓ Store settings saved successfully!'
-          : '⚠️ Failed to save shipping settings',
-        type: success ? 'success' : 'error',
-      })
-    );
-    // Restore scroll position
+    try {
+      const res = await fetch('/api/admin/shipping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shippingCharge: Number(settings.shippingCharge),
+          freeShippingAbove: Number(settings.freeShippingAbove),
+          freeDelivery: settings.freeDelivery,
+          codEnabled: settings.codEnabled,
+        }),
+      });
+      const result = await res.json();
+      const success = res.ok && result.success;
+      setSaving(false);
+      setSaved(true);
+      dispatch(
+        addToast({
+          message: success
+            ? '✓ Store settings saved successfully!'
+            : `⚠️ Failed to save settings: ${result.error || 'Unknown error'}`,
+          type: success ? 'success' : 'error',
+        })
+      );
+    } catch (err: any) {
+      setSaving(false);
+      dispatch(addToast({ message: `⚠️ Network error: ${err?.message}`, type: 'error' }));
+    }
     if (typeof window !== 'undefined') {
       window.scrollTo(0, scrollY);
     }
@@ -344,6 +359,67 @@ export default function AdminSettingsPage() {
                 </label>
               </div>
             </Field>
+          </div>
+        </SectionCard>
+
+        {/* Payment Methods */}
+        <SectionCard title="Payment Methods" icon={Banknote}>
+          <div className="space-y-5">
+            {/* Razorpay (always on) */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-900">Razorpay</p>
+                  <p className="text-xs text-gray-400">UPI, Cards, Wallets, Net Banking</p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-100">Always Active</span>
+            </div>
+
+            {/* Cash on Delivery Toggle */}
+            <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+              settings.codEnabled ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-100'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${
+                  settings.codEnabled ? 'bg-amber-100 text-amber-600' : 'bg-gray-200 text-gray-400'
+                }`}>
+                  <Banknote size={18} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-900">Cash on Delivery (COD)</p>
+                  <p className="text-xs text-gray-400">Customers pay when their order arrives</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  id="settings-cod-toggle"
+                  type="checkbox"
+                  checked={settings.codEnabled}
+                  onChange={(e) => handleChange('codEnabled', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className={`w-11 h-6 rounded-full peer after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white ${
+                  settings.codEnabled
+                    ? 'bg-amber-500 after:border-white'
+                    : 'bg-gray-200 after:border-gray-300'
+                }`} />
+                <span className={`ml-3 text-sm font-semibold ${
+                  settings.codEnabled ? 'text-amber-700' : 'text-gray-400'
+                }`}>
+                  {settings.codEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </label>
+            </div>
+
+            {!settings.codEnabled && (
+              <p className="text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+                ⚠️ COD is currently <strong>disabled</strong>. Customers will only see Razorpay (UPI &amp; Card) at checkout.
+              </p>
+            )}
           </div>
         </SectionCard>
 

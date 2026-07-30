@@ -945,6 +945,7 @@ export class SupabaseShippingRepository implements IShippingRepository {
       shippingCharge: 100,
       freeShippingAbove: 999,
       freeDelivery: false,
+      codEnabled: true, // COD on by default
     };
 
     try {
@@ -979,6 +980,10 @@ export class SupabaseShippingRepository implements IShippingRepository {
         shippingCharge: Number(row.shipping_charge ?? defaultSettings.shippingCharge),
         freeShippingAbove: Number(row.free_shipping_above ?? defaultSettings.freeShippingAbove),
         freeDelivery: Boolean(row.free_delivery ?? defaultSettings.freeDelivery),
+        // If the column doesn't exist yet (before migration), default to true so checkout shows COD
+        codEnabled: row.cod_enabled !== undefined && row.cod_enabled !== null
+          ? Boolean(row.cod_enabled)
+          : true,
       };
 
       console.log('Shipping settings after mapping:', mappedSettings);
@@ -1008,6 +1013,10 @@ export class SupabaseShippingRepository implements IShippingRepository {
           settings.freeDelivery !== undefined
             ? Boolean(settings.freeDelivery)
             : current.freeDelivery,
+        cod_enabled:
+          settings.codEnabled !== undefined
+            ? Boolean(settings.codEnabled)
+            : current.codEnabled,
         updated_at: new Date().toISOString(),
       };
 

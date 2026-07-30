@@ -1,5 +1,5 @@
 // app/api/shipping/route.ts
-// Public read-only endpoint – returns current shipping settings.
+// Public read-only endpoint – returns current shipping settings including COD availability.
 // Uses the service-role key so it always bypasses RLS and returns the real row.
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -15,7 +15,7 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin
       .from('shipping_settings')
-      .select('shipping_charge, free_shipping_above, free_delivery')
+      .select('shipping_charge, free_shipping_above, free_delivery, cod_enabled')
       .eq('id', 1)
       .single();
 
@@ -26,6 +26,7 @@ export async function GET() {
         shippingCharge: 80,
         freeShippingAbove: 2000,
         freeDelivery: false,
+        codEnabled: true,
       });
     }
 
@@ -33,6 +34,10 @@ export async function GET() {
       shippingCharge:    Number(data.shipping_charge    ?? 80),
       freeShippingAbove: Number(data.free_shipping_above ?? 2000),
       freeDelivery:     Boolean(data.free_delivery       ?? false),
+      // Default true so COD shows if column doesn't exist yet (pre-migration)
+      codEnabled: data.cod_enabled !== undefined && data.cod_enabled !== null
+        ? Boolean(data.cod_enabled)
+        : true,
     });
   } catch (e: any) {
     console.error('[/api/shipping] Unexpected error:', e?.message);
@@ -40,6 +45,7 @@ export async function GET() {
       shippingCharge: 80,
       freeShippingAbove: 2000,
       freeDelivery: false,
+      codEnabled: true,
     });
   }
 }

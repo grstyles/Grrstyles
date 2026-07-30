@@ -50,6 +50,10 @@ export async function GET() {
       freeDelivery: Boolean(data.free_delivery ?? false),
       estimatedDelivery: data.estimated_delivery ?? '3-5 days',
       shippingMessage: data.shipping_message ?? '',
+      // cod_enabled defaults true if column not yet added (pre-migration)
+      codEnabled: data.cod_enabled !== undefined && data.cod_enabled !== null
+        ? Boolean(data.cod_enabled)
+        : true,
     });
   } catch (e: any) {
     console.error('Unexpected error in GET /api/admin/shipping:', e);
@@ -72,6 +76,7 @@ export async function POST(req: Request) {
       freeDelivery,
       estimatedDelivery,
       shippingMessage,
+      codEnabled,
     } = body;
 
     // Build payload with only columns that exist in the DB
@@ -85,6 +90,7 @@ export async function POST(req: Request) {
     if (freeDelivery !== undefined) payload.free_delivery = Boolean(freeDelivery);
     if (estimatedDelivery !== undefined) payload.estimated_delivery = String(estimatedDelivery);
     if (shippingMessage !== undefined) payload.shipping_message = String(shippingMessage);
+    if (codEnabled !== undefined) payload.cod_enabled = Boolean(codEnabled);
 
     console.log('📦 Upserting shipping_settings:', payload);
 

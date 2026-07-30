@@ -58,5 +58,26 @@ BEGIN
   END IF;
 END $$;
 
+-- =========================================================================
+-- STEP 2: Add cod_enabled to shipping_settings
+-- This column controls whether COD is shown at checkout.
+-- Default TRUE so existing stores keep COD available until toggled off.
+-- =========================================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name   = 'shipping_settings'
+      AND column_name  = 'cod_enabled'
+  ) THEN
+    ALTER TABLE public.shipping_settings
+      ADD COLUMN cod_enabled boolean NOT NULL DEFAULT true;
+    RAISE NOTICE 'cod_enabled column added to shipping_settings';
+  ELSE
+    RAISE NOTICE 'cod_enabled column already exists in shipping_settings';
+  END IF;
+END $$;
+
 -- Done.
 SELECT 'COD migration applied successfully' AS result;

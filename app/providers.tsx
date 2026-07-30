@@ -107,12 +107,20 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Snapshot userId at the time this effect runs.
+    // If the user logs out before the 100ms timer fires, the snapshot
+    // will be null/stale and we bail early — preventing RLS violations.
+    const snapshotUserId = userId;
+
     const syncCartWithDb = async () => {
+      // Re-check: if user signed out before the timer fired, abort.
+      if (!snapshotUserId) return;
+
       const prevCart = prevCartItemsRef.current;
 
       // Check for clears
       if (cartItems.length === 0 && prevCart.length > 0) {
-        await syncService.clearCart(userId);
+        await syncService.clearCart(snapshotUserId);
       } else {
         // Upsert new or changed quantities
         for (const item of cartItems) {
@@ -120,7 +128,7 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
             (p) => p.id === item.id && p.size === item.size && p.shirtSize === item.shirtSize && p.pantSize === item.pantSize && p.shoeSize === item.shoeSize
           );
           if (!prevItem || prevItem.quantity !== item.quantity) {
-            await syncService.syncCartItem(userId, item);
+            await syncService.syncCartItem(snapshotUserId, item);
           }
         }
 
@@ -130,7 +138,7 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
             (item) => item.id === prevItem.id && item.size === prevItem.size && item.shirtSize === prevItem.shirtSize && item.pantSize === prevItem.pantSize && item.shoeSize === prevItem.shoeSize
           );
           if (!stillExists) {
-            await syncService.removeCartItem(userId, prevItem.id, prevItem.size, prevItem.shirtSize, prevItem.pantSize, prevItem.shoeSize);
+            await syncService.removeCartItem(snapshotUserId, prevItem.id, prevItem.size, prevItem.shirtSize, prevItem.pantSize, prevItem.shoeSize);
           }
         }
       }

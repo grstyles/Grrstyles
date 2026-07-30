@@ -6,10 +6,22 @@ const sb = () => supabase;
 import { CartItem } from '@/lib/redux/slices/cartSlice';
 import { Product } from '@/lib/data/products';
 
+// Guard: returns true only when there is a valid authenticated session.
+// This prevents RLS violations when sync functions are called after sign-out.
+async function hasActiveSession(): Promise<boolean> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return !!data?.session?.user;
+  } catch {
+    return false;
+  }
+}
+
 export const syncService = {
   // Helper to get or create cart_id for user
   async getOrCreateCartId(userId: string): Promise<string | null> {
     if (!isSupabaseConfigured()) return null;
+    if (!await hasActiveSession()) return null;
     try {
       const { data, error } = await sb()!
         .from('carts')
@@ -31,6 +43,7 @@ export const syncService = {
   // Helper to get or create wishlist_id for user
   async getOrCreateWishlistId(userId: string): Promise<string | null> {
     if (!isSupabaseConfigured()) return null;
+    if (!await hasActiveSession()) return null;
     try {
       const { data, error } = await sb()!
         .from('wishlists')
@@ -54,6 +67,7 @@ export const syncService = {
   // ==========================================
   async fetchDbCart(userId: string): Promise<CartItem[]> {
     if (!isSupabaseConfigured()) return [];
+    if (!await hasActiveSession()) return [];
     try {
       const cartId = await this.getOrCreateCartId(userId);
       if (!cartId) return [];
@@ -94,6 +108,7 @@ export const syncService = {
 
   async syncCartItem(userId: string, item: CartItem) {
     if (!isSupabaseConfigured()) return;
+    if (!await hasActiveSession()) return;
     try {
       const cartId = await this.getOrCreateCartId(userId);
       if (!cartId) return;
@@ -166,6 +181,7 @@ export const syncService = {
 
   async removeCartItem(userId: string, productId: string, size?: string, shirtSize?: string, pantSize?: string, shoeSize?: string) {
     if (!isSupabaseConfigured()) return;
+    if (!await hasActiveSession()) return;
     try {
       const cartId = await this.getOrCreateCartId(userId);
       if (!cartId) return;
@@ -199,6 +215,7 @@ export const syncService = {
 
   async clearCart(userId: string) {
     if (!isSupabaseConfigured()) return;
+    if (!await hasActiveSession()) return;
     try {
       const cartId = await this.getOrCreateCartId(userId);
       if (!cartId) return;
@@ -218,6 +235,7 @@ export const syncService = {
   // ==========================================
   async fetchDbWishlist(userId: string): Promise<string[]> {
     if (!isSupabaseConfigured()) return [];
+    if (!await hasActiveSession()) return [];
     try {
       const wishlistId = await this.getOrCreateWishlistId(userId);
       if (!wishlistId) return [];
@@ -237,6 +255,7 @@ export const syncService = {
 
   async addToWishlist(userId: string, productId: string) {
     if (!isSupabaseConfigured()) return;
+    if (!await hasActiveSession()) return;
     try {
       const wishlistId = await this.getOrCreateWishlistId(userId);
       if (!wishlistId) return;
@@ -273,6 +292,7 @@ export const syncService = {
 
   async removeFromWishlist(userId: string, productId: string) {
     if (!isSupabaseConfigured()) return;
+    if (!await hasActiveSession()) return;
     try {
       const wishlistId = await this.getOrCreateWishlistId(userId);
       if (!wishlistId) return;

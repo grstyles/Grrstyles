@@ -239,6 +239,8 @@ export interface ShippingSettings {
    shippingCharge: number;
   freeShippingAbove: number;
   freeDelivery: boolean;
+  /** Whether Cash on Delivery is available to customers at checkout */
+  codEnabled: boolean;
 }
 
 export interface IShippingRepository {

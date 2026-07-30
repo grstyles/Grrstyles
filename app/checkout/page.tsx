@@ -295,6 +295,7 @@ export default function CheckoutPage() {
     shippingCharge: 80,
     freeShippingAbove: 2000,
     freeDelivery: false,
+    codEnabled: true, // default true until API responds
   });
 
   useEffect(() => {
@@ -326,12 +327,19 @@ export default function CheckoutPage() {
           shippingCharge: Number(cfg.shippingCharge ?? 80),
           freeShippingAbove: Number(cfg.freeShippingAbove ?? 2000),
           freeDelivery: Boolean(cfg.freeDelivery ?? false),
+          codEnabled: cfg.codEnabled !== undefined ? Boolean(cfg.codEnabled) : true,
         });
+
+        // If COD was selected but admin has disabled it, reset to UPI
+        if (!cfg.codEnabled && paymentMethod === 'cod') {
+          setPaymentMethod('upi');
+        }
 
         console.log('[Checkout] ✅ shippingConfig updated:', {
           shippingCharge: Number(cfg.shippingCharge ?? 80),
           freeShippingAbove: Number(cfg.freeShippingAbove ?? 2000),
           freeDelivery: Boolean(cfg.freeDelivery ?? false),
+          codEnabled: cfg.codEnabled !== undefined ? Boolean(cfg.codEnabled) : true,
         });
       })
       .catch((err) => {
@@ -1228,35 +1236,37 @@ export default function CheckoutPage() {
                     </div>
                   </label>
 
-                  {/* Cash on Delivery Option */}
-                  <label 
-                    className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform md:col-span-2 ${
-                      paymentMethod === 'cod' 
-                        ? 'border-2 border-amber-500 bg-amber-50 shadow-md scale-[1.01]' 
-                        : 'border border-gray-200 hover:border-amber-300 hover:bg-gray-50 hover:shadow-sm'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="cod"
-                      checked={paymentMethod === 'cod'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="hidden"
-                    />
-                    <div className="flex items-center gap-4 w-full">
-                      <div className={`p-3 rounded-full ${paymentMethod === 'cod' ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
-                        <Banknote size={24} />
+                  {/* Cash on Delivery Option — only shown when admin enables it */}
+                  {shippingConfig.codEnabled && (
+                    <label 
+                      className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform md:col-span-2 ${
+                        paymentMethod === 'cod' 
+                          ? 'border-2 border-amber-500 bg-amber-50 shadow-md scale-[1.01]' 
+                          : 'border border-gray-200 hover:border-amber-300 hover:bg-gray-50 hover:shadow-sm'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="cod"
+                        checked={paymentMethod === 'cod'}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="hidden"
+                      />
+                      <div className="flex items-center gap-4 w-full">
+                        <div className={`p-3 rounded-full ${paymentMethod === 'cod' ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
+                          <Banknote size={24} />
+                        </div>
+                        <div className="flex-1">
+                          <span className={`block font-bold ${paymentMethod === 'cod' ? 'text-amber-800' : 'text-gray-800'}`}>Cash on Delivery</span>
+                          <span className="block text-sm text-gray-500 mt-0.5">Pay when your order is delivered</span>
+                        </div>
+                        {paymentMethod === 'cod' && (
+                          <CheckCircle size={24} className="text-amber-500 absolute top-5 right-5" />
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <span className={`block font-bold ${paymentMethod === 'cod' ? 'text-amber-800' : 'text-gray-800'}`}>Cash on Delivery</span>
-                        <span className="block text-sm text-gray-500 mt-0.5">Pay when your order is delivered</span>
-                      </div>
-                      {paymentMethod === 'cod' && (
-                        <CheckCircle size={24} className="text-amber-500 absolute top-5 right-5" />
-                      )}
-                    </div>
-                  </label>
+                    </label>
+                  )}
                 </div>
               </section>
 
