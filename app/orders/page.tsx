@@ -9,6 +9,29 @@ import { formatPrice } from '@/lib/utils/helpers';
 import { ClipboardList, ChevronDown, ChevronUp, Package, Clock, Truck, CheckCircle2, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { OrderStatusBadge } from '@/components/ui/OrderStatusBadge';
 
+function OrderItemImage({ src, alt }: { src?: string; alt: string }) {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div className="h-20 w-20 flex items-center justify-center text-gray-300 bg-gray-50 rounded-xl border border-gray-100 shrink-0">
+        <Package size={24} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      width={80}
+      height={80}
+      onError={() => setHasError(true)}
+      className="h-20 w-20 rounded-xl object-cover border border-gray-100 shrink-0 group-hover:scale-105 transition-transform"
+    />
+  );
+}
+
 export default function OrdersPage() {
   const router = useRouter();
   const { user, requireAuth } = useAuth();
@@ -273,31 +296,29 @@ export default function OrdersPage() {
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Ordered Products</h4>
                         <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm divide-y divide-gray-50">
                           {order.items && order.items.length > 0 ? (
-                            order.items.map((item: MockOrderItem, i: number) => (
-                              <div key={i} className="flex items-center justify-between p-4 text-xs group hover:bg-gray-50/50 transition-colors">
-                                <Link href={`/product/${item.slug || item.productId}`} className="flex items-center gap-4 flex-1">
-                                  {item.image ? (
-                                    <img src={item.image} alt={item.productName} className="w-12 h-12 object-cover rounded-lg border border-gray-100 group-hover:scale-105 transition-transform" />
-                                  ) : (
-                                    <div className="w-12 h-12 flex items-center justify-center text-gray-300 bg-gray-50 rounded-lg border border-gray-100">
-                                      <Package size={16} />
+                            order.items.map((item: MockOrderItem, i: number) => {
+                              const imgSrc = item.product?.images?.[0] || item.product?.image_url || item.image;
+                              const productName = item.productName || item.product?.name || 'Product';
+                              return (
+                                <div key={i} className="flex items-center justify-between p-4 text-xs group hover:bg-gray-50/50 transition-colors">
+                                  <Link href={item.slug ? `/product/${item.slug}` : item.productId ? `/product/${item.productId}` : '#'} className="flex items-center gap-4 flex-1 min-w-0">
+                                    <OrderItemImage src={imgSrc} alt={productName} />
+                                    <div className="space-y-1 min-w-0 flex-1">
+                                      <p className="font-bold text-gray-800 text-sm group-hover:underline truncate">{productName}</p>
+                                      <div className="text-xs text-gray-500 font-medium space-y-0.5">
+                                        {item.color && <p>Color: {item.color.trim()}</p>}
+                                        {item.size && item.size !== 'N/A' && <p>Size: {item.size}</p>}
+                                        {item.shirtSize && <p>Shirt: {item.shirtSize}</p>}
+                                        {item.pantSize && <p>Pant: {item.pantSize}</p>}
+                                        {item.shoeSize && <p>Shoe: {item.shoeSize}</p>}
+                                        <p>Qty: {item.quantity}</p>
+                                      </div>
                                     </div>
-                                  )}
-                                  <div className="space-y-0.5">
-                                    <p className="font-bold text-gray-800 group-hover:underline">{item.productName}</p>
-                                    <p className="text-[10px] text-gray-400 font-medium">
-                                      {item.color && <span className="mr-2">Color: {item.color}</span>}
-                                      {item.size && <span className="mr-2">Size: {item.size}</span>}
-                                      {item.shirtSize && <span className="mr-2">Shirt: {item.shirtSize}</span>}
-                                      {item.pantSize && <span className="mr-2">Pant: {item.pantSize}</span>}
-                                      {item.shoeSize && <span className="mr-2">Shoe: {item.shoeSize}</span>}
-                                      <span>Qty: {item.quantity}</span>
-                                    </p>
-                                  </div>
-                                </Link>
-                                <span className="font-bold text-gray-900 shrink-0">{formatPrice(item.price * item.quantity)}</span>
-                              </div>
-                            ))
+                                  </Link>
+                                  <span className="font-bold text-gray-900 text-sm shrink-0 ml-4">{formatPrice(item.price * item.quantity)}</span>
+                                </div>
+                              );
+                            })
                           ) : (
                             <p className="p-4 text-xs text-gray-400 font-light">Product details are currently unavailable.</p>
                           )}

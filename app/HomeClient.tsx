@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AutoScrollCarousel from '@/components/home/AutoScrollCarousel';
 import ProductSection from '@/components/ui/ProductSection';
 import PremiumCategoryCarousel from '@/components/ui/PremiumCategoryCarousel';
@@ -25,7 +25,9 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [banners, setBanners] = useState<Banner[]>(initialBanners || []);
   const [carouselCategories, setCarouselCategories] = useState<CategoryCarouselItem[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTIONS);
+  const reqSeqRef = useRef(0);
 
   useEffect(() => {
     if (!initialProducts || initialProducts.length === 0) {
@@ -34,8 +36,24 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
     if (!initialBanners || initialBanners.length === 0) {
       repo.banners.getActive().then(setBanners);
     }
-    const loadCategories = () => repo.categoryCarousel.getActive().then(setCarouselCategories);
-    loadCategories();
+    const loadCategories = async (isInitial = false) => {
+      const currentSeq = ++reqSeqRef.current;
+      if (isInitial) setLoadingCategories(true);
+      try {
+        const cats = await repo.categoryCarousel.getActive();
+        if (reqSeqRef.current === currentSeq) {
+          setCarouselCategories(cats);
+        }
+      } catch (e) {
+        console.warn('Failed to load categories:', e);
+      } finally {
+        if (reqSeqRef.current === currentSeq) {
+          setLoadingCategories(false);
+        }
+      }
+    };
+
+    loadCategories(true);
     
     // Simulate fetching dynamic marketing config for homepage order
     const savedOrder = localStorage.getItem('gr_homepage_order');
@@ -49,13 +67,17 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
     const handleStorage = () => {
       const updated = localStorage.getItem('gr_homepage_order');
       if (updated) setSectionOrder(JSON.parse(updated));
-      loadCategories();
+      loadCategories(false);
     };
+    const handleCategoryUpdate = () => {
+      loadCategories(false);
+    };
+
     window.addEventListener('storage', handleStorage);
-    window.addEventListener('category_carousel_updated', loadCategories);
+    window.addEventListener('category_carousel_updated', handleCategoryUpdate);
     return () => {
       window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('category_carousel_updated', loadCategories);
+      window.removeEventListener('category_carousel_updated', handleCategoryUpdate);
     };
   }, []);
 
@@ -73,7 +95,7 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
       case 'hero':
         return <AutoScrollCarousel key="hero" banners={homeBanners} />;
       case 'categories':
-        return <PremiumCategoryCarousel key="categories" categories={carouselCategories} />;
+        return <PremiumCategoryCarousel key="categories" categories={carouselCategories} isLoading={loadingCategories} />;
       case 'mens':
         return mensCollection.length > 0 ? (
           <ProductSection

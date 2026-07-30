@@ -9,24 +9,17 @@ export interface PremiumCategoryCarouselProps {
   categories: CategoryCarouselItem[];
   title?: string;
   subtitle?: string;
+  isLoading?: boolean;
 }
 
-const FALLBACK_CATEGORIES: CategoryCarouselItem[] = [
-  { id: '1', title: 'Combo Offers', slug: 'combo-offers', image_url: '/images/categories/home_hero_banner_1781859591521.png', bg_color: '#F9F7F5', priority: 0, featured: false, enabled: true },
-  { id: '2', title: 'Korean Collections', slug: 'korean-collections', image_url: '/images/categories/korean_collection_1781859616593.png', bg_color: '#F9F7F5', priority: 1, featured: false, enabled: true },
-  { id: '3', title: 'Baggy Pants', slug: 'baggy-pants', image_url: '/images/categories/baggy_pants_1782999816436.png', bg_color: '#F9F7F5', priority: 2, featured: false, enabled: true },
-  { id: '4', title: 'Korean Trousers', slug: 'korean-trousers', image_url: '/images/categories/trousers_1781973187005.png', bg_color: '#F9F7F5', priority: 3, featured: false, enabled: true },
-  { id: '5', title: 'Shoes', slug: 'shoes', image_url: '/images/categories/shoes_1781859704333.png', bg_color: '#F9F7F5', priority: 4, featured: false, enabled: true },
-  { id: '6', title: 'Traditional Collections', slug: 'traditional-collections', image_url: '/images/categories/festival_wear.png', bg_color: '#F9F7F5', priority: 5, featured: false, enabled: true },
-  { id: '7', title: 'Festival Wear', slug: 'festival-wear', image_url: '/images/categories/festival_wear.png', bg_color: '#F9F7F5', priority: 6, featured: false, enabled: true },
-];
 
 export default function PremiumCategoryCarousel({
   categories,
   title = "Shop by Category",
-  subtitle = "Discover premium essentials crafted for modern men."
+  subtitle = "Discover premium essentials crafted for modern men.",
+  isLoading = false
 }: PremiumCategoryCarouselProps) {
-  const displayCategories = categories && categories.length > 0 ? categories : FALLBACK_CATEGORIES;
+  const displayCategories = categories ?? [];
   const carouselRef = useRef<HTMLDivElement>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -44,8 +37,8 @@ export default function PremiumCategoryCarousel({
 
   // Auto-scroll logic for desktop only
   useEffect(() => {
-    // Only run on desktop and if there are enough items
-    if (isMobile || displayCategories.length <= 4) return;
+    // Only run on desktop when not loading and if there are enough items
+    if (isLoading || isMobile || displayCategories.length <= 4) return;
 
     const scrollContainer = carouselRef.current;
     if (!scrollContainer) return;
@@ -86,11 +79,68 @@ export default function PremiumCategoryCarousel({
         scrollIntervalRef.current = null;
       }
     };
-  }, [displayCategories.length, isMobile, isPaused]);
+  }, [isLoading, displayCategories.length, isMobile, isPaused]);
 
   // Pause on hover/touch
   const handleMouseEnter = () => setIsPaused(true);
   const handleMouseLeave = () => setIsPaused(false);
+
+  // Skeleton loading state
+  if (isLoading) {
+    return (
+      <section className="py-16 md:py-24 bg-white relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12 text-center">
+          <h2 className="text-3xl md:text-4xl font-serif font-light text-gray-900 mb-4 tracking-wide uppercase">
+            {title}
+          </h2>
+          <p className="text-sm md:text-base text-gray-500 uppercase tracking-widest">
+            {subtitle}
+          </p>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Mobile Skeleton */}
+          <div className="md:hidden grid grid-cols-2 sm:grid-cols-3 gap-6 md:gap-8 justify-items-center">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div key={idx} className="flex flex-col items-center justify-center gap-4 w-full max-w-[180px] animate-pulse">
+                <div className="w-full aspect-square rounded-full bg-gray-200 border-2 border-gray-100" />
+                <div className="h-4 w-24 bg-gray-200 rounded" />
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Skeleton */}
+          <div className="hidden md:flex md:flex-nowrap md:overflow-x-hidden md:gap-8 md:pb-4 md:px-2 justify-center">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div key={idx} className="flex flex-col items-center justify-center gap-4 min-w-[140px] lg:min-w-[160px] animate-pulse">
+                <div className="w-full aspect-square rounded-full bg-gray-200 border-2 border-gray-100" />
+                <div className="h-4 w-28 bg-gray-200 rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Clean empty state if no categories exist in database
+  if (displayCategories.length === 0) {
+    return (
+      <section className="py-16 md:py-24 bg-white relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl md:text-4xl font-serif font-light text-gray-900 mb-4 tracking-wide uppercase">
+            {title}
+          </h2>
+          <p className="text-sm md:text-base text-gray-500 uppercase tracking-widest mb-6">
+            {subtitle}
+          </p>
+          <div className="py-8 px-4 rounded-lg bg-gray-50 max-w-md mx-auto border border-gray-100">
+            <p className="text-sm text-gray-400 uppercase tracking-wider">No categories currently available</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-16 md:py-24 bg-white relative overflow-hidden">

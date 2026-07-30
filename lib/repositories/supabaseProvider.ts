@@ -480,18 +480,34 @@ export class SupabaseOrderRepository implements IOrderRepository {
   async getAll(): Promise<MockOrder[]> {
     const { data, error } = await sb()
       .from('orders')
-      .select('*, order_items(*)')
+      .select('*, order_items(*, products(id, name, images, slug))')
       .order('created_at', { ascending: false });
-    if (error || !data) throw error;
+    if (error) {
+      console.error('Failed to fetch orders from Supabase:', error);
+      throw error;
+    }
+    if (!data) return [];
       return data.map((d: any) => {
-        const items = (d.order_items || []).map((item: any) => ({
-          productId: item.product_id,
-          productName: item.product_name,
-          size: item.size,
-          color: item.color,
-          quantity: item.quantity,
-          price: Number(item.price)
-        }));
+        const items = (d.order_items || []).map((item: any) => {
+          const prod = item.products;
+          const image = prod?.images?.[0] || item.image || (Array.isArray(item.custom_images) && item.custom_images.length > 0 ? item.custom_images[0] : undefined);
+          return {
+            productId: item.product_id,
+            productName: item.product_name || prod?.name,
+            size: item.size,
+            color: item.color,
+            quantity: item.quantity,
+            price: Number(item.price),
+            image,
+            slug: prod?.slug || item.slug,
+            product: prod ? {
+              id: prod.id,
+              name: prod.name,
+              images: prod.images,
+              slug: prod.slug
+            } : undefined
+          };
+        });
         const itemsSum = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
         const discount = Number(d.discount_amount || 0);
         const tax = d.tax_amount != null ? Number(d.tax_amount) : 0;
@@ -544,21 +560,37 @@ export class SupabaseOrderRepository implements IOrderRepository {
     }
 
   async getById(id: string): Promise<MockOrder | null> {
-    const { data } = await sb()
+    const { data, error } = await sb()
       .from('orders')
-      .select('*, order_items(*)')
+      .select('*, order_items(*, products(id, name, images, slug))')
       .eq('id', id)
       .maybeSingle();
+    if (error) {
+      console.error('Failed to fetch order by id:', error);
+      return null;
+    }
     if (!data) return null;
 
-    const items = (data.order_items || []).map((item: any) => ({
-      productId: item.product_id,
-      productName: item.product_name,
-      size: item.size,
-      color: item.color,
-      quantity: item.quantity,
-      price: Number(item.price)
-    }));
+    const items = (data.order_items || []).map((item: any) => {
+      const prod = item.products;
+      const image = prod?.images?.[0] || item.image || (Array.isArray(item.custom_images) && item.custom_images.length > 0 ? item.custom_images[0] : undefined);
+      return {
+        productId: item.product_id,
+        productName: item.product_name || prod?.name,
+        size: item.size,
+        color: item.color,
+        quantity: item.quantity,
+        price: Number(item.price),
+        image,
+        slug: prod?.slug || item.slug,
+        product: prod ? {
+          id: prod.id,
+          name: prod.name,
+          images: prod.images,
+          slug: prod.slug
+        } : undefined
+      };
+    });
     const itemsSum = items.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
     const discount = Number(data.discount_amount || 0);
     const tax = data.tax_amount != null ? Number(data.tax_amount) : 0;

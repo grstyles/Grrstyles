@@ -27,8 +27,8 @@ const sanitizeItem = (item: any) => ({
 export async function GET() {
   const db = getDb();
   if (!db) {
-    console.warn('[API /api/admin/category-carousel GET] Supabase client unavailable, using default categories');
-    return NextResponse.json({ success: true, data: DEFAULT_CATEGORIES });
+    console.warn('[API /api/admin/category-carousel GET] Supabase client unavailable');
+    return NextResponse.json({ success: true, data: [] });
   }
 
   try {
@@ -39,14 +39,14 @@ export async function GET() {
 
     if (error) {
       console.warn('[API /api/admin/category-carousel GET] Supabase query returned error:', error.message);
-      return NextResponse.json({ success: true, data: DEFAULT_CATEGORIES });
+      return NextResponse.json({ success: true, data: [] });
     }
 
-    const items = Array.isArray(data) ? data.map(sanitizeItem) : DEFAULT_CATEGORIES;
+    const items = Array.isArray(data) ? data.map(sanitizeItem) : [];
     return NextResponse.json({ success: true, data: items });
   } catch (err: any) {
     console.error('[API /api/admin/category-carousel GET] Error:', err);
-    return NextResponse.json({ success: true, data: DEFAULT_CATEGORIES });
+    return NextResponse.json({ success: true, data: [] });
   }
 }
 

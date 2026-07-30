@@ -242,19 +242,32 @@ export class SupabaseCustomerRepository implements ICustomerRepository {
     // 1. Fetch Orders for this customer
     let { data: orderRows } = await db
       .from('orders')
-      .select('*, order_items(*)')
+      .select('*, order_items(*, products(id, name, images, slug))')
       .or(`user_id.eq.${summary.id},customer_email.ilike.${summary.email}`)
       .order('created_at', { ascending: false });
 
     const orders: MockOrder[] = (orderRows || []).map((d: any) => {
-      const items = (d.order_items || []).map((item: any) => ({
-        productId: item.product_id,
-        productName: item.product_name,
-        size: item.size,
-        color: item.color,
-        quantity: item.quantity,
-        price: Number(item.price),
-      }));
+      const items = (d.order_items || []).map((item: any) => {
+        const prod = item.products;
+        const image = prod?.images?.[0] || item.image || (Array.isArray(item.custom_images) && item.custom_images.length > 0 ? item.custom_images[0] : undefined);
+        return {
+          productId: item.product_id,
+          productName: item.product_name || prod?.name,
+          size: item.size,
+          color: item.color,
+          quantity: item.quantity,
+          price: Number(item.price),
+          image,
+          slug: prod?.slug || item.slug,
+          product: prod ? {
+            id: prod.id,
+            name: prod.name,
+            images: prod.images,
+            image_url: prod.image_url,
+            slug: prod.slug
+          } : undefined
+        };
+      });
 
       return {
         id: d.id,

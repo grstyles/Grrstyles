@@ -22,6 +22,13 @@ export interface MockOrderItem {
   image?: string;
   slug?: string;
   sku?: string;
+  product?: {
+    id?: string;
+    name?: string;
+    images?: string[];
+    image_url?: string;
+    slug?: string;
+  };
 }
 
 export interface MockOrder {

@@ -22,15 +22,7 @@ export interface ICategoryCarouselRepository {
   updateOrder(items: { id: string; priority: number }[]): Promise<void>;
 }
 
-export const DEFAULT_CATEGORIES: CategoryCarouselItem[] = [
-  { id: '1', title: 'Combo Offers', slug: 'combo-offers', image_url: '/images/categories/home_hero_banner_1781859591521.png', bg_color: '#F9F7F5', priority: 0, featured: false, enabled: true },
-  { id: '2', title: 'Korean Collections', slug: 'korean-collections', image_url: '/images/categories/korean_collection_1781859616593.png', bg_color: '#F9F7F5', priority: 1, featured: false, enabled: true },
-  { id: '3', title: 'Baggy Pants', slug: 'baggy-pants', image_url: '/images/categories/baggy_pants_1782999816436.png', bg_color: '#F9F7F5', priority: 2, featured: false, enabled: true },
-  { id: '4', title: 'Korean Trousers', slug: 'korean-trousers', image_url: '/images/categories/trousers_1781973187005.png', bg_color: '#F9F7F5', priority: 3, featured: false, enabled: true },
-  { id: '5', title: 'Shoes', slug: 'shoes', image_url: '/images/categories/shoes_1781859704333.png', bg_color: '#F9F7F5', priority: 4, featured: false, enabled: true },
-  { id: '6', title: 'Traditional Collections', slug: 'traditional-collections', image_url: '/images/categories/festival_wear.png', bg_color: '#F9F7F5', priority: 5, featured: false, enabled: true },
-  { id: '7', title: 'Festival Wear', slug: 'festival-wear', image_url: '/images/categories/festival_wear.png', bg_color: '#F9F7F5', priority: 6, featured: false, enabled: true },
-];
+export const DEFAULT_CATEGORIES: CategoryCarouselItem[] = [];
 
 const STORAGE_KEY = 'gr_category_carousel_items_v2';
 let memoryStore: CategoryCarouselItem[] | null = null;
@@ -91,13 +83,13 @@ function addDeletedId(id: string): void {
 }
 
 function loadLocalItems(): CategoryCarouselItem[] {
-  if (memoryStore && memoryStore.length > 0) return memoryStore;
+  if (memoryStore !== null) return memoryStore;
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           memoryStore = parsed.map(sanitizeItem);
           return memoryStore;
         }
@@ -106,28 +98,30 @@ function loadLocalItems(): CategoryCarouselItem[] {
       console.warn('Failed to load category carousel items from localStorage', e);
     }
   }
-  memoryStore = DEFAULT_CATEGORIES.map(sanitizeItem);
+  memoryStore = [];
   return memoryStore;
 }
 
-function saveLocalItems(items: CategoryCarouselItem[]): void {
+function saveLocalItems(items: CategoryCarouselItem[], notify = false): void {
   memoryStore = items;
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-      window.dispatchEvent(new Event('category_carousel_updated'));
+      if (notify) {
+        window.dispatchEvent(new Event('category_carousel_updated'));
+      }
     } catch (e) {
       console.warn('Failed to save category carousel items to localStorage', e);
     }
   }
 }
 
-function mergeItems(remoteItems: CategoryCarouselItem[] = []): CategoryCarouselItem[] {
+function mergeItems(remoteItems: CategoryCarouselItem[] | null = null): CategoryCarouselItem[] {
   const deleted = getDeletedIds();
   const map = new Map<string, CategoryCarouselItem>();
 
-  // If remote items exist, use remote items as primary truth
-  if (remoteItems && remoteItems.length > 0) {
+  // If remote items exist (even an empty array returned from DB), treat remote as source of truth
+  if (remoteItems !== null) {
     remoteItems.forEach(item => {
       if (item && item.id && !deleted.has(item.id)) {
         map.set(item.id, sanitizeItem(item));
@@ -136,7 +130,7 @@ function mergeItems(remoteItems: CategoryCarouselItem[] = []): CategoryCarouselI
     return Array.from(map.values()).sort((a, b) => a.priority - b.priority);
   }
 
-  // Fallback to local storage items
+  // Fallback to local storage items only if remote fetch failed completely
   const local = loadLocalItems();
   local.forEach(item => {
     if (item && item.id && !deleted.has(item.id)) {
@@ -161,7 +155,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
         const res = await fetch('/api/admin/category-carousel');
         if (res.ok) {
           const json = await res.json();
-          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          if (json.success && Array.isArray(json.data)) {
             remote = json.data.map(sanitizeItem);
           }
         }
@@ -179,15 +173,15 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
             .select('*')
             .order('priority', { ascending: true });
           
-          if (!error && Array.isArray(data) && data.length > 0) {
+          if (!error && Array.isArray(data)) {
             remote = data.map(sanitizeItem);
           }
         } catch (error) {}
       }
     }
 
-    const merged = mergeItems(remote || []);
-    saveLocalItems(merged);
+    const merged = mergeItems(remote);
+    saveLocalItems(merged, false);
     return merged;
   }
 
@@ -221,7 +215,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
     }
 
     const newList = localList.map(c => c.id === id ? updatedResult : c);
-    saveLocalItems(newList);
+    saveLocalItems(newList, true);
     return updatedResult;
   }
 
@@ -249,7 +243,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
     }
 
     const newList = [...localList, createdResult];
-    saveLocalItems(newList);
+    saveLocalItems(newList, true);
     return createdResult;
   }
 
@@ -266,7 +260,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
     }
 
     const newList = localList.filter(c => c.id !== id);
-    saveLocalItems(newList);
+    saveLocalItems(newList, true);
   }
 
   async updateOrder(items: { id: string; priority: number }[]): Promise<void> {
@@ -276,7 +270,7 @@ export class SupabaseCategoryCarouselRepository implements ICategoryCarouselRepo
       .map(c => orderMap.has(c.id) ? { ...c, priority: orderMap.get(c.id)! } : c)
       .sort((a, b) => a.priority - b.priority);
 
-    saveLocalItems(reordered);
+    saveLocalItems(reordered, true);
 
     if (typeof window !== 'undefined') {
       try {

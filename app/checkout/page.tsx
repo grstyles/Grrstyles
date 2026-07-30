@@ -300,10 +300,14 @@ export default function CheckoutPage() {
   useEffect(() => {
     fetch('/api/shipping')
       .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          console.warn(`[Checkout] /api/shipping returned HTTP ${res.status}, using default shipping config.`);
+          return null;
+        }
         return res.json();
       })
       .then((cfg) => {
+        if (!cfg) return;
         console.log('[Checkout] Raw /api/shipping response:', cfg);
 
         // Validate that the response contains the expected camelCase fields.
@@ -319,19 +323,19 @@ export default function CheckoutPage() {
         }
 
         setShippingConfig({
-          shippingCharge: Number(cfg.shippingCharge ?? 0),
-          freeShippingAbove: Number(cfg.freeShippingAbove ?? 0),
+          shippingCharge: Number(cfg.shippingCharge ?? 80),
+          freeShippingAbove: Number(cfg.freeShippingAbove ?? 2000),
           freeDelivery: Boolean(cfg.freeDelivery ?? false),
         });
 
         console.log('[Checkout] ✅ shippingConfig updated:', {
-          shippingCharge: Number(cfg.shippingCharge ?? 0),
-          freeShippingAbove: Number(cfg.freeShippingAbove ?? 0),
+          shippingCharge: Number(cfg.shippingCharge ?? 80),
+          freeShippingAbove: Number(cfg.freeShippingAbove ?? 2000),
           freeDelivery: Boolean(cfg.freeDelivery ?? false),
         });
       })
       .catch((err) => {
-        console.error('[Checkout] Failed to load shipping settings:', err);
+        console.warn('[Checkout] Failed to load shipping settings:', err);
       });
   }, []);
 
