@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -46,6 +46,95 @@ export default function CheckoutPage() {
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const paymentStateRef = useRef<'IDLE' | 'OPENED' | 'VERIFYING' | 'SUCCESS' | 'FAILED'>('IDLE');
 
+  // iOS-safe fallback: stores the active Razorpay order context so that
+  // visibility/focus events can trigger server-side status checks.
+  const iosFallbackContextRef = useRef<{
+    razorpay_order_id: string;
+    orderPayload: any;
+    items: any[];
+    finalTotal: number;
+  } | null>(null);
+
+  // Prevents running the fallback more than once per order.
+  const verifiedOrderIdsRef = useRef<Set<string>>(new Set());
+
+  // Mutex so parallel focus/visibility events don't double-fire.
+  const isFallbackRunningRef = useRef(false);
+
+  // ── iOS-safe fallback verification ────────────────────────────────────────
+  // On iOS, returning from PhonePe / Google Pay does NOT reliably fire the
+  // Razorpay handler() callback.  We listen for page-visibility / pageshow /
+  // focus events and, if a payment is in-flight (state === 'OPENED'), we poll
+  // the server for the captured payment status.
+  const runIosFallback = useCallback(async (source: string) => {
+    // Only act when the checkout is waiting for a UPI app
+    if (paymentStateRef.current !== 'OPENED') return;
+
+    const ctx = iosFallbackContextRef.current;
+    if (!ctx) return;
+
+    // Prevent duplicate concurrent runs
+    if (isFallbackRunningRef.current) return;
+    if (verifiedOrderIdsRef.current.has(ctx.razorpay_order_id)) return;
+
+    isFallbackRunningRef.current = true;
+    console.log(`[iOS-fallback] Returned from payment app (${source})`)
+    console.log('[iOS-fallback] Starting fallback verification for order', ctx.razorpay_order_id);
+
+    try {
+      const res = await fetch('/api/razorpay/check-order-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          razorpay_order_id: ctx.razorpay_order_id,
+          userId: user?.id,
+          orderPayload: ctx.orderPayload,
+          items: ctx.items,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.captured) {
+        console.log('[iOS-fallback] Payment captured — completing order', data);
+        verifiedOrderIdsRef.current.add(ctx.razorpay_order_id);
+        paymentStateRef.current = 'SUCCESS';
+
+        sessionStorage.setItem('gr_last_amount', ctx.finalTotal.toString());
+        if (data.order_number || data.order_id) {
+          sessionStorage.setItem('gr_last_order_number', data.order_number || data.order_id);
+        }
+        if (data.razorpay_payment_id) {
+          sessionStorage.setItem('gr_last_payment_id', data.razorpay_payment_id);
+        }
+
+        // Clear context so subsequent events are no-ops
+        iosFallbackContextRef.current = null;
+
+        if (directCheckoutItem) {
+          dispatch(setDirectCheckoutItem(null));
+        } else {
+          dispatch(clearSelectedItems());
+        }
+        dispatch(addToast({ message: `Order ${data.order_number || ''} placed successfully!`, type: 'success' }));
+        console.log('[iOS-fallback] Order completed — redirecting to success');
+        router.push('/order-success');
+      } else {
+        console.log('[iOS-fallback] Payment not yet completed — will retry on next event');
+      }
+    } catch (err) {
+      console.warn('[iOS-fallback] Status check error:', err);
+    } finally {
+      isFallbackRunningRef.current = false;
+      // Always clear the loading spinner if the fallback resolves without success
+      if (paymentStateRef.current !== 'SUCCESS') {
+        // leave loading=true so the spinner stays — Razorpay modal is still visible
+        // (we only clear it when we know the payment failed or was cancelled)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, directCheckoutItem, dispatch, router]);
+
   useEffect(() => {
     // Prefetch target pages on mount so routing is instant on mobile and desktop
     router.prefetch('/order-success');
@@ -56,20 +145,28 @@ export default function CheckoutPage() {
         console.log('[STEP 5] Page visibility changed to hidden (app switch to PhonePe)');
       } else {
         console.log('[STEP 6] Page visibility restored to visible (returned from PhonePe)', { state: paymentStateRef.current });
+        runIosFallback('visibilitychange');
       }
     };
 
     const handlePageShow = (e: PageTransitionEvent) => {
       console.log('[STEP 18] Page show event triggered', { persisted: e.persisted, state: paymentStateRef.current });
+      runIosFallback('pageshow');
+    };
+
+    const handleFocus = () => {
+      runIosFallback('focus');
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('focus', handleFocus);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('focus', handleFocus);
     };
-  }, [router]);
+  }, [router, runIosFallback]);
 
   useEffect(() => {
     if (authChecked && user) {
@@ -472,6 +569,14 @@ export default function CheckoutPage() {
         console.log('[STEP 2] Razorpay order created successfully', { id: rzpOrder.id, amount: rzpOrder.amount });
         paymentStateRef.current = 'OPENED';
 
+        // Store context for the iOS-safe fallback (visibility/focus events)
+        iosFallbackContextRef.current = {
+          razorpay_order_id: rzpOrder.id,
+          orderPayload,
+          items: cartItems,
+          finalTotal,
+        };
+
         console.log('[STEP 3] Razorpay checkout options configured for UPI');
 
         const options = {
@@ -492,6 +597,10 @@ export default function CheckoutPage() {
           handler: async function (response: any) {
             console.log('[STEP 7] Razorpay handler() callback entered', response);
             paymentStateRef.current = 'VERIFYING';
+
+            // Clear iOS fallback context — handler has fired so fallback is not needed
+            iosFallbackContextRef.current = null;
+            verifiedOrderIdsRef.current.add(response.razorpay_order_id);
 
             console.log('[STEP 8] Payment verification payload prepared');
             console.log('[STEP 9] verify-payment API request initiated');
@@ -588,6 +697,11 @@ export default function CheckoutPage() {
               console.log('[STEP 20] Final payment outcome resolved as FAILED');
               dispatch(addToast({ message: err.message || 'Payment Verification Failed.', type: 'error' }));
               router.push('/payment-failed');
+            } finally {
+              // Always clear loading state — ensures spinner never gets stuck
+              if (paymentStateRef.current !== 'SUCCESS') {
+                setLoading(false);
+              }
             }
           },
           prefill: {
@@ -605,10 +719,22 @@ export default function CheckoutPage() {
           modal: {
             ondismiss: function () {
               console.log('[STEP 15] Razorpay modal.ondismiss event triggered', { state: paymentStateRef.current });
-              if (paymentStateRef.current !== 'VERIFYING' && paymentStateRef.current !== 'SUCCESS') {
+              // On iOS, ondismiss fires when the user is redirected to the UPI app.
+              // Do NOT cancel the flow if state === 'OPENED' — the visibility/focus
+              // fallback will handle completion when the user returns.
+              if (
+                paymentStateRef.current !== 'VERIFYING' &&
+                paymentStateRef.current !== 'SUCCESS' &&
+                paymentStateRef.current !== 'OPENED'
+              ) {
                 dispatch(addToast({ message: 'Payment cancelled.', type: 'info' }));
                 setLoading(false);
+                iosFallbackContextRef.current = null;
                 paymentStateRef.current = 'IDLE';
+              } else if (paymentStateRef.current === 'OPENED') {
+                // iOS: modal dismissed while OPENED — could be user switching to UPI app.
+                // The fallback (visibilitychange / focus) will handle this.
+                console.log('[iOS-fallback] ondismiss with OPENED state — awaiting visibility/focus fallback');
               }
             }
           }
@@ -622,6 +748,7 @@ export default function CheckoutPage() {
             const errorMsg = response?.error?.description || response?.error?.reason || 'Payment failed. Please try again.';
             dispatch(addToast({ message: errorMsg, type: 'error' }));
             setLoading(false);
+            iosFallbackContextRef.current = null;
             paymentStateRef.current = 'FAILED';
           }
         });
