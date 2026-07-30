@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { repo, MockOrder, MockOrderItem } from '@/lib/repositories';
 import { formatPrice } from '@/lib/utils/helpers';
 import { OrderStatusBadge, OrderStatus } from '@/components/ui/OrderStatusBadge';
-import { ArrowLeft, Copy, Mail, Printer, Download, Package, Edit, ExternalLink, MapPin, CreditCard, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Copy, Mail, Printer, Download, Package, Edit, ExternalLink, MapPin, CreditCard, CheckCircle, Banknote } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 
@@ -35,12 +35,17 @@ export default function AdminOrderDetailsPage() {
     delivered_date: '',
   });
 
+  // Payment status editor state
+  const [updatingPaymentStatus, setUpdatingPaymentStatus] = useState(false);
+  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<MockOrder['paymentStatus'] | ''>('');
+
   useEffect(() => {
     const fetchOrder = async () => {
       setLoading(true);
       const data = await repo.orders.getById(orderId);
       if (data) {
         setOrder(data);
+        setSelectedPaymentStatus(data.paymentStatus || 'Pending');
         setShippingForm({
           courier_partner: data.courier_partner || '',
           tracking_id: data.tracking_id || '',
@@ -68,6 +73,22 @@ export default function AdminOrderDetailsPage() {
     };
     if (orderId) fetchOrder();
   }, [orderId]);
+
+  const handlePaymentStatusUpdate = async () => {
+    if (!order || !selectedPaymentStatus || selectedPaymentStatus === order.paymentStatus) return;
+    setUpdatingPaymentStatus(true);
+    try {
+      const success = await repo.orders.updatePaymentStatus(order.id, selectedPaymentStatus as MockOrder['paymentStatus']);
+      if (success) {
+        setOrder({ ...order, paymentStatus: selectedPaymentStatus as MockOrder['paymentStatus'] });
+        dispatch(addToast({ message: `Payment status updated to ${selectedPaymentStatus}`, type: 'success' }));
+      }
+    } catch (err) {
+      dispatch(addToast({ message: 'Failed to update payment status', type: 'error' }));
+    } finally {
+      setUpdatingPaymentStatus(false);
+    }
+  };
 
   const handleStatusUpdate = async (newStatus: OrderStatus) => {
     if (!order) return;
@@ -357,14 +378,60 @@ export default function AdminOrderDetailsPage() {
           <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6">
             <div>
               <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><CreditCard size={16} /> Payment Info</h3>
+
+              {/* Payment Method */}
               <div className="flex items-center justify-between py-2 border-b border-gray-50">
                 <span className="text-gray-600">Method</span>
-                <span className="font-bold">{order.paymentMethod === 'upi' ? 'UPI' : order.paymentMethod === 'card' ? 'Credit / Debit Card' : order.paymentMethod === 'razorpay' ? 'Razorpay' : order.paymentMethod}</span>
+                {order.paymentMethod === 'cod' ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                    <Banknote size={13} /> Cash on Delivery
+                  </span>
+                ) : (
+                  <span className="font-bold">
+                    {order.paymentMethod === 'upi' ? 'UPI'
+                      : order.paymentMethod === 'card' ? 'Credit / Debit Card'
+                      : order.paymentMethod === 'razorpay' ? 'Razorpay'
+                      : order.paymentMethod}
+                  </span>
+                )}
               </div>
+
+              {/* Payment Status — display */}
               <div className="flex items-center justify-between py-2 border-b border-gray-50">
                 <span className="text-gray-600">Status</span>
-                <span className={`font-bold ${order.paymentStatus === 'Paid' ? 'text-green-600' : 'text-amber-600'}`}>{order.paymentStatus}</span>
+                <span className={`font-bold ${
+                  order.paymentStatus === 'Paid' ? 'text-green-600'
+                  : order.paymentStatus === 'Pending' ? 'text-amber-600'
+                  : order.paymentStatus === 'Refunded' ? 'text-purple-600'
+                  : 'text-red-500'
+                }`}>{order.paymentStatus}</span>
               </div>
+
+              {/* Payment Status Editor (admin action) */}
+              <div className="pt-3 pb-1">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Update Payment Status</p>
+                <div className="flex gap-2">
+                  <select
+                    value={selectedPaymentStatus}
+                    onChange={(e) => setSelectedPaymentStatus(e.target.value as MockOrder['paymentStatus'])}
+                    className="flex-1 text-xs px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Failed">Failed</option>
+                    <option value="Refunded">Refunded</option>
+                  </select>
+                  <button
+                    onClick={handlePaymentStatusUpdate}
+                    disabled={updatingPaymentStatus || selectedPaymentStatus === order.paymentStatus}
+                    className="px-3 py-2 text-xs font-bold text-white bg-black rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {updatingPaymentStatus ? 'Saving...' : 'Update'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Razorpay gateway details */}
               {order.gateway === 'razorpay' && (
                 <>
                   <div className="flex flex-col py-2 border-b border-gray-50 gap-1">

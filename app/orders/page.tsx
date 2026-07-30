@@ -339,7 +339,28 @@ export default function OrdersPage() {
                                 <span>{formatPrice(order.totalAmount)}</span>
                               </div>
                               <div className="text-[10px] font-light text-gray-400 pt-1 text-right italic font-mono space-y-0.5">
-                                <p>Payment: {order.paymentMethod === 'razorpay' ? 'Razorpay' : order.paymentMethod} ({order.paymentStatus})</p>
+                                <p>
+                                  Payment:{' '}
+                                  {order.paymentMethod === 'cod'
+                                    ? 'Cash on Delivery'
+                                    : order.paymentMethod === 'upi'
+                                    ? 'UPI (Razorpay)'
+                                    : order.paymentMethod === 'card'
+                                    ? 'Credit/Debit Card'
+                                    : order.paymentMethod === 'razorpay'
+                                    ? 'Razorpay'
+                                    : order.paymentMethod}
+                                  {' — '}
+                                  <span className={`font-bold not-italic ${
+                                    order.paymentStatus === 'Paid'
+                                      ? 'text-green-600'
+                                      : order.paymentStatus === 'Pending'
+                                      ? 'text-amber-600'
+                                      : 'text-red-500'
+                                  }`}>
+                                    {order.paymentStatus}
+                                  </span>
+                                </p>
                                 {order.gateway === 'razorpay' && order.razorpay_payment_id && (
                                   <p className="text-[9px]">ID: {order.razorpay_payment_id}</p>
                                 )}

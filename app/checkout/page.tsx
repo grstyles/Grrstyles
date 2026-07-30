@@ -14,7 +14,7 @@ import { RAZORPAY_KEY_ID } from '@/lib/config';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useAuth } from '@/lib/context/AuthContext';
 import { autoApplyBestCoupon } from '@/lib/utils/couponHelper';
-import { Package, CheckCircle, CreditCard, Smartphone, Tag, Sparkles, X, RefreshCw } from 'lucide-react';
+import { Package, CheckCircle, CreditCard, Smartphone, Tag, Sparkles, X, RefreshCw, Banknote } from 'lucide-react';
 
 export default function CheckoutPage() {
   const dispatch = useDispatch();
@@ -434,6 +434,8 @@ export default function CheckoutPage() {
       if (data.success && data.orderNumber) {
         sessionStorage.setItem('gr_last_order_number', data.orderNumber);
         sessionStorage.setItem('gr_last_amount', finalTotal.toString());
+        // Store payment method so the success page can show COD messaging
+        sessionStorage.setItem('gr_last_payment_method', 'cod');
         if (directCheckoutItem) {
           dispatch(setDirectCheckoutItem(null));
         } else {
@@ -500,11 +502,13 @@ export default function CheckoutPage() {
         country: formData.country,
         fullAddressString: addressString
       },
-      paymentMethod: paymentMethod,
+      // Map internal method names: upi/card both go through razorpay gateway;
+      // cod is stored as 'cod'. This value is written to the DB.
+      paymentMethod: paymentMethod === 'cod' ? 'cod' : 'razorpay',
       totalAmount: finalTotal,
       discountAmount: discount,
       couponCode: appliedPromo || null,
-      paymentStatus: 'Pending',
+      paymentStatus: paymentMethod === 'cod' ? 'Pending' : 'Paid',
     };
 
     // If UPI is selected, use UPI flow
@@ -970,7 +974,7 @@ export default function CheckoutPage() {
         setLoading(false);
       }
     } else {
-      // COD flow
+      // COD flow — no Razorpay involved at all
       await handlePlaceOrder(orderPayload);
     }
   };
@@ -1156,11 +1160,11 @@ export default function CheckoutPage() {
                 </div>
               </section>
 
-              {/* Payment Method - UPI First */}
+              {/* Payment Method - UPI First, Card Second, COD Third */}
               <section className="border-b border-gray-200 pb-8">
                 <h2 className="text-2xl font-bold mb-6">Payment Method</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* UPI Option - First */}
+                  {/* UPI Option */}
                   <label 
                     className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
                       paymentMethod === 'upi' 
@@ -1190,7 +1194,7 @@ export default function CheckoutPage() {
                     </div>
                   </label>
 
-                  {/* Credit/Debit Card Option - Second */}
+                  {/* Credit/Debit Card Option */}
                   <label 
                     className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
                       paymentMethod === 'card' 
@@ -1216,6 +1220,36 @@ export default function CheckoutPage() {
                       </div>
                       {paymentMethod === 'card' && (
                         <CheckCircle size={24} className="text-blue-500 absolute top-5 right-5" />
+                      )}
+                    </div>
+                  </label>
+
+                  {/* Cash on Delivery Option */}
+                  <label 
+                    className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform md:col-span-2 ${
+                      paymentMethod === 'cod' 
+                        ? 'border-2 border-amber-500 bg-amber-50 shadow-md scale-[1.01]' 
+                        : 'border border-gray-200 hover:border-amber-300 hover:bg-gray-50 hover:shadow-sm'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="cod"
+                      checked={paymentMethod === 'cod'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="hidden"
+                    />
+                    <div className="flex items-center gap-4 w-full">
+                      <div className={`p-3 rounded-full ${paymentMethod === 'cod' ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
+                        <Banknote size={24} />
+                      </div>
+                      <div className="flex-1">
+                        <span className={`block font-bold ${paymentMethod === 'cod' ? 'text-amber-800' : 'text-gray-800'}`}>Cash on Delivery</span>
+                        <span className="block text-sm text-gray-500 mt-0.5">Pay when your order is delivered</span>
+                      </div>
+                      {paymentMethod === 'cod' && (
+                        <CheckCircle size={24} className="text-amber-500 absolute top-5 right-5" />
                       )}
                     </div>
                   </label>

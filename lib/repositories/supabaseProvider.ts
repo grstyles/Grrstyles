@@ -633,6 +633,15 @@ export class SupabaseOrderRepository implements IOrderRepository {
     if (error) throw error;
     return true;
   }
+
+  async updatePaymentStatus(id: string, paymentStatus: MockOrder['paymentStatus']): Promise<boolean> {
+    const { error } = await sb()
+      .from('orders')
+      .update({ payment_status: paymentStatus })
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  }
 }
 
 // ─── Supabase Coupon Repository ───────────────────────────────────────────────
@@ -1093,7 +1102,7 @@ export class SupabaseAnalyticsRepository implements IAnalyticsRepository {
       { count: couponCount, error: couponError },
     ] = await Promise.all([
       sb().from('products').select('id, name, shirt_stock, pant_stock, shoe_stock, overall_stock, category, sku'),
-      sb().from('orders').select('id, order_number, customer_name, total_amount, status, created_at, items'),
+      sb().from('orders').select('id, order_number, customer_name, total_amount, status, payment_method, payment_status, created_at, items'),
       sb().from('coupons').select('*', { count: 'exact', head: true }).eq('active', true),
     ]);
 
@@ -1259,6 +1268,18 @@ export class SupabaseAnalyticsRepository implements IAnalyticsRepository {
       count: orders.filter((o: any) => o.status === label).length,
     }));
 
+    // COD analytics
+    const codOrders = orders.filter((o: any) => o.payment_method === 'cod');
+    const onlineOrders = orders.filter((o: any) => o.payment_method !== 'cod');
+    const totalCodOrders = codOrders.length;
+    const totalOnlineOrders = onlineOrders.length;
+    const pendingCodAmount = codOrders
+      .filter((o: any) => o.payment_status === 'Pending' && o.status !== 'Cancelled' && o.status !== 'Returned')
+      .reduce((sum: number, o: any) => sum + Number(o.total_amount || 0), 0);
+    const paidCodAmount = codOrders
+      .filter((o: any) => o.payment_status === 'Paid')
+      .reduce((sum: number, o: any) => sum + Number(o.total_amount || 0), 0);
+
     return {
       totalProducts,
       totalOrders,
@@ -1274,6 +1295,10 @@ export class SupabaseAnalyticsRepository implements IAnalyticsRepository {
       lowStockProducts: lowStockProducts.slice(0, 10),
       monthlyPerformance,
       orderStatusBreakdown,
+      totalCodOrders,
+      totalOnlineOrders,
+      pendingCodAmount,
+      paidCodAmount,
     };
   }
 }

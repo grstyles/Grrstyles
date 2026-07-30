@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/context/AuthContext';
 import { repo, MockOrder, MockOrderItem } from '@/lib/repositories';
-import { ClipboardList, RefreshCw, Search, User as UserIcon, Package } from 'lucide-react';
+import { ClipboardList, RefreshCw, Search, User as UserIcon, Package, Banknote, CreditCard } from 'lucide-react';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useDispatch } from 'react-redux';
 import { formatPrice } from '@/lib/utils/helpers';
@@ -14,33 +14,62 @@ const STATUS_OPTIONS: MockOrder['status'][] = [
   'Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered', 'Cancelled', 'Returned',
 ];
 
+const PAYMENT_STATUS_OPTIONS: MockOrder['paymentStatus'][] = [
+  'Pending', 'Paid', 'Failed', 'Refunded',
+];
+
+function PaymentStatusBadge({ status }: { status: string }) {
+  const cfg: Record<string, { bg: string; text: string; label: string }> = {
+    Paid:     { bg: 'bg-green-100', text: 'text-green-700', label: 'Paid' },
+    Pending:  { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Pending' },
+    Failed:   { bg: 'bg-red-100',   text: 'text-red-600',   label: 'Failed' },
+    Refunded: { bg: 'bg-purple-100',text: 'text-purple-700',label: 'Refunded' },
+  };
+  const c = cfg[status] ?? { bg: 'bg-gray-100', text: 'text-gray-600', label: status };
+  return (
+    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${c.bg} ${c.text}`}>
+      {c.label}
+    </span>
+  );
+}
+
+function PaymentMethodBadge({ method }: { method: string }) {
+  if (method === 'cod') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+        <Banknote size={10} /> COD
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+      <CreditCard size={10} /> Online
+    </span>
+  );
+}
+
 export default function AdminOrdersPage() {
   const router = useRouter();
   const dispatch = useDispatch();
-  const { user, requireAuth } = useAuth(); // Add this
-  const [authChecked, setAuthChecked] = useState(false); // Add this
-  const [isAdmin, setIsAdmin] = useState(false); // Add this
+  const { user, requireAuth } = useAuth();
+  const [authChecked, setAuthChecked] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [orders, setOrders] = useState<MockOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('All');
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState<string>('All');
 
-  // Add this useEffect for authentication
   useEffect(() => {
     requireAuth(
-      () => {
-        setAuthChecked(true);
-      },
-      () => {
-        router.push('/login');
-      }
+      () => { setAuthChecked(true); },
+      () => { router.push('/login'); }
     );
   }, [requireAuth, router]);
 
-  // Add this useEffect to check admin status
   useEffect(() => {
     if (!authChecked || !user) return;
-
     const checkAdmin = async () => {
       try {
         const adminStatus = await repo.users.isAdmin(user.id);
@@ -55,7 +84,6 @@ export default function AdminOrdersPage() {
         router.push('/profile');
       }
     };
-
     checkAdmin();
   }, [authChecked, user, router, dispatch]);
 
@@ -72,20 +100,25 @@ export default function AdminOrdersPage() {
   };
 
   useEffect(() => {
-    if (isAdmin) {
-      loadOrders();
-    }
+    if (isAdmin) loadOrders();
   }, [isAdmin]);
 
-  // Rest of your existing code...
   const filteredOrders = orders.filter((o) => {
     const matchesStatus = filterStatus === 'All' || o.status === filterStatus;
+    const matchesPaymentMethod =
+      filterPaymentMethod === 'All' ||
+      (filterPaymentMethod === 'cod' && o.paymentMethod === 'cod') ||
+      (filterPaymentMethod === 'online' && o.paymentMethod !== 'cod');
+    const matchesPaymentStatus =
+      filterPaymentStatus === 'All' || o.paymentStatus === filterPaymentStatus;
     const term = searchQuery.toLowerCase().trim();
-    const matchesSearch = !term ||
+    const matchesSearch =
+      !term ||
       o.id.toLowerCase().includes(term) ||
       o.customerName.toLowerCase().includes(term) ||
-      o.email.toLowerCase().includes(term);
-    return matchesStatus && matchesSearch;
+      o.email.toLowerCase().includes(term) ||
+      (o.orderNumber || '').toLowerCase().includes(term);
+    return matchesStatus && matchesPaymentMethod && matchesPaymentStatus && matchesSearch;
   });
 
   const statusCounts = STATUS_OPTIONS.reduce((acc, s) => {
@@ -93,7 +126,6 @@ export default function AdminOrdersPage() {
     return acc;
   }, {} as Record<string, number>);
 
-  // Show loading while checking auth
   if (!authChecked || !isAdmin) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
@@ -124,8 +156,10 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
+      {/* Filters */}
+      <div className="flex flex-col md:flex-row gap-3 flex-wrap">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
@@ -135,10 +169,12 @@ export default function AdminOrdersPage() {
             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-black"
           />
         </div>
+
+        {/* Order Status filter */}
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white"
+          className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white text-sm"
         >
           <option value="All">All Statuses</option>
           {STATUS_OPTIONS.map((status) => (
@@ -147,8 +183,32 @@ export default function AdminOrdersPage() {
             </option>
           ))}
         </select>
+
+        {/* Payment Method filter */}
+        <select
+          value={filterPaymentMethod}
+          onChange={(e) => setFilterPaymentMethod(e.target.value)}
+          className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white text-sm"
+        >
+          <option value="All">All Methods</option>
+          <option value="cod">Cash on Delivery</option>
+          <option value="online">Online (Razorpay)</option>
+        </select>
+
+        {/* Payment Status filter */}
+        <select
+          value={filterPaymentStatus}
+          onChange={(e) => setFilterPaymentStatus(e.target.value)}
+          className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-black bg-white text-sm"
+        >
+          <option value="All">All Payment Status</option>
+          {PAYMENT_STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
       </div>
 
+      {/* Orders Table */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -158,7 +218,9 @@ export default function AdminOrdersPage() {
                 <th className="p-4">Customer</th>
                 <th className="p-4">Date</th>
                 <th className="p-4">Amount</th>
-                <th className="p-4">Status</th>
+                <th className="p-4">Payment Method</th>
+                <th className="p-4">Payment Status</th>
+                <th className="p-4">Order Status</th>
                 <th className="p-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -180,6 +242,12 @@ export default function AdminOrdersPage() {
                     </td>
                     <td className="p-4 text-gray-500">{new Date(order.date).toLocaleDateString()}</td>
                     <td className="p-4 font-bold text-gray-900">{formatPrice(order.totalAmount)}</td>
+                    <td className="p-4">
+                      <PaymentMethodBadge method={order.paymentMethod} />
+                    </td>
+                    <td className="p-4">
+                      <PaymentStatusBadge status={order.paymentStatus || 'Pending'} />
+                    </td>
                     <td className="p-4"><OrderStatusBadge status={order.status} /></td>
                     <td className="p-4 text-right">
                       <button
@@ -193,7 +261,7 @@ export default function AdminOrdersPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-400">
+                  <td colSpan={8} className="p-8 text-center text-gray-400">
                     <Package size={24} className="mx-auto mb-2 opacity-20" />
                     <p>No orders found.</p>
                   </td>

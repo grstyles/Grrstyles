@@ -155,6 +155,9 @@ export interface IOrderRepository {
 
   /** Update shipping information */
   updateShipping(id: string, shippingData: Partial<MockOrder>): Promise<boolean>;
+
+  /** Update payment status (e.g. Pending → Paid for COD orders) */
+  updatePaymentStatus(id: string, paymentStatus: MockOrder['paymentStatus']): Promise<boolean>;
 }
 
 export interface CreateOrderInput {
@@ -300,6 +303,11 @@ export interface FullAnalytics extends DashboardStats {
   lowStockProducts: AnalyticsLowStockItem[];
   monthlyPerformance: AnalyticsMonthlyData[];
   orderStatusBreakdown: AnalyticsOrderStatusCount[];
+  // COD analytics
+  totalCodOrders: number;
+  totalOnlineOrders: number;
+  pendingCodAmount: number;
+  paidCodAmount: number;
 }
 
 // ─── Banner Repository ────────────────────────────────────────────────────────

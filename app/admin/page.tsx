@@ -7,7 +7,7 @@ import {
   ShoppingBag, ClipboardList, DollarSign, Tag,
   ArrowRight, TrendingUp, AlertTriangle, Package,
   CheckCircle2, Clock, Truck, XCircle, BarChart3,
-  ListOrdered
+  ListOrdered, Banknote, Wallet
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -161,7 +161,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* KPI Stats */}
+      {/* KPI Stats — core metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {statCards.map((card) => (
           <Link
@@ -187,6 +187,66 @@ export default function AdminDashboard() {
               <ArrowRight size={12} className="text-gray-300 group-hover:text-black group-hover:translate-x-0.5 transition-all" />
             </div>
           </Link>
+        ))}
+      </div>
+
+      {/* COD Analytics Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          {
+            name: 'COD Orders',
+            value: analytics?.totalCodOrders ?? 0,
+            icon: Banknote,
+            color: 'bg-amber-50 text-amber-600',
+            change: `${analytics?.pendingCodAmount != null ? formatDashboardPrice(analytics.pendingCodAmount) : '₹0'} pending`,
+            highlight: false,
+          },
+          {
+            name: 'Online Orders',
+            value: analytics?.totalOnlineOrders ?? 0,
+            icon: Wallet,
+            color: 'bg-sky-50 text-sky-600',
+            change: 'Razorpay payments',
+            highlight: false,
+          },
+          {
+            name: 'Paid COD',
+            value: formatDashboardPrice(analytics?.paidCodAmount ?? 0),
+            icon: CheckCircle2,
+            color: 'bg-green-50 text-green-600',
+            change: 'Collected on delivery',
+            highlight: false,
+          },
+          {
+            name: 'Pending COD',
+            value: formatDashboardPrice(analytics?.pendingCodAmount ?? 0),
+            icon: Clock,
+            color: 'bg-orange-50 text-orange-600',
+            change: 'Awaiting collection',
+            highlight: (analytics?.pendingCodAmount ?? 0) > 0,
+          },
+        ].map((card) => (
+          <div
+            key={card.name}
+            className={`bg-white border rounded-2xl p-5 space-y-3 ${
+              card.highlight ? 'border-orange-100 bg-orange-50/10' : 'border-gray-100'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-tight">{card.name}</span>
+              <div className={`p-2 rounded-xl ${card.color}`}>
+                <card.icon size={15} />
+              </div>
+            </div>
+            <div>
+              <span className={`text-2xl font-bold tracking-tight ${card.highlight ? 'text-orange-500' : 'text-gray-900'}`}>
+                {card.value}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] text-gray-400 font-light">{card.change}</span>
+            </div>
+          </div>
         ))}
       </div>
 

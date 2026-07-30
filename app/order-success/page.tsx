@@ -10,6 +10,8 @@ import {
   Truck,
   Sparkles,
   Gift,
+  Banknote,
+  Clock,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { UserScratchCard } from "@/lib/repositories";
@@ -27,6 +29,7 @@ export default function OrderSuccessPage() {
   const [orderId, setOrderId] = useState("");
   const [paymentId, setPaymentId] = useState("");
   const [amount, setAmount] = useState<number>(0);
+  const [isCod, setIsCod] = useState(false);
   const [minOrderThreshold, setMinOrderThreshold] = useState<number>(5000);
   const [userCard, setUserCard] = useState<UserScratchCard | null>(null);
   const [loadingCard, setLoadingCard] = useState(true);
@@ -44,6 +47,13 @@ export default function OrderSuccessPage() {
       orderNum = `GR-2026-${num}`;
       setOrderId(orderNum);
     }
+
+    // Detect COD payment method
+    const cachedPaymentMethod = sessionStorage.getItem("gr_last_payment_method");
+    if (cachedPaymentMethod === 'cod') {
+      setIsCod(true);
+    }
+    sessionStorage.removeItem("gr_last_payment_method");
 
     const cachedPayment = sessionStorage.getItem("gr_last_payment_id");
     if (cachedPayment) {
@@ -146,18 +156,37 @@ export default function OrderSuccessPage() {
             stiffness: 200,
             damping: 15,
           }}
-          className="w-20 h-20 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6"
+          className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${
+            isCod ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'
+          }`}
         >
-          <CheckCircle size={44} className="stroke-[1.5]" />
+          {isCod ? <Banknote size={44} className="stroke-[1.5]" /> : <CheckCircle size={44} className="stroke-[1.5]" />}
         </motion.div>
 
         <h1 className="text-3xl font-light text-[#1a1a1a] mb-2 tracking-tight">
-          Order Confirmed
+          {isCod ? 'Order Placed Successfully' : 'Order Confirmed'}
         </h1>
         <p className="text-sm text-[#6b5b4b] mb-6">
-          Thank you for shopping with GR STYLES. Your order has been placed
-          successfully.
+          {isCod
+            ? 'Your order has been placed. Please keep the payment ready at the time of delivery.'
+            : 'Thank you for shopping with GR STYLES. Your order has been placed successfully.'}
         </p>
+
+        {/* COD Payment Notice */}
+        {isCod && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-left space-y-2">
+            <div className="flex items-center gap-2">
+              <Clock size={16} className="text-amber-600 shrink-0" />
+              <p className="text-xs font-bold text-amber-900 uppercase tracking-wider">Cash on Delivery</p>
+            </div>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              Payment Status: <span className="font-bold">Pending</span>
+            </p>
+            <p className="text-xs text-amber-700">
+              Please keep ₹{amount > 0 ? amount.toLocaleString('en-IN') : 'exact amount'} ready when your order arrives.
+            </p>
+          </div>
+        )}
 
         {/* Dynamic Scratch Card Section based on Order Threshold */}
         {!loadingCard && (
@@ -201,22 +230,44 @@ export default function OrderSuccessPage() {
               {orderId}
             </p>
           </div>
-          {paymentId && (
-            <div>
-              <p className="text-[10px] text-[#6b5b4b] uppercase font-bold tracking-wider mb-1">
-                Payment ID
-              </p>
-              <p className="text-sm font-mono text-gray-600 tracking-wide">
-                {paymentId}
-              </p>
-            </div>
+          {/* Payment Method — always show for COD, show payment ID for Razorpay */}
+          {isCod ? (
+            <>
+              <div>
+                <p className="text-[10px] text-[#6b5b4b] uppercase font-bold tracking-wider mb-1">
+                  Payment Method
+                </p>
+                <p className="text-sm font-semibold text-amber-700 tracking-wide">
+                  Cash on Delivery
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-[#6b5b4b] uppercase font-bold tracking-wider mb-1">
+                  Payment Status
+                </p>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                  <Clock size={12} /> Pending
+                </span>
+              </div>
+            </>
+          ) : (
+            paymentId && (
+              <div>
+                <p className="text-[10px] text-[#6b5b4b] uppercase font-bold tracking-wider mb-1">
+                  Payment ID
+                </p>
+                <p className="text-sm font-mono text-gray-600 tracking-wide">
+                  {paymentId}
+                </p>
+              </div>
+            )
           )}
           {amount > 0 && (
             <div>
               <p className="text-[10px] text-[#6b5b4b] uppercase font-bold tracking-wider mb-1">
-                Amount Paid
+                {isCod ? 'Amount Due' : 'Amount Paid'}
               </p>
-              <p className="text-sm font-semibold text-green-600 tracking-wide">
+              <p className={`text-sm font-semibold tracking-wide ${isCod ? 'text-amber-600' : 'text-green-600'}`}>
                 ₹{amount}
               </p>
             </div>

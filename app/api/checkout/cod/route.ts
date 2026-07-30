@@ -249,7 +249,7 @@ export async function POST(req: Request) {
       console.warn('Scratch card auto-issuance error (COD):', scErr);
     }
 
-    return NextResponse.json({ success: true, orderNumber });
+    return NextResponse.json({ success: true, orderNumber, paymentMethod: 'cod' });
 
   } catch (err: any) {
     console.error('COD Order Error:', err);
