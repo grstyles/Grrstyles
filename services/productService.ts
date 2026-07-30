@@ -59,7 +59,9 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
     }
   }
 
-  const overallStock = Number(db.overall_stock || 0) || 50;
+  // BUG FIX: removed `|| 50` fallback — a product with 0 DB stock must show 0,
+  // not a phantom 50 that disagrees with the inventory panel and Supabase.
+  const overallStock = Number(db.overall_stock ?? 0);
 
   const mappedProduct: Product = {
     id: db.product_id || db.id,
@@ -91,7 +93,7 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
     reviews: Number(db.reviews_count || 0),
     isNew: !!db.new_arrival,
     bestSeller: !!db.trending,
-    inStock: true,
+    inStock: overallStock > 0,
     stockCount: overallStock,
     metadata: {
       dealOfDay: !!(db.deal_of_day || db.deal_of_the_day),

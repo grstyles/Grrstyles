@@ -51,31 +51,58 @@ export default function AdminInventoryPage() {
 
   const handleSaveStock = async (itemId: string) => {
     try {
-      const promises = Object.entries(editingStock).map(([size, stock]) =>
-        repo.products.updateStock(itemId, size, stock)
-      );
-      await Promise.all(promises);
+      // ── Debug: log what we are about to save ─────────────────────────────
+      const item = inventoryList.find((i) => i.id === itemId);
+      const previousStock = (item?.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0);
+      console.log('[Inventory Admin] Saving stock for product ID:', itemId);
+      console.log('[Inventory Admin] Previous total stock:', previousStock);
+      console.log('[Inventory Admin] New size quantities to save:', editingStock);
 
+      const newTotal = Object.values(editingStock).reduce((sum, qty) => sum + Number(qty || 0), 0);
+      console.log('[Inventory Admin] Calculated new total stock:', newTotal);
+
+      // ── BUG FIX: Single atomic call instead of per-size Promise.all ──────
+      // The old implementation called updateStock per-size concurrently,
+      // causing race conditions where concurrent fetches saw stale DB state
+      // and overwrote each other. Now we pass all sizes in one call.
+      await repo.products.updateStock(itemId, editingStock);
+
+      // ── Optimistically update local UI ───────────────────────────────────
       setInventoryList((prev) =>
-        prev.map((item) => {
-          if (item.id === itemId) {
+        prev.map((listItem) => {
+          if (listItem.id === itemId) {
             return {
-              ...item,
-              sizeStock: (item.sizeStock ?? []).map((ss: any) => ({
+              ...listItem,
+              sizeStock: (listItem.sizeStock ?? []).map((ss: any) => ({
                 size: ss.size,
                 stock: editingStock[ss.size] !== undefined ? editingStock[ss.size] : ss.stock,
               })),
             };
           }
-          return item;
+          return listItem;
         })
       );
 
       setEditingId(null);
       dispatch(addToast({ message: '✓ Stock levels updated!', type: 'success' }));
+
+      // ── Post-save verification: re-fetch this product from DB ─────────────
+      // This confirms the value actually persisted and keeps UI in sync.
+      console.log('[Inventory Admin] Re-fetching inventory from Supabase to verify persistence...');
+      const freshData = await repo.products.getInventory();
+      const freshItem = freshData.find((i) => i.id === itemId);
+      if (freshItem) {
+        const freshTotal = (freshItem.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0);
+        console.log('[Inventory Admin] Fresh stock after save (from Supabase):', freshTotal);
+        console.log('[Inventory Admin] Fresh size breakdown:', freshItem.sizeStock);
+        // Reconcile UI with confirmed DB values
+        setInventoryList(freshData);
+      } else {
+        console.warn('[Inventory Admin] Could not find product in re-fetched inventory.');
+      }
     } catch (err) {
-      console.error(err);
-      dispatch(addToast({ message: 'Failed to update stock.', type: 'error' }));
+      console.error('[Inventory Admin] Stock update failed:', err);
+      dispatch(addToast({ message: 'Failed to update stock. Check console for details.', type: 'error' }));
     }
   };
 

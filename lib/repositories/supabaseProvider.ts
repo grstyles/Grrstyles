@@ -259,33 +259,95 @@ export class SupabaseProductRepository implements IProductRepository {
       .select('id, name, slug, category, sizes, shirt_stock, pant_stock, shoe_stock, overall_stock')
       .order('category');
     if (error) throw error;
+
     return (data || []).map((d: any) => {
+      // ── Resolve the sizes array ──────────────────────────────────────────────
       let sizes: string[] = [];
       if (Array.isArray(d.sizes)) {
-        sizes = d.sizes;
+        // Supabase may return the old [{size,stock}] format OR new ["S","M"] format
+        if (d.sizes.length > 0 && typeof d.sizes[0] === 'object' && d.sizes[0] !== null) {
+          // OLD format: [{size: "S", stock: 5}, ...] — extract just the size labels
+          sizes = d.sizes.map((x: any) => String(x.size || ''));
+        } else {
+          sizes = d.sizes.map((s: any) => String(s));
+        }
       } else if (typeof d.sizes === 'string') {
-        try { sizes = JSON.parse(d.sizes); } catch(e) { sizes = []; }
+        try {
+          const parsed = JSON.parse(d.sizes);
+          if (Array.isArray(parsed)) {
+            if (parsed.length > 0 && typeof parsed[0] === 'object') {
+              sizes = parsed.map((x: any) => String(x.size || ''));
+            } else {
+              sizes = parsed.map(String);
+            }
+          }
+        } catch(e) { sizes = []; }
       }
+      sizes = sizes.filter(Boolean);
 
+      // ── Pick the right per-size stock JSONB column based on category ─────────
+      // Uses the same broader keyword list as updateStock() for consistency.
       const categoryLower = (d.category || '').toLowerCase();
       let rawStock: Record<string, number> = {};
-      if (categoryLower.includes('shoe')) {
+
+      if (
+        categoryLower.includes('shoe') ||
+        categoryLower.includes('footwear') ||
+        categoryLower.includes('sneaker') ||
+        categoryLower.includes('boot') ||
+        categoryLower.includes('slipper')
+      ) {
         rawStock = d.shoe_stock || {};
-      } else if (categoryLower.includes('pant') || categoryLower.includes('jean') || categoryLower.includes('trouser') || categoryLower.includes('track')) {
+      } else if (
+        categoryLower.includes('pant') ||
+        categoryLower.includes('jean') ||
+        categoryLower.includes('trouser') ||
+        categoryLower.includes('track') ||
+        categoryLower.includes('short') ||
+        categoryLower.includes('chino') ||
+        categoryLower.includes('bottom')
+      ) {
         rawStock = d.pant_stock || {};
-      } else if (categoryLower.includes('shirt') || categoryLower.includes('jacket') || categoryLower.includes('t-shirt')) {
+      } else {
+        // Default: shirt-type column covers shirts, jackets, T-shirts, etc.
         rawStock = d.shirt_stock || {};
       }
 
+      // ── Build sizeStock array ────────────────────────────────────────────────
       let sizeStock: { size: string; stock: number }[] = [];
-      if (sizes.length > 0) {
-        sizeStock = sizes.map((s) => ({ size: s, stock: 10 }));
-      } else if (Object.keys(rawStock).length > 0) {
-        sizeStock = Object.entries(rawStock).map(([size, stock]) => ({
-          size,
-          stock: Number(stock) || 0,
+
+      if (Object.keys(rawStock).length > 0) {
+        // JSONB column has real per-size data — always prefer this as source of truth.
+        // Merge with sizes array so we display in the correct order.
+        if (sizes.length > 0) {
+          // Show sizes in defined order, reading stock from JSONB column
+          sizeStock = sizes.map((s) => ({
+            size: s,
+            stock: rawStock[s] !== undefined ? Number(rawStock[s]) : 0,
+          }));
+          // Include any extra sizes in the JSONB that aren't in the sizes array
+          for (const [s, qty] of Object.entries(rawStock)) {
+            if (!sizes.includes(s)) {
+              sizeStock.push({ size: s, stock: Number(qty) || 0 });
+            }
+          }
+        } else {
+          // No sizes array — build from JSONB keys directly
+          sizeStock = Object.entries(rawStock).map(([size, stock]) => ({
+            size,
+            stock: Number(stock) || 0,
+          }));
+        }
+      } else if (sizes.length > 0) {
+        // JSONB columns are empty but sizes array exists — fall back to overall_stock
+        // split evenly. This covers newly-created products before any stock update.
+        const fallbackPerSize = Math.floor(Number(d.overall_stock || 0) / sizes.length);
+        sizeStock = sizes.map((s) => ({
+          size: s,
+          stock: fallbackPerSize,
         }));
       } else {
+        // No per-size data at all — show as single 'One Size' entry using overall_stock
         sizeStock = [{ size: 'One Size', stock: Number(d.overall_stock) || 0 }];
       }
 
@@ -300,53 +362,114 @@ export class SupabaseProductRepository implements IProductRepository {
     });
   }
 
-  async updateStock(productId: string, size: string, newStock: number): Promise<boolean> {
+  /**
+   * Atomically updates stock for ALL sizes of a product in a single Supabase call.
+   * BUG FIX: The previous implementation called this per-size concurrently which
+   * caused race conditions — each concurrent fetch saw stale data and overwrote
+   * the others' writes. Now we accept the entire { [size]: qty } map and write
+   * everything in one update, recalculating overall_stock from the full map.
+   */
+  async updateStock(productId: string, sizeStockMap: { [size: string]: number }): Promise<boolean> {
+    console.log('[Inventory] updateStock called for product:', productId);
+    console.log('[Inventory] New size-stock map:', sizeStockMap);
+
+    // ── Step 1: Fetch current product to determine category & current stock ──
     const { data: prod, error: fetchErr } = await sb()
       .from('products')
       .select('category, shirt_stock, pant_stock, shoe_stock, overall_stock')
       .eq('id', productId)
       .maybeSingle();
 
-    if (fetchErr || !prod) throw fetchErr || new Error('Product not found');
-
-    const categoryLower = (prod.category || '').toLowerCase();
-    let column = 'overall_stock';
-    let isJson = false;
-
-    if (categoryLower.includes('shoe')) {
-      column = 'shoe_stock';
-      isJson = true;
-    } else if (categoryLower.includes('pant') || categoryLower.includes('jean') || categoryLower.includes('trouser') || categoryLower.includes('track')) {
-      column = 'pant_stock';
-      isJson = true;
-    } else if (categoryLower.includes('shirt') || categoryLower.includes('jacket') || categoryLower.includes('t-shirt')) {
-      column = 'shirt_stock';
-      isJson = true;
+    if (fetchErr || !prod) {
+      console.error('[Inventory] Failed to fetch product for stock update:', fetchErr);
+      throw fetchErr || new Error('Product not found');
     }
 
-    if (!isJson || size === 'One Size') {
-      const { error: updateError } = await sb()
+    console.log('[Inventory] Previous overall_stock:', prod.overall_stock);
+
+    // ── Step 2: Determine which stock column to use ──────────────────────────
+    const categoryLower = (prod.category || '').toLowerCase();
+    let column: 'shirt_stock' | 'pant_stock' | 'shoe_stock' | null = null;
+
+    if (
+      categoryLower.includes('shoe') ||
+      categoryLower.includes('footwear') ||
+      categoryLower.includes('sneaker') ||
+      categoryLower.includes('boot') ||
+      categoryLower.includes('slipper')
+    ) {
+      column = 'shoe_stock';
+    } else if (
+      categoryLower.includes('pant') ||
+      categoryLower.includes('jean') ||
+      categoryLower.includes('trouser') ||
+      categoryLower.includes('track') ||
+      categoryLower.includes('short') ||
+      categoryLower.includes('chino') ||
+      categoryLower.includes('bottom')
+    ) {
+      column = 'pant_stock';
+    } else {
+      // Default: shirt column for shirts, jackets, T-shirts, and all other
+      column = 'shirt_stock';
+    }
+
+    // ── Step 3: Handle 'One Size' products ──────────────────────────────────
+    if (sizeStockMap['One Size'] !== undefined) {
+      const newOverall = Math.max(0, Number(sizeStockMap['One Size']));
+      console.log('[Inventory] One-size product. Saving overall_stock:', newOverall);
+
+      const { error: updateError, data: updatedRow } = await sb()
         .from('products')
-        .update({ overall_stock: newStock })
-        .eq('id', productId);
-      if (updateError) throw updateError;
+        .update({ overall_stock: newOverall })
+        .eq('id', productId)
+        .select('overall_stock')
+        .single();
+
+      if (updateError) {
+        console.error('[Inventory] Supabase update failed:', updateError);
+        throw updateError;
+      }
+      console.log('[Inventory] Supabase confirmed overall_stock after save:', updatedRow?.overall_stock);
       return true;
     }
 
-    const current = (prod as Record<string, any>)[column] || {};
-    current[size] = Math.max(0, newStock);
+    // ── Step 4: Merge new sizes into the existing JSONB column ───────────────
+    const existingStock: Record<string, number> = (prod as any)[column] || {};
+    const updatedStock: Record<string, number> = { ...existingStock };
 
-    const overallStock = Object.values(current).reduce((acc: number, val: any) => acc + (Number(val) || 0), 0);
+    for (const [size, qty] of Object.entries(sizeStockMap)) {
+      updatedStock[size] = Math.max(0, Number(qty));
+    }
 
-    const { error: updateError } = await sb()
+    // ── Step 5: Recalculate total from the complete updated map ─────────────
+    // Single source of truth: overall_stock ALWAYS equals sum of all sizes.
+    const totalStock = Object.values(updatedStock).reduce(
+      (sum, qty) => sum + Number(qty || 0),
+      0
+    );
+
+    console.log('[Inventory] Updated size quantities:', updatedStock);
+    console.log('[Inventory] Calculated total stock:', totalStock);
+
+    // ── Step 6: Single atomic Supabase update ────────────────────────────────
+    const { error: updateError, data: updatedRow } = await sb()
       .from('products')
-      .update({ 
-        [column]: current,
-        overall_stock: overallStock
+      .update({
+        [column]: updatedStock,
+        overall_stock: totalStock,
       })
-      .eq('id', productId);
+      .eq('id', productId)
+      .select('overall_stock, ' + column)
+      .single();
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('[Inventory] Supabase update failed:', updateError);
+      throw updateError;
+    }
+
+    console.log('[Inventory] Supabase response after save — overall_stock:', (updatedRow as any)?.overall_stock);
+    console.log('[Inventory] Supabase response after save — ' + column + ':', (updatedRow as any)?.[column]);
     return true;
   }
 }

@@ -123,8 +123,10 @@ export interface IProductRepository {
   /** Get all inventory entries (product + size-wise stock) */
   getInventory(): Promise<InventoryEntry[]>;
 
-  /** Update stock for a specific size of a product */
-  updateStock(productId: string, size: string, newStock: number): Promise<boolean>;
+  /** Update stock for all sizes of a product atomically.
+   *  Pass the full { [size]: quantity } map — all sizes written in one Supabase call.
+   */
+  updateStock(productId: string, sizeStockMap: { [size: string]: number }): Promise<boolean>;
 }
 
 export interface InventoryEntry {
