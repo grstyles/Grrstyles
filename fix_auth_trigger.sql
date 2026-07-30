@@ -1,89 +1,81 @@
 -- =============================================================================
--- GR STYLES – Auth Trigger Duplicate-Key Fix
+-- GR STYLES – Complete Auth Trigger & Profile Repair SQL Migration
 -- =============================================================================
--- PROBLEM: The original handle_new_user() trigger used a bare INSERT with no
--- ON CONFLICT clause. When a returning Google user signed in (or Supabase fired
--- the trigger on token refresh / identity re-link), the INSERT threw:
---   ERROR 23505: duplicate key value violates unique constraint "profiles_pkey"
--- This aborted the entire sign-in operation, preventing existing users from
--- ever logging in again.
---
--- FIX: Replace the bare INSERT with INSERT … ON CONFLICT (id) DO UPDATE so the
--- trigger is idempotent. Re-running it for an existing user simply refreshes the
--- email and full_name but never creates a duplicate row.
+-- ROOT CAUSE FIX:
+-- 1. Dropped corrupted handle_duplicate_email_trigger on public.profiles which
+--    attempted to update a non-existent column 'updated_at' and modify primary key 'id'.
+-- 2. Cleaned up stale orphaned profile rows that held duplicate emails.
+-- 3. Created idempotent handle_new_user() trigger with ON CONFLICT (id) DO UPDATE.
+-- 4. Automatically inserts into public.admins when user metadata role is 'admin'.
+-- 5. Repaired all auth.users rows to guarantee matching public.profiles rows.
 -- =============================================================================
 
--- Step 1: Replace the trigger function with an idempotent UPSERT version
-create or replace function public.handle_new_user()
-returns trigger as $$
-begin
-  -- Use ON CONFLICT DO UPDATE so this is safe to run for any user — new or
-  -- returning. A bare INSERT would throw a duplicate-key error (23505) if
-  -- Supabase fires this trigger again for an existing user.
-  insert into public.profiles (id, email, full_name, role)
-  values (
-    new.id,
-    new.email,
-    coalesce(new.raw_user_meta_data->>'full_name', ''),
-    coalesce(new.raw_user_meta_data->>'role', 'customer')
+-- Step 1: Drop broken trigger and function on public.profiles
+DROP TRIGGER IF EXISTS handle_duplicate_email_trigger ON public.profiles;
+DROP FUNCTION IF EXISTS public.handle_duplicate_email();
+
+-- Step 2: Delete stale/orphaned profiles where ID is not in auth.users
+DELETE FROM public.profiles
+WHERE id NOT IN (SELECT id FROM auth.users);
+
+-- Step 3: Create or replace handle_new_user() trigger function
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, role, avatar_url)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.email, ''),
+    COALESCE(
+      NEW.raw_user_meta_data->>'full_name',
+      NEW.raw_user_meta_data->>'name',
+      SPLIT_PART(COALESCE(NEW.email, 'User'), '@', 1)
+    ),
+    COALESCE(NEW.raw_user_meta_data->>'role', 'customer'),
+    COALESCE(NEW.raw_user_meta_data->>'avatar_url', NEW.raw_user_meta_data->>'picture', '')
   )
-  on conflict (id) do update
-    set
-      email     = excluded.email,
-      full_name = coalesce(excluded.full_name, public.profiles.full_name);
+  ON CONFLICT (id) DO UPDATE
+    SET
+      email      = EXCLUDED.email,
+      full_name  = COALESCE(NULLIF(EXCLUDED.full_name, ''), public.profiles.full_name),
+      avatar_url = COALESCE(NULLIF(EXCLUDED.avatar_url, ''), public.profiles.avatar_url);
 
-  -- Grant admin table entry when the role metadata is 'admin'
-  if (new.raw_user_meta_data->>'role') = 'admin' then
-    insert into public.admins (user_id)
-    values (new.id)
-    on conflict do nothing;
-  end if;
+  IF (NEW.raw_user_meta_data->>'role') = 'admin' THEN
+    INSERT INTO public.admins (user_id)
+    VALUES (NEW.id)
+    ON CONFLICT DO NOTHING;
+  END IF;
 
-  return new;
-end;
-$$ language plpgsql security definer;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Step 2: Re-attach the trigger (drop first to avoid duplicate)
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+-- Step 4: Re-attach trigger on auth.users
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
--- Step 3: Add a safe application-level helper function
--- This can be called from the app as a fallback if a profile row is ever missing
--- for an already-authenticated user (edge case: row deleted manually, etc.).
-create or replace function public.safe_ensure_profile(
-  p_id        uuid,
-  p_email     text,
-  p_full_name text,
-  p_role      text default 'customer'
-)
-returns void as $$
-begin
-  insert into public.profiles (id, email, full_name, role)
-  values (p_id, p_email, p_full_name, p_role)
-  on conflict (id) do update
-    set
-      email     = excluded.email,
-      full_name = coalesce(excluded.full_name, public.profiles.full_name);
-end;
-$$ language plpgsql security definer;
-
--- Step 4: Repair any existing auth.users rows that have no profiles row
--- (These are accounts created before the trigger existed or after a manual delete)
-insert into public.profiles (id, email, full_name, role)
-select
+-- Step 5: Sync all auth.users rows into public.profiles
+INSERT INTO public.profiles (id, email, full_name, role, avatar_url)
+SELECT
   u.id,
-  u.email,
-  coalesce(u.raw_user_meta_data->>'full_name', split_part(u.email, '@', 1)),
-  coalesce(u.raw_user_meta_data->>'role', 'customer')
-from auth.users u
-where not exists (
-  select 1 from public.profiles p where p.id = u.id
-)
-on conflict (id) do nothing;
+  COALESCE(u.email, ''),
+  COALESCE(
+    u.raw_user_meta_data->>'full_name',
+    u.raw_user_meta_data->>'name',
+    SPLIT_PART(COALESCE(u.email, 'User'), '@', 1)
+  ),
+  COALESCE(u.raw_user_meta_data->>'role', 'customer'),
+  COALESCE(u.raw_user_meta_data->>'avatar_url', u.raw_user_meta_data->>'picture', '')
+FROM auth.users u
+ON CONFLICT (id) DO UPDATE
+  SET
+    email      = EXCLUDED.email,
+    full_name  = COALESCE(NULLIF(EXCLUDED.full_name, ''), public.profiles.full_name),
+    avatar_url = COALESCE(NULLIF(EXCLUDED.avatar_url, ''), public.profiles.avatar_url);
 
--- Done. Verify with:
--- select count(*) from auth.users;
--- select count(*) from public.profiles;
--- Both counts should match (or profiles >= users if manual rows exist).
+-- Step 6: Ensure admin table entries for any users with role='admin'
+INSERT INTO public.admins (user_id)
+SELECT id FROM public.profiles WHERE role = 'admin'
+ON CONFLICT DO NOTHING;
