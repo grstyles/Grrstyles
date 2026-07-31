@@ -9,6 +9,8 @@ import { formatPrice } from '@/lib/utils/helpers';
 import { ClipboardList, ChevronDown, ChevronUp, Package, Clock, Truck, CheckCircle2, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { OrderStatusBadge } from '@/components/ui/OrderStatusBadge';
 
+import { getClient } from '@/lib/supabase';
+
 function OrderItemImage({ src, alt }: { src?: string; alt: string }) {
   const [hasError, setHasError] = useState(false);
 
@@ -52,7 +54,7 @@ export default function OrdersPage() {
   }, [requireAuth, router]);
 
   useEffect(() => {
-    if (!authChecked) return;
+    if (!authChecked || !user) return;
 
     async function loadOrders() {
       if (!user) {
@@ -66,7 +68,7 @@ export default function OrdersPage() {
         const userOrders = await repo.orders.getAll();
         setOrders(userOrders);
         if (userOrders.length > 0) {
-          setExpandedOrderId(userOrders[0].id);
+          setExpandedOrderId((prev) => prev ?? userOrders[0].id);
         }
       } catch (err) {
         console.error('Failed to load orders:', err);
@@ -76,6 +78,25 @@ export default function OrdersPage() {
     }
 
     loadOrders();
+
+    // Supabase Realtime subscription for instant order status sync
+    const sb = getClient();
+    if (!sb) return;
+
+    const channel = sb
+      .channel(`customer-orders-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          loadOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(channel);
+    };
   }, [authChecked, user]);
 
   const toggleExpandOrder = (id: string) => {

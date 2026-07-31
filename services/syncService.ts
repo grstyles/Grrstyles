@@ -10,6 +10,7 @@ import { Product } from '@/lib/data/products';
 // This prevents RLS violations when sync functions are called after sign-out.
 async function hasActiveSession(): Promise<boolean> {
   try {
+    if (!supabase) return false;
     const { data } = await supabase.auth.getSession();
     return !!data?.session?.user;
   } catch {
@@ -23,13 +24,26 @@ export const syncService = {
     if (!isSupabaseConfigured()) return null;
     if (!await hasActiveSession()) return null;
     try {
+      const { data: sessionData } = await supabase!.auth.getSession();
+      const activeUserId = sessionData?.session?.user?.id || userId;
+      if (!activeUserId) return null;
+
       const { data, error } = await sb()!
         .from('carts')
-        .upsert({ user_id: userId }, { onConflict: 'user_id' })
+        .upsert({ user_id: activeUserId }, { onConflict: 'user_id' })
         .select('id')
         .single();
         
       if (error || !data) {
+        // Fallback query if upsert fails or cart already exists
+        const { data: existingCart } = await sb()!
+          .from('carts')
+          .select('id')
+          .eq('user_id', activeUserId)
+          .maybeSingle();
+
+        if (existingCart) return existingCart.id;
+
         console.error('Error getting or creating cart for user:', error?.message);
         return null;
       }
@@ -45,13 +59,26 @@ export const syncService = {
     if (!isSupabaseConfigured()) return null;
     if (!await hasActiveSession()) return null;
     try {
+      const { data: sessionData } = await supabase!.auth.getSession();
+      const activeUserId = sessionData?.session?.user?.id || userId;
+      if (!activeUserId) return null;
+
       const { data, error } = await sb()!
         .from('wishlists')
-        .upsert({ user_id: userId }, { onConflict: 'user_id' })
+        .upsert({ user_id: activeUserId }, { onConflict: 'user_id' })
         .select('id')
         .single();
         
       if (error || !data) {
+        // Fallback query if upsert fails or wishlist already exists
+        const { data: existingWishlist } = await sb()!
+          .from('wishlists')
+          .select('id')
+          .eq('user_id', activeUserId)
+          .maybeSingle();
+
+        if (existingWishlist) return existingWishlist.id;
+
         console.error('Error getting or creating wishlist for user:', error?.message);
         return null;
       }

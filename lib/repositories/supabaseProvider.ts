@@ -780,11 +780,16 @@ export class SupabaseCouponRepository implements ICouponRepository {
 
     const { data, error } = await sb()
       .from('coupons')
-      .insert(payload)
+      .upsert(payload, { onConflict: 'code', ignoreDuplicates: false })
       .select('*')
       .single();
       
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.code === '23505') {
+        throw new Error(`A coupon with code "${payload.code}" already exists. Please use a different code or edit the existing coupon.`);
+      }
+      throw new Error(error.message);
+    }
     if (!data) return null;
     
     if (coupon.applicableProducts && coupon.applicableProducts.length > 0) {

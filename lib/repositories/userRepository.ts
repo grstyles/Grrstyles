@@ -79,9 +79,9 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
         .maybeSingle();
 
       if (profileByEmail) {
-        // Existing profile with same email – reuse it (id may differ)
+        // Existing profile with same email – reuse details while ensuring user.id matches session auth.uid()
         return {
-          id: profileByEmail.id,
+          id: user.id,
           email: profileByEmail.email,
           fullName: profileByEmail.full_name ?? user.email.split('@')[0],
           role: profileByEmail.role ?? 'customer',

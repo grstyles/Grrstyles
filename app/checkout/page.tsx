@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/lib/redux/store';
 import { formatPrice } from '@/lib/utils/helpers';
-import { calculateOrderTotals } from '@/lib/utils/shipping';
+import { calculateOrderTotals, calculateTotalSavings } from '@/lib/utils/shipping';
 import { clearSelectedItems, setDirectCheckoutItem, removePromo, applyPromo } from '@/lib/redux/slices/cartSlice';
 import { repo, UserAddress } from '@/lib/repositories';
 import { RAZORPAY_KEY_ID } from '@/lib/config';
@@ -360,6 +360,8 @@ export default function CheckoutPage() {
   const shipping = totals.shipping;
   const tax = totals.tax;
   const finalTotal = totals.total;
+
+  const totalSavings = calculateTotalSavings(cartItems, discount);
 
   // Auth gate: wait for auth to finish loading, then check if user exists
   useEffect(() => {
@@ -1422,6 +1424,16 @@ export default function CheckoutPage() {
                 <span>{formatPrice(finalTotal)}</span>
               </div>
             </div>
+
+            {/* You Saved on This Order Section */}
+            {totalSavings > 0 && (
+              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 font-semibold flex items-center gap-3 shadow-xs">
+                <span className="text-xl shrink-0">🎉</span>
+                <p className="text-sm font-bold text-green-800">
+                  You saved <span className="font-extrabold">{formatPrice(totalSavings)}</span> on this order!
+                </p>
+              </div>
+            )}
 
             {/* Free Delivery Status Message */}
             {shippingConfig.freeDelivery && (

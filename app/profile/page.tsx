@@ -53,6 +53,8 @@ import { addToast } from "@/lib/redux/slices/uiSlice";
 import BottomNavigation from "@/components/layout/BottomNavigation";
 import ScratchCardModal from "@/components/ui/ScratchCardModal";
 
+import { getClient } from "@/lib/supabase";
+
 export default function ProfilePage() {
   const router = useRouter();
   const dispatch = useDispatch();
@@ -100,7 +102,7 @@ export default function ProfilePage() {
   }, [user]);
 
   useEffect(() => {
-    if (!authChecked) return;
+    if (!authChecked || !user) return;
 
     async function loadOrders() {
       if (!user) {
@@ -119,6 +121,25 @@ export default function ProfilePage() {
 
     loadOrders();
     loadScratchCards();
+
+    // Supabase Realtime subscription for instant order status sync
+    const sb = getClient();
+    if (!sb) return;
+
+    const channel = sb
+      .channel(`profile-orders-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          loadOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(channel);
+    };
   }, [authChecked, user]);
 
   const handleLogout = async () => {

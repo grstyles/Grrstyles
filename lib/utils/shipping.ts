@@ -4,6 +4,7 @@ export interface CartItemLike {
   price: number;
   discountedPrice?: number;
   sellingPrice?: number;
+  originalPrice?: number;
   quantity: number;
 }
 
@@ -102,4 +103,27 @@ export function calculateOrderTotals(
     tax,
     total,
   };
+}
+
+/**
+ * Calculates total savings on an order from product price discounts and coupon discount.
+ *
+ * Savings per item = (Original Price - Selling Price) * Quantity
+ * Total Product Savings = Sum of savings of all cart items
+ * Final Savings = Product Savings + Coupon Discount
+ */
+export function calculateTotalSavings(
+  items: CartItemLike[],
+  couponDiscount: number = 0
+): number {
+  if (!items || items.length === 0) return 0;
+
+  const productSavings = items.reduce((sum, item) => {
+    const originalPrice = Number(item.originalPrice ?? item.price ?? 0);
+    const sellingPrice = Number(item.sellingPrice ?? item.discountedPrice ?? item.price ?? 0);
+    const itemSavings = Math.max(0, originalPrice - sellingPrice) * (item.quantity || 1);
+    return sum + itemSavings;
+  }, 0);
+
+  return productSavings + Math.max(0, couponDiscount);
 }
