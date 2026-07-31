@@ -18,8 +18,12 @@ import {
   Zap,
   CheckCircle2,
   HelpCircle,
+  Upload,
+  RefreshCw,
+  Eye,
+  Image as ImageIcon,
 } from 'lucide-react';
-import { ScratchCard, ScratchCardSettings, UserScratchCard, ScratchDashboardStats } from '@/lib/repositories';
+import { repo, ScratchCard, ScratchCardSettings, UserScratchCard, ScratchDashboardStats } from '@/lib/repositories';
 
 // 1-Click Quick Presets for simplicity
 const PRESETS = [
@@ -91,8 +95,12 @@ export default function ScratchCardsTab() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [editingCard, setEditingCard] = useState<ScratchCard | null>(null);
   const [winners, setWinners] = useState<UserScratchCard[]>([]);
+  const [allAssignedCards, setAllAssignedCards] = useState<UserScratchCard[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<'cards' | 'winners'>('cards');
   const [searchQuery, setSearchQuery] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
 
   // Simple Assign Form
   const [assignForm, setAssignForm] = useState({ userEmail: '', cardId: '' });
@@ -137,10 +145,51 @@ export default function ScratchCardsTab() {
       const res = await fetch('/api/scratch-cards/user');
       const data = await res.json();
       if (data.success && data.cards) {
+        setAllAssignedCards(data.cards);
         setWinners(data.cards.filter((c: UserScratchCard) => c.is_claimed));
       }
     } catch (err) {
       console.error('Failed to load winners:', err);
+    }
+  };
+
+  const handleImageUpload = async (file: File) => {
+    setImageError(null);
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      setImageError('Invalid file format. Please upload JPG, JPEG, PNG, or WebP.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setImageError('File size exceeds 5MB limit.');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      if (cardForm.image_url) {
+        await repo.storage.deleteImage(cardForm.image_url, 'scratch-cards');
+      }
+      const uploadedUrl = await repo.storage.uploadImage(file, 'scratch-cards');
+      if (uploadedUrl) {
+        setCardForm((prev) => ({ ...prev, image_url: uploadedUrl }));
+      } else {
+        setImageError('Failed to upload image. Please try again.');
+      }
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      setImageError('Image upload failed.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleDeleteImage = async () => {
+    if (cardForm.image_url) {
+      try {
+        await repo.storage.deleteImage(cardForm.image_url, 'scratch-cards');
+      } catch (e) {}
+      setCardForm((prev) => ({ ...prev, image_url: undefined }));
     }
   };
 
@@ -386,7 +435,7 @@ export default function ScratchCardsTab() {
               activeSubTab === 'winners' ? 'text-black border-b-2 border-black' : 'text-gray-400 hover:text-gray-600'
             }`}
           >
-            Winners & Claims ({winners.length})
+            Assigned Scratch Cards & History ({allAssignedCards.length})
           </button>
         </div>
 
@@ -436,6 +485,19 @@ export default function ScratchCardsTab() {
                   key={c.id}
                   className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-all"
                 >
+                  {/* Optional Custom Scratch Card Image */}
+                  {c.image_url && (
+                    <div className="relative h-28 w-full overflow-hidden bg-gray-100 group">
+                      <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" />
+                      <button
+                        onClick={() => setPreviewImageModal(c.image_url || null)}
+                        className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1"
+                      >
+                        <Eye size={16} /> Preview Image
+                      </button>
+                    </div>
+                  )}
+
                   {/* Card Visual Banner */}
                   <div
                     className="p-5 text-white relative"
@@ -511,39 +573,109 @@ export default function ScratchCardsTab() {
         </div>
       )}
 
-      {/* WINNERS TAB */}
+      {/* ASSIGNED SCRATCH CARDS & HISTORY TAB */}
       {activeSubTab === 'winners' && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-gray-100 font-bold text-gray-900">
-            Scratch Card Winners History ({winners.length})
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="font-bold text-gray-900 text-sm">
+              Assigned Customer Scratch Cards History ({allAssignedCards.length})
+            </div>
           </div>
 
-          {winners.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 text-sm">No scratch cards claimed yet.</div>
+          {allAssignedCards.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">No scratch cards assigned to customers yet.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-gray-600">
-                <thead className="bg-gray-50 font-bold text-gray-400 uppercase">
+                <thead className="bg-gray-50 font-bold text-gray-400 uppercase tracking-wider text-[10px]">
                   <tr>
+                    <th className="p-3">Card Image</th>
+                    <th className="p-3">Scratch Card Title</th>
+                    <th className="p-3">Customer Name</th>
                     <th className="p-3">Customer Email</th>
-                    <th className="p-3">Card Name</th>
-                    <th className="p-3">Reward Won</th>
-                    <th className="p-3">Coupon Code</th>
-                    <th className="p-3">Date Claimed</th>
+                    <th className="p-3">Order ID</th>
+                    <th className="p-3">Order Amount</th>
+                    <th className="p-3">Assigned Date</th>
+                    <th className="p-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {winners.map((w) => (
-                    <tr key={w.id}>
-                      <td className="p-3 font-semibold text-gray-900">{w.user_email || w.user_id}</td>
-                      <td className="p-3 font-bold text-black">{w.card_title}</td>
-                      <td className="p-3 font-bold text-emerald-600">
-                        {w.reward_type === 'percentage_discount' ? `${w.reward_value}% OFF` : `₹${w.reward_value} OFF`}
-                      </td>
-                      <td className="p-3 font-mono font-bold">{w.coupon_code || 'N/A'}</td>
-                      <td className="p-3 text-gray-400">{w.claimed_at ? new Date(w.claimed_at).toLocaleDateString() : 'Recent'}</td>
-                    </tr>
-                  ))}
+                  {allAssignedCards.map((w) => {
+                    const statusStr = w.is_claimed
+                      ? 'Claimed'
+                      : w.is_scratched
+                      ? 'Scratched'
+                      : 'Assigned';
+
+                    const statusBadgeClass = w.is_claimed
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : w.is_scratched
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-blue-50 text-blue-700 border-blue-200';
+
+                    return (
+                      <tr key={w.id} className="hover:bg-gray-50/50 transition-colors">
+                        {/* 1. Scratch Card Image (thumbnail) */}
+                        <td className="p-3">
+                          {w.image_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewImageModal(w.image_url || null)}
+                              className="relative group w-11 h-11 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 block shrink-0"
+                            >
+                              <img
+                                src={w.image_url}
+                                alt={w.card_title || 'Scratch Card'}
+                                className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                              />
+                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                                <Eye size={12} />
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="w-11 h-11 rounded-lg border border-gray-200 bg-amber-50 text-amber-600 flex items-center justify-center font-bold shrink-0">
+                              <Ticket size={18} />
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 2. Scratch Card Title */}
+                        <td className="p-3 font-bold text-gray-900">{w.card_title || 'Scratch Card'}</td>
+
+                        {/* 3. Customer Name */}
+                        <td className="p-3 font-semibold text-gray-800">
+                          {w.customer_name || (w.user_email ? w.user_email.split('@')[0] : 'Customer')}
+                        </td>
+
+                        {/* 4. Customer Email */}
+                        <td className="p-3 font-medium text-gray-600">{w.user_email || 'N/A'}</td>
+
+                        {/* 5. Order ID */}
+                        <td className="p-3 font-mono font-semibold text-gray-700">
+                          {w.order_number || w.order_id || 'N/A'}
+                        </td>
+
+                        {/* 6. Order Amount */}
+                        <td className="p-3 font-bold text-gray-900">
+                          {w.order_amount ? `₹${w.order_amount.toLocaleString('en-IN')}` : 'N/A'}
+                        </td>
+
+                        {/* 7. Assigned Date */}
+                        <td className="p-3 text-gray-500 font-medium">
+                          {w.assigned_at ? new Date(w.assigned_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}
+                        </td>
+
+                        {/* 8. Scratch Card Status */}
+                        <td className="p-3">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${statusBadgeClass}`}
+                          >
+                            {statusStr}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -600,6 +732,80 @@ export default function ScratchCardsTab() {
                     className="w-full border border-gray-200 rounded-xl p-2.5 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-black"
                     placeholder="e.g. Festival Lucky Reward"
                   />
+                </div>
+
+                {/* Scratch Card Image Upload Field */}
+                <div>
+                  <label className="font-bold text-gray-700 block mb-1">Scratch Card Image</label>
+                  {cardForm.image_url ? (
+                    <div className="relative rounded-xl border border-gray-200 p-3 bg-gray-50 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <img
+                          src={cardForm.image_url}
+                          alt="Scratch Card Preview"
+                          className="w-14 h-14 object-cover rounded-lg border border-gray-200 shrink-0"
+                        />
+                        <div className="truncate">
+                          <p className="font-bold text-gray-900 text-xs truncate">Image Uploaded</p>
+                          <p className="text-[10px] text-gray-500 truncate">{cardForm.image_url}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <label className="cursor-pointer px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-100 rounded-lg text-xs font-bold text-gray-700 flex items-center gap-1">
+                          <RefreshCw size={13} />
+                          Replace
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                handleImageUpload(e.target.files[0]);
+                              }
+                            }}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleDeleteImage}
+                          className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold flex items-center gap-1"
+                        >
+                          <Trash2 size={13} />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                          handleImageUpload(e.dataTransfer.files[0]);
+                        }
+                      }}
+                      className="border-2 border-dashed border-gray-200 hover:border-amber-500 bg-gray-50 hover:bg-amber-50/30 rounded-xl p-5 flex flex-col items-center justify-center cursor-pointer transition-colors"
+                    >
+                      <Upload size={24} className="text-gray-400 mb-1" />
+                      <span className="font-bold text-gray-700 text-xs">
+                        {uploadingImage ? 'Uploading image...' : 'Upload Image or Drag & Drop'}
+                      </span>
+                      <span className="text-[10px] text-gray-400 mt-0.5">JPG, JPEG, PNG, WebP (Max 5MB)</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                        className="hidden"
+                        disabled={uploadingImage}
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleImageUpload(e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                  {imageError && <p className="text-red-500 font-medium text-[11px] mt-1">{imageError}</p>}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -820,6 +1026,31 @@ export default function ScratchCardsTab() {
                 Send Card
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULL-SIZE IMAGE PREVIEW MODAL */}
+      {previewImageModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setPreviewImageModal(null)}
+        >
+          <div
+            className="relative max-w-2xl w-full bg-white rounded-2xl overflow-hidden shadow-2xl p-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setPreviewImageModal(null)}
+              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-black/50 hover:bg-black text-white flex items-center justify-center transition-colors"
+            >
+              <X size={18} />
+            </button>
+            <img
+              src={previewImageModal}
+              alt="Scratch Card Image Preview"
+              className="w-full h-auto max-h-[80vh] object-contain rounded-xl"
+            />
           </div>
         </div>
       )}

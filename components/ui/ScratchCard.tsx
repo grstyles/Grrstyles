@@ -7,9 +7,10 @@ import { motion } from 'framer-motion';
 interface ScratchCardProps {
   onReveal: () => void;
   rewardText: string;
+  imageUrl?: string;
 }
 
-export default function ScratchCard({ onReveal, rewardText }: ScratchCardProps) {
+export default function ScratchCard({ onReveal, rewardText, imageUrl }: ScratchCardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isRevealed, setIsRevealed] = useState(false);
   const [scratchPercent, setScratchPercent] = useState(0);
@@ -90,18 +91,28 @@ export default function ScratchCard({ onReveal, rewardText }: ScratchCardProps) 
     <div className="relative w-[300px] h-[150px] mx-auto rounded-2xl overflow-hidden shadow-2xl border-4 border-yellow-500/20 bg-gradient-to-br from-yellow-50 to-orange-100">
       
       {/* Reward Content (Underneath) */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
-        <Gift className="text-yellow-600 mb-2" size={32} />
-        <h3 className="text-xl font-serif font-bold text-gray-900">{rewardText}</h3>
-        <p className="text-xs text-gray-500 font-medium tracking-widest mt-1">APPLIED TO WALLET</p>
-      </div>
+      {imageUrl ? (
+        <div className="absolute inset-0 overflow-hidden">
+          <img src={imageUrl} alt="Scratch Reward" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex flex-col items-center justify-center p-4 text-center text-white">
+            <h3 className="text-xl font-serif font-black drop-shadow-md">{rewardText}</h3>
+            <p className="text-[10px] font-bold tracking-widest mt-1 opacity-90 uppercase">Reward Unlocked</p>
+          </div>
+        </div>
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+          <Gift className="text-yellow-600 mb-2" size={32} />
+          <h3 className="text-xl font-serif font-bold text-gray-900">{rewardText}</h3>
+          <p className="text-xs text-gray-500 font-medium tracking-widest mt-1">APPLIED TO WALLET</p>
+        </div>
+      )}
 
       {/* Confetti Overlay */}
       {isRevealed && (
         <motion.div 
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="absolute inset-0 pointer-events-none flex items-center justify-center"
+          className="absolute inset-0 pointer-events-none flex items-center justify-center z-10"
         >
           <Sparkles className="text-yellow-500 absolute top-4 left-4 animate-ping" size={24} />
           <Sparkles className="text-yellow-600 absolute bottom-4 right-4 animate-pulse" size={20} />
@@ -113,7 +124,7 @@ export default function ScratchCard({ onReveal, rewardText }: ScratchCardProps) 
         ref={canvasRef}
         width={300}
         height={150}
-        className="absolute inset-0 w-full h-full cursor-pointer touch-none"
+        className="absolute inset-0 w-full h-full cursor-pointer touch-none z-20"
         onMouseMove={(e) => e.buttons === 1 && handleScratch(e)}
         onTouchMove={handleScratch}
       />

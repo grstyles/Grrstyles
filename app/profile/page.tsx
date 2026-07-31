@@ -75,10 +75,22 @@ export default function ProfilePage() {
     if (!user) return;
     setLoadingScratchCards(true);
     try {
-      const list = await repo.scratchCards.getUserCards(user.id, user.email);
-      setScratchCards(list);
+      const res = await fetch(
+        `/api/scratch-cards/user?userId=${user.id}&email=${encodeURIComponent(user.email || '')}`
+      );
+      const data = await res.json();
+      if (data.success && Array.isArray(data.cards)) {
+        setScratchCards(data.cards);
+      } else {
+        const list = await repo.scratchCards.getUserCards(user.id, user.email);
+        setScratchCards(list);
+      }
     } catch (err) {
       console.error("Failed to load scratch cards:", err);
+      try {
+        const list = await repo.scratchCards.getUserCards(user.id, user.email);
+        setScratchCards(list);
+      } catch {}
     } finally {
       setLoadingScratchCards(false);
     }
@@ -640,6 +652,7 @@ export default function ProfilePage() {
             setScratchCards((prev) =>
               prev.map((c) => (c.id === updated.id ? updated : c)),
             );
+            loadScratchCards();
           }}
         />
       )}

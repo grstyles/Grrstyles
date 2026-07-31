@@ -14,7 +14,7 @@ import { RAZORPAY_KEY_ID } from '@/lib/config';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useAuth } from '@/lib/context/AuthContext';
 import { autoApplyBestCoupon } from '@/lib/utils/couponHelper';
-import { Package, CheckCircle, CreditCard, Smartphone, Tag, Sparkles, X, RefreshCw, Banknote } from 'lucide-react';
+import { Package, CheckCircle, CreditCard, Smartphone, Tag, Sparkles, X, RefreshCw, Banknote, ChevronDown } from 'lucide-react';
 
 export default function CheckoutPage() {
   const dispatch = useDispatch();
@@ -44,6 +44,7 @@ export default function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState('new');
   const [saveAddressToProfile, setSaveAddressToProfile] = useState(false);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+  const [itemsExpanded, setItemsExpanded] = useState(true);
   const paymentStateRef = useRef<'IDLE' | 'OPENED' | 'VERIFYING' | 'SUCCESS' | 'FAILED'>('IDLE');
 
   // iOS-safe fallback: stores the active Razorpay order context so that
@@ -1037,280 +1038,57 @@ export default function CheckoutPage() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-10 py-12">
         <h1 className="text-4xl font-bold mb-8">Checkout</h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Checkout Form */}
-          <div className="lg:col-span-2">
-            <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Shipping Information */}
-              <section className="border-b border-gray-200 pb-8">
-                <h2 className="text-2xl font-bold mb-6">Shipping Information</h2>
-
-                {addresses.length > 0 && (
-                  <div className="mb-6">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Select a Saved Address</label>
-                    <select
-                      value={selectedAddressId}
-                      onChange={handleSelectAddressChange}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black appearance-none cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
-                    >
-                      {addresses.map((addr) => (
-                        <option key={addr.id} value={addr.id}>
-                          {addr.fullName} - {addr.addressLine1}, {addr.city} ({addr.isDefault ? 'Default' : 'Saved'})
-                        </option>
-                      ))}
-                      <option value="new">+ Enter New Address</option>
-                    </select>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-span-2">
-                  <input
-                    type="text"
-                    name="firstName"
-                    placeholder="First Name"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    required
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
-                  />
-                  <input
-                    type="text"
-                    name="lastName"
-                    placeholder="Last Name"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    required
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
-                  />
-                  <input
-                    type="email"
-                    name="email"
-                    placeholder="Email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-2"
-                  />
-                  <input
-                    type="tel"
-                    name="phone"
-                    placeholder="Phone Number"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    required
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-1"
-                  />
-                  <input
-                    type="tel"
-                    name="alternatePhone"
-                    placeholder="Alternate Phone (Optional)"
-                    value={formData.alternatePhone}
-                    onChange={handleChange}
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-1"
-                  />
-                  <input
-                    type="text"
-                    name="address"
-                    placeholder="Street Address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    required
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-2"
-                  />
-                  <input
-                    type="text"
-                    name="city"
-                    placeholder="City"
-                    value={formData.city}
-                    onChange={handleChange}
-                    required
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
-                  />
-                  <input
-                    type="text"
-                    name="state"
-                    placeholder="State/Province"
-                    value={formData.state}
-                    onChange={handleChange}
-                    required
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
-                  />
-                  <input
-                    type="text"
-                    name="zip"
-                    placeholder="Pincode"
-                    value={formData.zip}
-                    onChange={handleChange}
-                    required
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
-                  />
-                  <select
-                    name="country"
-                    value={formData.country}
-                    onChange={handleChange}
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
-                  >
-                    <option>India</option>
-                    <option>United States</option>
-                    <option>United Kingdom</option>
-                    <option>United Arab Emirates</option>
-                    <option>Canada</option>
-                  </select>
-                  
-                  {selectedAddressId === 'new' && user && (
-                    <div className="md:col-span-2 flex items-center gap-2 mt-2">
-                      <input
-                        type="checkbox"
-                        id="save-address"
-                        checked={saveAddressToProfile}
-                        onChange={(e) => setSaveAddressToProfile(e.target.checked)}
-                        className="w-4 h-4 accent-black rounded focus:ring-black cursor-pointer"
-                      />
-                      <label htmlFor="save-address" className="text-xs text-gray-600 cursor-pointer select-none">
-                        Save this address to my profile for future purchases
-                      </label>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              {/* Payment Method - UPI First, Card Second, COD Third */}
-              <section className="border-b border-gray-200 pb-8">
-                <h2 className="text-2xl font-bold mb-6">Payment Method</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* UPI Option */}
-                  <label 
-                    className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
-                      paymentMethod === 'upi' 
-                        ? 'border-2 border-green-500 bg-green-50 shadow-md scale-[1.02]' 
-                        : 'border border-gray-200 hover:border-green-300 hover:bg-gray-50 hover:shadow-sm'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="upi"
-                      checked={paymentMethod === 'upi'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="hidden"
-                    />
-                    <div className="flex items-center gap-4 w-full">
-                      <div className={`p-3 rounded-full ${paymentMethod === 'upi' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
-                        <Smartphone size={24} />
-                      </div>
-                      <div className="flex-1">
-                        <span className={`block font-bold ${paymentMethod === 'upi' ? 'text-green-800' : 'text-gray-800'}`}>UPI</span>
-                        <span className="block text-sm text-gray-500 mt-0.5">Google Pay / PhonePe / Paytm</span>
-                      </div>
-                      {paymentMethod === 'upi' && (
-                        <CheckCircle size={24} className="text-green-500 absolute top-5 right-5" />
-                      )}
-                    </div>
-                  </label>
-
-                  {/* Credit/Debit Card Option */}
-                  <label 
-                    className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
-                      paymentMethod === 'card' 
-                        ? 'border-2 border-blue-500 bg-blue-50 shadow-md scale-[1.02]' 
-                        : 'border border-gray-200 hover:border-blue-300 hover:bg-gray-50 hover:shadow-sm'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="payment"
-                      value="card"
-                      checked={paymentMethod === 'card'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="hidden"
-                    />
-                    <div className="flex items-center gap-4 w-full">
-                      <div className={`p-3 rounded-full ${paymentMethod === 'card' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
-                        <CreditCard size={24} />
-                      </div>
-                      <div className="flex-1">
-                        <span className={`block font-bold ${paymentMethod === 'card' ? 'text-blue-800' : 'text-gray-800'}`}>Credit / Debit Card</span>
-                        <span className="block text-sm text-gray-500 mt-0.5">Visa, MasterCard, RuPay</span>
-                      </div>
-                      {paymentMethod === 'card' && (
-                        <CheckCircle size={24} className="text-blue-500 absolute top-5 right-5" />
-                      )}
-                    </div>
-                  </label>
-
-                  {/* Cash on Delivery Option — only shown when admin enables it */}
-                  {shippingConfig.codEnabled && (
-                    <label 
-                      className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform md:col-span-2 ${
-                        paymentMethod === 'cod' 
-                          ? 'border-2 border-amber-500 bg-amber-50 shadow-md scale-[1.01]' 
-                          : 'border border-gray-200 hover:border-amber-300 hover:bg-gray-50 hover:shadow-sm'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="payment"
-                        value="cod"
-                        checked={paymentMethod === 'cod'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="hidden"
-                      />
-                      <div className="flex items-center gap-4 w-full">
-                        <div className={`p-3 rounded-full ${paymentMethod === 'cod' ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
-                          <Banknote size={24} />
-                        </div>
-                        <div className="flex-1">
-                          <span className={`block font-bold ${paymentMethod === 'cod' ? 'text-amber-800' : 'text-gray-800'}`}>Cash on Delivery</span>
-                          <span className="block text-sm text-gray-500 mt-0.5">Pay when your order is delivered</span>
-                        </div>
-                        {paymentMethod === 'cod' && (
-                          <CheckCircle size={24} className="text-amber-500 absolute top-5 right-5" />
-                        )}
-                      </div>
-                    </label>
-                  )}
-                </div>
-              </section>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-black text-white py-4 rounded-lg font-bold text-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Processing...' : 'Place Order'}
-              </button>
-            </form>
-          </div>
-
-          {/* Order Summary */}
-          <div className="bg-gray-50 p-6 rounded-lg h-fit sticky top-24">
-            <h3 className="text-2xl font-bold mb-6">Order Summary</h3>
-
-            {/* Items */}
-            <div className="mb-6 max-h-64 overflow-y-auto space-y-3">
-              {cartItems.map((item, index) => {
-                const uniqueKey = `${item.id}-${item.size || ''}-${item.shirtSize || ''}-${item.pantSize || ''}-${item.shoeSize || ''}-${item.color || ''}-${index}`;
-                return (
-                  <div key={uniqueKey} className="flex gap-4 text-sm pb-3 border-b border-gray-200 items-start group">
-                    {item.image ? (
-                      <img src={item.image} alt={item.title} className="w-12 h-12 object-cover rounded-lg border border-gray-100 shrink-0 group-hover:scale-105 transition-transform" />
-                    ) : (
-                      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200 shrink-0">
-                        <Package size={16} className="text-gray-400" />
-                      </div>
-                    )}
-                    <div className="flex-1 space-y-0.5">
-                      <p className="font-medium text-gray-800 leading-tight">{item.title}</p>
-                      <p className="text-[11px] text-gray-400">
-                        Qty: {item.quantity} {item.size ? `| Size: ${item.size}` : ''} {item.shirtSize ? `| Shirt: ${item.shirtSize}` : ''} {item.pantSize ? `| Pant: ${item.pantSize}` : ''} {item.shoeSize ? `| Shoe: ${item.shoeSize}` : ''} {item.color ? `| Color: ${item.color}` : ''}
-                      </p>
-                    </div>
-                    <span className="font-semibold text-gray-800 shrink-0">{formatPrice(item.discountedPrice * item.quantity)}</span>
-                  </div>
-                );
-              })}
+        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-8">
+          {/* Order Summary - 1st on Mobile (Natural Scroll), Right Sidebar on Desktop (Sticky) */}
+          <div className="order-1 lg:order-2 lg:col-span-1 bg-gray-50 p-6 rounded-lg h-fit lg:sticky lg:top-24">
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-200">
+              <h3 className="text-2xl font-bold flex items-center gap-2">
+                <span>📦</span> Order Summary
+              </h3>
+              {cartItems.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setItemsExpanded((prev) => !prev)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-gray-700 hover:text-black bg-white px-2.5 py-1 rounded-lg border border-gray-200 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <span>{itemsExpanded ? 'Hide Products' : 'Show Products'} ({cartItems.length})</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${itemsExpanded ? 'rotate-180' : ''}`} />
+                </button>
+              )}
             </div>
+
+            {/* Total Amount Badge */}
+            <div className="mb-4 p-3.5 bg-black text-white rounded-xl flex items-center justify-between shadow-xs">
+              <span className="text-xs uppercase tracking-wider font-bold text-gray-300">Total Amount</span>
+              <span className="text-xl font-extrabold">{formatPrice(finalTotal)}</span>
+            </div>
+
+            {/* Items - Collapsible if multiple products */}
+            {(cartItems.length <= 1 || itemsExpanded) && (
+              <div className="mb-6 max-h-64 overflow-y-auto space-y-3">
+                {cartItems.map((item, index) => {
+                  const uniqueKey = `${item.id}-${item.size || ''}-${item.shirtSize || ''}-${item.pantSize || ''}-${item.shoeSize || ''}-${item.color || ''}-${index}`;
+                  return (
+                    <div key={uniqueKey} className="flex gap-4 text-sm pb-3 border-b border-gray-200 items-start group">
+                      {item.image ? (
+                        <img src={item.image} alt={item.title} className="w-12 h-12 object-cover rounded-lg border border-gray-100 shrink-0 group-hover:scale-105 transition-transform" />
+                      ) : (
+                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200 shrink-0">
+                          <Package size={16} className="text-gray-400" />
+                        </div>
+                      )}
+                      <div className="flex-1 space-y-0.5">
+                        <p className="font-medium text-gray-800 leading-tight">{item.title}</p>
+                        <p className="text-[11px] text-gray-400">
+                          Qty: {item.quantity} {item.size ? `| Size: ${item.size}` : ''} {item.shirtSize ? `| Shirt: ${item.shirtSize}` : ''} {item.pantSize ? `| Pant: ${item.pantSize}` : ''} {item.shoeSize ? `| Shoe: ${item.shoeSize}` : ''} {item.color ? `| Color: ${item.color}` : ''}
+                        </p>
+                      </div>
+                      <span className="font-semibold text-gray-800 shrink-0">{formatPrice(item.discountedPrice * item.quantity)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Manual Coupon Entry Form */}
             <div className="mb-4 space-y-2">
@@ -1457,6 +1235,256 @@ export default function CheckoutPage() {
                 </p>
               </div>
             )}
+          </div>
+
+          {/* Checkout Form - 2nd on Mobile (Shipping -> Payment -> Place Order), Left side on Desktop */}
+          <div className="order-2 lg:order-1 lg:col-span-2">
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Shipping Information */}
+              <section className="border-b border-gray-200 pb-8">
+                <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                  <span>📍</span> Shipping Information
+                </h2>
+
+                {addresses.length > 0 && (
+                  <div className="mb-6">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Select a Saved Address</label>
+                    <select
+                      value={selectedAddressId}
+                      onChange={handleSelectAddressChange}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black appearance-none cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                    >
+                      {addresses.map((addr) => (
+                        <option key={addr.id} value={addr.id}>
+                          {addr.fullName} - {addr.addressLine1}, {addr.city} ({addr.isDefault ? 'Default' : 'Saved'})
+                        </option>
+                      ))}
+                      <option value="new">+ Enter New Address</option>
+                    </select>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-span-2">
+                  <input
+                    type="text"
+                    name="firstName"
+                    placeholder="First Name"
+                    value={formData.firstName}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  />
+                  <input
+                    type="text"
+                    name="lastName"
+                    placeholder="Last Name"
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  />
+                  <input
+                    type="email"
+                    name="email"
+                    placeholder="Email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-2"
+                  />
+                  <input
+                    type="tel"
+                    name="phone"
+                    placeholder="Phone Number"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-1"
+                  />
+                  <input
+                    type="tel"
+                    name="alternatePhone"
+                    placeholder="Alternate Phone (Optional)"
+                    value={formData.alternatePhone}
+                    onChange={handleChange}
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-1"
+                  />
+                  <input
+                    type="text"
+                    name="address"
+                    placeholder="Street Address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black md:col-span-2"
+                  />
+                  <input
+                    type="text"
+                    name="city"
+                    placeholder="City"
+                    value={formData.city}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  />
+                  <input
+                    type="text"
+                    name="state"
+                    placeholder="State/Province"
+                    value={formData.state}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  />
+                  <input
+                    type="text"
+                    name="zip"
+                    placeholder="Pincode"
+                    value={formData.zip}
+                    onChange={handleChange}
+                    required
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  />
+                  <select
+                    name="country"
+                    value={formData.country}
+                    onChange={handleChange}
+                    className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black"
+                  >
+                    <option>India</option>
+                    <option>United States</option>
+                    <option>United Kingdom</option>
+                    <option>United Arab Emirates</option>
+                    <option>Canada</option>
+                  </select>
+                  
+                  {selectedAddressId === 'new' && user && (
+                    <div className="md:col-span-2 flex items-center gap-2 mt-2">
+                      <input
+                        type="checkbox"
+                        id="save-address"
+                        checked={saveAddressToProfile}
+                        onChange={(e) => setSaveAddressToProfile(e.target.checked)}
+                        className="w-4 h-4 accent-black rounded focus:ring-black cursor-pointer"
+                      />
+                      <label htmlFor="save-address" className="text-xs text-gray-600 cursor-pointer select-none">
+                        Save this address to my profile for future purchases
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Payment Method - UPI First, Card Second, COD Third */}
+              <section className="border-b border-gray-200 pb-8">
+                <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                  <span>💳</span> Payment Method
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* UPI Option */}
+                  <label 
+                    className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
+                      paymentMethod === 'upi' 
+                        ? 'border-2 border-green-500 bg-green-50 shadow-md scale-[1.02]' 
+                        : 'border border-gray-200 hover:border-green-300 hover:bg-gray-50 hover:shadow-sm'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="upi"
+                      checked={paymentMethod === 'upi'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="hidden"
+                    />
+                    <div className="flex items-center gap-4 w-full">
+                      <div className={`p-3 rounded-full ${paymentMethod === 'upi' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                        <Smartphone size={24} />
+                      </div>
+                      <div className="flex-1">
+                        <span className={`block font-bold ${paymentMethod === 'upi' ? 'text-green-800' : 'text-gray-800'}`}>UPI</span>
+                        <span className="block text-sm text-gray-500 mt-0.5">Google Pay / PhonePe / Paytm</span>
+                      </div>
+                      {paymentMethod === 'upi' && (
+                        <CheckCircle size={24} className="text-green-500 absolute top-5 right-5" />
+                      )}
+                    </div>
+                  </label>
+
+                  {/* Credit/Debit Card Option */}
+                  <label 
+                    className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform ${
+                      paymentMethod === 'card' 
+                        ? 'border-2 border-blue-500 bg-blue-50 shadow-md scale-[1.02]' 
+                        : 'border border-gray-200 hover:border-blue-300 hover:bg-gray-50 hover:shadow-sm'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="card"
+                      checked={paymentMethod === 'card'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="hidden"
+                    />
+                    <div className="flex items-center gap-4 w-full">
+                      <div className={`p-3 rounded-full ${paymentMethod === 'card' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                        <CreditCard size={24} />
+                      </div>
+                      <div className="flex-1">
+                        <span className={`block font-bold ${paymentMethod === 'card' ? 'text-blue-800' : 'text-gray-800'}`}>Credit / Debit Card</span>
+                        <span className="block text-sm text-gray-500 mt-0.5">Visa, MasterCard, RuPay</span>
+                      </div>
+                      {paymentMethod === 'card' && (
+                        <CheckCircle size={24} className="text-blue-500 absolute top-5 right-5" />
+                      )}
+                    </div>
+                  </label>
+
+                  {/* Cash on Delivery Option — only shown when admin enables it */}
+                  {shippingConfig.codEnabled && (
+                    <label 
+                      className={`relative flex items-center p-5 rounded-xl cursor-pointer transition-all duration-300 transform md:col-span-2 ${
+                        paymentMethod === 'cod' 
+                          ? 'border-2 border-amber-500 bg-amber-50 shadow-md scale-[1.01]' 
+                          : 'border border-gray-200 hover:border-amber-300 hover:bg-gray-50 hover:shadow-sm'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="cod"
+                        checked={paymentMethod === 'cod'}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="hidden"
+                      />
+                      <div className="flex items-center gap-4 w-full">
+                        <div className={`p-3 rounded-full ${paymentMethod === 'cod' ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
+                          <Banknote size={24} />
+                        </div>
+                        <div className="flex-1">
+                          <span className={`block font-bold ${paymentMethod === 'cod' ? 'text-amber-800' : 'text-gray-800'}`}>Cash on Delivery</span>
+                          <span className="block text-sm text-gray-500 mt-0.5">Pay when your order is delivered</span>
+                        </div>
+                        {paymentMethod === 'cod' && (
+                          <CheckCircle size={24} className="text-amber-500 absolute top-5 right-5" />
+                        )}
+                      </div>
+                    </label>
+                  )}
+                </div>
+              </section>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <span>🔒</span>
+                <span>{loading ? 'Processing...' : 'Place Order'}</span>
+              </button>
+            </form>
           </div>
         </div>
       </div>

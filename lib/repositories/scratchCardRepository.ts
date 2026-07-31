@@ -64,6 +64,8 @@ export interface UserScratchCard {
   scratch_overlay_type?: string;
   scratch_overlay_color?: string;
   image_url?: string;
+  customer_name?: string;
+  order_amount?: number;
 }
 
 export interface ScratchDashboardStats {
@@ -437,7 +439,7 @@ export class SupabaseScratchCardRepository implements IScratchCardRepository {
       if (db) {
         let query = db
           .from('user_scratch_cards')
-          .select('*, scratch_cards(title, subtitle, description, bg_color, border_color, text_color, scratch_overlay_type, scratch_overlay_color, image_url)')
+          .select('*, scratch_cards(title, subtitle, description, bg_color, border_color, text_color, scratch_overlay_type, scratch_overlay_color, image_url), orders(customer_name, email, total_amount, order_number)')
           .order('assigned_at', { ascending: false });
 
         if (userId) {
@@ -451,17 +453,17 @@ export class SupabaseScratchCardRepository implements IScratchCardRepository {
           return data.map((d: any) => ({
             id: d.id,
             user_id: d.user_id,
-            user_email: d.user_email,
+            user_email: d.user_email || d.orders?.email,
             scratch_card_id: d.scratch_card_id,
             order_id: d.order_id,
-            order_number: d.order_number,
+            order_number: d.order_number || d.orders?.order_number,
             is_scratched: d.is_scratched,
             scratched_at: d.scratched_at,
             is_claimed: d.is_claimed,
             claimed_at: d.claimed_at,
-            reward_type: d.reward_type,
-            reward_value: Number(d.reward_value || 0),
-            coupon_code: d.coupon_code,
+            reward_type: d.reward_type || d.scratch_cards?.reward_type || 'flat_discount',
+            reward_value: Number(d.reward_value || d.scratch_cards?.reward_value || 0),
+            coupon_code: d.coupon_code || d.scratch_cards?.coupon_code,
             reward_details: d.reward_details,
             assigned_at: d.assigned_at,
             status: d.status || (d.is_claimed ? 'CLAIMED' : d.is_scratched ? 'SCRATCHED' : 'UNSCRATCHED'),
@@ -474,6 +476,8 @@ export class SupabaseScratchCardRepository implements IScratchCardRepository {
             scratch_overlay_type: d.scratch_cards?.scratch_overlay_type || 'charcoal',
             scratch_overlay_color: d.scratch_cards?.scratch_overlay_color || '#2c2c2c',
             image_url: d.scratch_cards?.image_url,
+            customer_name: d.orders?.customer_name || (d.user_email ? d.user_email.split('@')[0] : 'Customer'),
+            order_amount: d.orders?.total_amount ? Number(d.orders.total_amount) : 0,
           }));
         }
       }

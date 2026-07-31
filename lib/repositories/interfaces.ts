@@ -226,13 +226,13 @@ export interface ICouponRepository {
 
 export interface IStorageRepository {
   /** Upload an image file, returns public URL */
-  uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections'): Promise<string | null>;
+  uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images' | 'scratch-cards'): Promise<string | null>;
 
   /** Delete an image by URL or path */
-  deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections'): Promise<boolean>;
+  deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images' | 'scratch-cards'): Promise<boolean>;
 
   /** Get public URL for a stored asset */
-  getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections'): string;
+  getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images' | 'scratch-cards'): string;
 }
 
 export interface ShippingSettings {

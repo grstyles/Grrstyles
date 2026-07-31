@@ -1055,7 +1055,7 @@ export class SupabaseShippingRepository implements IShippingRepository {
 // ─── Supabase Storage Repository ─────────────────────────────────────────────
 
 export class SupabaseStorageRepository implements IStorageRepository {
-  async uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images'): Promise<string | null> {
+  async uploadImage(file: File, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images' | 'scratch-cards'): Promise<string | null> {
     const MAX_SIZE = 5 * 1024 * 1024; // 5MB
     if (file.size > MAX_SIZE) {
       console.error('File size exceeds 5MB limit');
@@ -1100,7 +1100,7 @@ export class SupabaseStorageRepository implements IStorageRepository {
     });
   }
 
-  async deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images'): Promise<boolean> {
+  async deleteImage(url: string, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images' | 'scratch-cards'): Promise<boolean> {
     if (!url || url.startsWith('data:') || url.startsWith('/images/')) return true;
     try {
       const path = url.split(`/${bucket}/`)[1] || url.split('/storage/v1/object/public/')[1];
@@ -1112,7 +1112,7 @@ export class SupabaseStorageRepository implements IStorageRepository {
     }
   }
 
-  getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images'): string {
+  getImageUrl(path: string, bucket: 'product-images' | 'banners' | 'collections' | 'navigation-images' | 'scratch-cards'): string {
     if (!path) return '';
     if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('/')) {
       return path;

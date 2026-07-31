@@ -172,15 +172,30 @@ export default function ScratchCardModal({ card, isOpen, onClose, onRewardClaime
         <div className="p-6 w-full flex flex-col items-center">
           <div className="relative w-[300px] h-[160px] rounded-2xl overflow-hidden shadow-2xl border-4 border-amber-400/30 bg-gradient-to-br from-amber-50 to-orange-100">
             {/* Underlying Revealed Reward */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
-              <Sparkles className="text-amber-500 mb-1 animate-bounce" size={28} />
-              <div className="text-2xl font-black text-gray-900 tracking-tight">
-                {card.reward_type === 'percentage_discount' ? `${card.reward_value}% OFF` : `₹${card.reward_value} OFF`}
+            {card.image_url ? (
+              <div className="absolute inset-0 overflow-hidden">
+                <img src={card.image_url} alt={card.card_title || 'Scratch Card'} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex flex-col items-center justify-center p-4 text-center text-white">
+                  <Sparkles className="text-amber-300 mb-1 animate-bounce" size={24} />
+                  <div className="text-2xl font-black tracking-tight drop-shadow-md">
+                    {card.reward_type === 'percentage_discount' ? `${card.reward_value}% OFF` : `₹${card.reward_value} OFF`}
+                  </div>
+                  <p className="text-[10px] font-bold tracking-widest mt-1 opacity-90 uppercase">
+                    {card.reward_details?.description || 'Instant Discount Reward'}
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-amber-700 font-semibold uppercase tracking-wider mt-1">
-                {card.reward_details?.description || 'Instant Discount Reward'}
-              </p>
-            </div>
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+                <Sparkles className="text-amber-500 mb-1 animate-bounce" size={28} />
+                <div className="text-2xl font-black text-gray-900 tracking-tight">
+                  {card.reward_type === 'percentage_discount' ? `${card.reward_value}% OFF` : `₹${card.reward_value} OFF`}
+                </div>
+                <p className="text-xs text-amber-700 font-semibold uppercase tracking-wider mt-1">
+                  {card.reward_details?.description || 'Instant Discount Reward'}
+                </p>
+              </div>
+            )}
 
             {/* Sparkles celebration overlay */}
             {isRevealed && (

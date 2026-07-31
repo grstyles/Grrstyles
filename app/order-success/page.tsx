@@ -201,6 +201,7 @@ export default function OrderSuccessPage() {
                 </div>
                 <ScratchCard
                   rewardText={getRewardDisplay()}
+                  imageUrl={userCard.image_url}
                   onReveal={handleRevealReward}
                 />
               </div>
