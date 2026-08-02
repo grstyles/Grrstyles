@@ -256,7 +256,7 @@ export class SupabaseProductRepository implements IProductRepository {
   async getInventory(): Promise<InventoryEntry[]> {
     const { data, error } = await sb()
       .from('products')
-      .select('id, name, slug, category, sizes, shirt_stock, pant_stock, shoe_stock, overall_stock')
+      .select('*')
       .order('category');
     if (error) throw error;
 
@@ -351,13 +351,30 @@ export class SupabaseProductRepository implements IProductRepository {
         sizeStock = [{ size: 'One Size', stock: Number(d.overall_stock) || 0 }];
       }
 
+      // ── Resolve product images ────────────────────────────────────────────────
+      let images: string[] = [];
+      if (Array.isArray(d.image_colors) && d.image_colors.length > 0) {
+        const sorted = [...d.image_colors].sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
+        images = sorted.map((ic: any) => ic.image_url).filter(Boolean);
+      }
+      if (images.length === 0 && Array.isArray(d.images) && d.images.length > 0) {
+        images = d.images.filter(Boolean);
+      }
+      if (images.length === 0 && d.image_url) {
+        images = [d.image_url];
+      }
+      const primaryImageUrl = images[0] || d.image_url || undefined;
+
       return {
         id: d.id,
         name: d.name,
         slug: d.slug,
         category: d.category,
+        sku: d.sku || '',
         sizes,
         sizeStock,
+        images,
+        image_url: primaryImageUrl,
       };
     });
   }

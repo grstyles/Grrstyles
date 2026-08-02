@@ -141,8 +141,11 @@ export interface InventoryEntry {
   name: string;
   slug: string;
   category: string;
+  sku?: string;
   sizes?: string[];
   sizeStock: { size: string; stock: number }[];
+  images?: string[];
+  image_url?: string;
 }
 
 // ─── Order Repository ─────────────────────────────────────────────────────────

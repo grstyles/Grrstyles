@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { repo, InventoryEntry } from '@/lib/repositories';
-import { Package, Edit2, Save, X, RefreshCw, Search, AlertTriangle } from 'lucide-react';
+import { Package, Edit2, Save, X, RefreshCw, Search, AlertTriangle, Image as ImageIcon } from 'lucide-react';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useDispatch } from 'react-redux';
 
@@ -14,6 +14,8 @@ export default function AdminInventoryPage() {
   const [editingStock, setEditingStock] = useState<{ [size: string]: number }>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [filterLowStock, setFilterLowStock] = useState(false);
+  const [previewModalItem, setPreviewModalItem] = useState<{ name: string; sku?: string; id: string; image: string | null } | null>(null);
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   const LOW_STOCK_THRESHOLD = 3;
 
@@ -31,6 +33,16 @@ export default function AdminInventoryPage() {
 
   useEffect(() => {
     loadInventory();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPreviewModalItem(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleStartEdit = (item: InventoryEntry) => {
@@ -109,7 +121,8 @@ export default function AdminInventoryPage() {
   const filteredList = inventoryList.filter((item) => {
     const matchesSearch = !searchQuery ||
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchQuery.toLowerCase());
+      item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.sku && item.sku.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const aggregateStock = (item.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0);
     const isLow = aggregateStock > 0 && aggregateStock <= (LOW_STOCK_THRESHOLD * (item.sizeStock ?? []).length);
@@ -198,12 +211,52 @@ export default function AdminInventoryPage() {
                   const hasLowSize = (item.sizeStock ?? []).some((ss: any) => ss.stock > 0 && ss.stock <= LOW_STOCK_THRESHOLD);
                   const isOutOfStock = aggregateStock === 0;
 
+                  const rawImage = (item.images && item.images.length > 0 && item.images[0]) || item.image_url || null;
+                  const primaryImage = !failedImages[item.id] ? rawImage : null;
+
                   return (
                     <tr key={item.id} className={`hover:bg-gray-50/30 transition-colors ${hasLowSize ? 'bg-amber-50/20' : ''}`}>
                       <td className="p-4 pl-6">
-                        <div>
-                          <p className="font-bold text-gray-800 uppercase">{item.name}</p>
-                          <p className="text-[10px] font-mono text-gray-400">{item.id.slice(0, 8)}...</p>
+                        <div className="flex items-center gap-3 md:gap-4">
+                          {/* Product Thumbnail (Desktop: 60x60, Tablet: 50x50, Mobile: 44x44) */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPreviewModalItem({
+                                name: item.name,
+                                sku: item.sku,
+                                id: item.id,
+                                image: primaryImage,
+                              })
+                            }
+                            className="group/thumbnail relative w-[44px] h-[44px] sm:w-[50px] sm:h-[50px] md:w-[60px] md:h-[60px] rounded-[10px] border border-[#E5E7EB] bg-white overflow-hidden shrink-0 flex items-center justify-center cursor-pointer transition-all hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10"
+                            title="Click to view image preview"
+                          >
+                            {primaryImage ? (
+                              <img
+                                src={primaryImage}
+                                alt={item.name}
+                                loading="lazy"
+                                className="w-full h-full object-cover transition-transform duration-200 group-hover/thumbnail:scale-105"
+                                onError={() => setFailedImages((prev) => ({ ...prev, [item.id]: true }))}
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gray-100 flex flex-col items-center justify-center p-1 text-gray-400 select-none">
+                                <ImageIcon size={16} className="text-gray-400 shrink-0" />
+                                <span className="text-[8px] font-medium text-gray-400 mt-0.5 leading-none text-center">
+                                  No Image
+                                </span>
+                              </div>
+                            )}
+                          </button>
+
+                          {/* Product Name & SKU / ID */}
+                          <div className="min-w-0">
+                            <p className="font-bold text-gray-800 uppercase text-xs md:text-sm line-clamp-1">{item.name}</p>
+                            <p className="text-[10px] font-mono text-gray-400 mt-0.5">
+                              {item.sku ? `SKU: ${item.sku}` : `ID: ${item.id.slice(0, 8)}...`}
+                            </p>
+                          </div>
                         </div>
                       </td>
                       <td className="p-4 text-gray-500 uppercase font-semibold">{item.category}</td>
@@ -291,6 +344,55 @@ export default function AdminInventoryPage() {
           </div>
         )}
       </div>
+
+      {/* Image Preview Modal */}
+      {previewModalItem && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setPreviewModalItem(null)}
+        >
+          <div
+            className="bg-white rounded-2xl p-5 md:p-6 max-w-md w-full shadow-2xl relative space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
+              <div className="min-w-0 pr-2">
+                <h3 className="font-bold text-gray-900 uppercase text-sm md:text-base line-clamp-1">
+                  {previewModalItem.name}
+                </h3>
+                <p className="text-xs font-mono text-gray-400 mt-0.5">
+                  {previewModalItem.sku ? `SKU: ${previewModalItem.sku}` : `ID: ${previewModalItem.id}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewModalItem(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors shrink-0"
+                title="Close preview"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Image View */}
+            <div className="relative w-full aspect-square rounded-xl border border-[#E5E7EB] bg-white overflow-hidden flex items-center justify-center">
+              {previewModalItem.image ? (
+                <img
+                  src={previewModalItem.image}
+                  alt={previewModalItem.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-100 flex flex-col items-center justify-center text-gray-400 p-6 text-center">
+                  <ImageIcon size={48} className="text-gray-300 mb-2" />
+                  <p className="text-xs font-medium text-gray-400">No image available for this product</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
