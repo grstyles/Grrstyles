@@ -103,7 +103,14 @@ export default function SearchDropdown({ onClose }: SearchDropdownProps) {
             placeholder="Search premium apparel, collections, or accessories..."
             className="w-full pl-12 pr-12 py-3.5 border-b-2 border-gray-200 focus:border-black text-sm md:text-base font-light tracking-wide placeholder-gray-400 focus:outline-none transition-all uppercase"
           />
-          <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <button
+            type="submit"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black transition-colors p-1"
+            title="Search"
+            aria-label="Search"
+          >
+            <Search size={20} />
+          </button>
           {loading ? (
             <Loader2 size={18} className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />
           ) : query ? (

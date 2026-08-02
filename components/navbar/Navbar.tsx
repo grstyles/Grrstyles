@@ -5,7 +5,7 @@ import { Menu, X, Search, Heart, ShoppingBag, User } from 'lucide-react';
 import Link from 'next/link';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/lib/redux/store';
-import { toggleMobileMenu, closeMobileMenu } from '@/lib/redux/slices/uiSlice';
+import { toggleMobileMenu, closeMobileMenu, toggleSearch, closeSearch } from '@/lib/redux/slices/uiSlice';
 import SearchDropdown from './SearchDropdown';
 import { useAuth } from '@/lib/context/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
@@ -13,6 +13,7 @@ import { useRouter, usePathname } from 'next/navigation';
 export default function Navbar() {
   const dispatch = useDispatch();
   const mobileMenuOpen = useSelector((state: RootState) => state.ui.mobileMenuOpen);
+  const searchOpen = useSelector((state: RootState) => state.ui.searchOpen);
   const cartItems = useSelector((state: RootState) => state.cart.items);
   const wishlistItems = useSelector((state: RootState) => state.wishlist.items);
   
@@ -53,6 +54,7 @@ export default function Navbar() {
 
   useEffect(() => {
     dispatch(closeMobileMenu());
+    dispatch(closeSearch());
   }, [pathname, dispatch]);
 
   const handleUserClick = (e: React.MouseEvent) => {
@@ -65,7 +67,6 @@ export default function Navbar() {
   };
 
   const [wiggleCart, setWiggleCart] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
 
@@ -82,9 +83,6 @@ export default function Navbar() {
     { name: 'COLLECTIONS', href: '/collections' },
     { name: 'SALE', href: '/sale' },
     { name: 'CONTACT', href: '/contact' },
-
-
-   
   ];
 
   return (
@@ -147,7 +145,7 @@ export default function Navbar() {
             <div className="flex items-center gap-0.5 sm:gap-1.5 md:gap-4 ml-auto">
               
               <button
-                onClick={() => setSearchOpen(!searchOpen)}
+                onClick={() => dispatch(toggleSearch())}
                 className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-800"
                 aria-label="Open Search"
               >
@@ -196,7 +194,7 @@ export default function Navbar() {
             </div>
           </div>
         </div>
-        {searchOpen && <SearchDropdown onClose={() => setSearchOpen(false)} />}
+        {searchOpen && <SearchDropdown onClose={() => dispatch(closeSearch())} />}
       </nav>
 
       {/* Mobile Menu */}

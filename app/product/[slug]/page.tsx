@@ -69,7 +69,7 @@ export default function ProductDetailsPage() {
     const shirtList = configuredShirt.length > 0 ? configuredShirt : STANDARD_SHIRT_SIZES;
     shirtSizes = shirtList.map(size => ({
       size,
-      stock: product?.shirtStock?.[size] ?? 10,
+      stock: Number(product?.shirtStock?.[size] ?? 0),
       type: 'shirt'
     }));
 
@@ -77,12 +77,12 @@ export default function ProductDetailsPage() {
     const pantList = configuredPant.length > 0 ? configuredPant : STANDARD_PANT_SIZES;
     pantSizes = pantList.map(size => ({
       size,
-      stock: product?.pantStock?.[size] ?? 10,
+      stock: Number(product?.pantStock?.[size] ?? 0),
       type: 'pant'
     }));
   } else {
     genericSizes = allProductSizes.map(size => {
-      const stockVal = product?.pantStock?.[size] ?? product?.shirtStock?.[size] ?? product?.shoeStock?.[size] ?? 10;
+      const stockVal = product?.shirtStock?.[size] ?? product?.pantStock?.[size] ?? product?.shoeStock?.[size] ?? 0;
       return { size, stock: Number(stockVal), type: isPant ? 'pant' : (isShoe ? 'shoe' : 'shirt') };
     });
   }

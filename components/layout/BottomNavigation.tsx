@@ -3,11 +3,13 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/lib/redux/store';
+import { openSearch } from '@/lib/redux/slices/uiSlice';
 import { Home, Search, Heart, ShoppingBag, User } from 'lucide-react';
 
 export default function BottomNavigation() {
+  const dispatch = useDispatch();
   const pathname = usePathname();
   const cartItemsCount = useSelector((state: RootState) => 
     state.cart.items.reduce((total, item) => total + item.quantity, 0)
@@ -38,10 +40,18 @@ export default function BottomNavigation() {
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
             const Icon = item.icon;
             
+            const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+              if (item.label === 'Shop') {
+                e.preventDefault();
+                dispatch(openSearch());
+              }
+            };
+
             return (
               <Link 
                 key={item.label} 
                 href={item.href}
+                onClick={handleClick}
                 className="relative flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-200 group"
               >
                 <div className="relative">

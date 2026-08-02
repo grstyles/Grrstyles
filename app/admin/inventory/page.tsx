@@ -1,20 +1,36 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { repo, InventoryEntry } from '@/lib/repositories';
-import { Package, Edit2, Save, X, RefreshCw, Search, AlertTriangle, Image as ImageIcon } from 'lucide-react';
-import { addToast } from '@/lib/redux/slices/uiSlice';
-import { useDispatch } from 'react-redux';
+import React, { useState, useEffect } from "react";
+import { repo, InventoryEntry } from "@/lib/repositories";
+import {
+  Package,
+  Edit2,
+  Save,
+  X,
+  RefreshCw,
+  Search,
+  AlertTriangle,
+  Image as ImageIcon,
+} from "lucide-react";
+import { addToast } from "@/lib/redux/slices/uiSlice";
+import { useDispatch } from "react-redux";
 
 export default function AdminInventoryPage() {
   const dispatch = useDispatch();
   const [inventoryList, setInventoryList] = useState<InventoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingStock, setEditingStock] = useState<{ [size: string]: number }>({});
-  const [searchQuery, setSearchQuery] = useState('');
+  const [editingStock, setEditingStock] = useState<{ [size: string]: number }>(
+    {},
+  );
+  const [searchQuery, setSearchQuery] = useState("");
   const [filterLowStock, setFilterLowStock] = useState(false);
-  const [previewModalItem, setPreviewModalItem] = useState<{ name: string; sku?: string; id: string; image: string | null } | null>(null);
+  const [previewModalItem, setPreviewModalItem] = useState<{
+    name: string;
+    sku?: string;
+    id: string;
+    image: string | null;
+  } | null>(null);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   const LOW_STOCK_THRESHOLD = 3;
@@ -25,7 +41,7 @@ export default function AdminInventoryPage() {
       const data = await repo.products.getInventory();
       setInventoryList(data);
     } catch (err) {
-      console.error('Failed to load inventory', err);
+      console.error("Failed to load inventory", err);
     } finally {
       setLoading(false);
     }
@@ -37,12 +53,12 @@ export default function AdminInventoryPage() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         setPreviewModalItem(null);
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   const handleStartEdit = (item: InventoryEntry) => {
@@ -65,13 +81,22 @@ export default function AdminInventoryPage() {
     try {
       // ── Debug: log what we are about to save ─────────────────────────────
       const item = inventoryList.find((i) => i.id === itemId);
-      const previousStock = (item?.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0);
-      console.log('[Inventory Admin] Saving stock for product ID:', itemId);
-      console.log('[Inventory Admin] Previous total stock:', previousStock);
-      console.log('[Inventory Admin] New size quantities to save:', editingStock);
+      const previousStock = (item?.sizeStock ?? []).reduce(
+        (acc: number, ss: any) => acc + ss.stock,
+        0,
+      );
+      console.log("[Inventory Admin] Saving stock for product ID:", itemId);
+      console.log("[Inventory Admin] Previous total stock:", previousStock);
+      console.log(
+        "[Inventory Admin] New size quantities to save:",
+        editingStock,
+      );
 
-      const newTotal = Object.values(editingStock).reduce((sum, qty) => sum + Number(qty || 0), 0);
-      console.log('[Inventory Admin] Calculated new total stock:', newTotal);
+      const newTotal = Object.values(editingStock).reduce(
+        (sum, qty) => sum + Number(qty || 0),
+        0,
+      );
+      console.log("[Inventory Admin] Calculated new total stock:", newTotal);
 
       // ── BUG FIX: Single atomic call instead of per-size Promise.all ──────
       // The old implementation called updateStock per-size concurrently,
@@ -87,52 +112,86 @@ export default function AdminInventoryPage() {
               ...listItem,
               sizeStock: (listItem.sizeStock ?? []).map((ss: any) => ({
                 size: ss.size,
-                stock: editingStock[ss.size] !== undefined ? editingStock[ss.size] : ss.stock,
+                stock:
+                  editingStock[ss.size] !== undefined
+                    ? editingStock[ss.size]
+                    : ss.stock,
               })),
             };
           }
           return listItem;
-        })
+        }),
       );
 
       setEditingId(null);
-      dispatch(addToast({ message: '✓ Stock levels updated!', type: 'success' }));
+      dispatch(
+        addToast({ message: "✓ Stock levels updated!", type: "success" }),
+      );
 
       // ── Post-save verification: re-fetch this product from DB ─────────────
       // This confirms the value actually persisted and keeps UI in sync.
-      console.log('[Inventory Admin] Re-fetching inventory from Supabase to verify persistence...');
+      console.log(
+        "[Inventory Admin] Re-fetching inventory from Supabase to verify persistence...",
+      );
       const freshData = await repo.products.getInventory();
       const freshItem = freshData.find((i) => i.id === itemId);
       if (freshItem) {
-        const freshTotal = (freshItem.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0);
-        console.log('[Inventory Admin] Fresh stock after save (from Supabase):', freshTotal);
-        console.log('[Inventory Admin] Fresh size breakdown:', freshItem.sizeStock);
+        const freshTotal = (freshItem.sizeStock ?? []).reduce(
+          (acc: number, ss: any) => acc + ss.stock,
+          0,
+        );
+        console.log(
+          "[Inventory Admin] Fresh stock after save (from Supabase):",
+          freshTotal,
+        );
+        console.log(
+          "[Inventory Admin] Fresh size breakdown:",
+          freshItem.sizeStock,
+        );
         // Reconcile UI with confirmed DB values
         setInventoryList(freshData);
       } else {
-        console.warn('[Inventory Admin] Could not find product in re-fetched inventory.');
+        console.warn(
+          "[Inventory Admin] Could not find product in re-fetched inventory.",
+        );
       }
     } catch (err) {
-      console.error('[Inventory Admin] Stock update failed:', err);
-      dispatch(addToast({ message: 'Failed to update stock. Check console for details.', type: 'error' }));
+      console.error("[Inventory Admin] Stock update failed:", err);
+      dispatch(
+        addToast({
+          message: "Failed to update stock. Check console for details.",
+          type: "error",
+        }),
+      );
     }
   };
 
   const filteredList = inventoryList.filter((item) => {
-    const matchesSearch = !searchQuery ||
+    const matchesSearch =
+      !searchQuery ||
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.sku && item.sku.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const aggregateStock = (item.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0);
-    const isLow = aggregateStock > 0 && aggregateStock <= (LOW_STOCK_THRESHOLD * (item.sizeStock ?? []).length);
+    const aggregateStock = (item.sizeStock ?? []).reduce(
+      (acc: number, ss: any) => acc + ss.stock,
+      0,
+    );
+    const isLow =
+      aggregateStock > 0 &&
+      aggregateStock <= LOW_STOCK_THRESHOLD * (item.sizeStock ?? []).length;
 
     return matchesSearch && (filterLowStock ? isLow : true);
   });
 
   const lowStockCount = inventoryList.filter((item) => {
-    const total = (item.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0);
-    return total > 0 && total <= LOW_STOCK_THRESHOLD * (item.sizeStock ?? []).length;
+    const total = (item.sizeStock ?? []).reduce(
+      (acc: number, ss: any) => acc + ss.stock,
+      0,
+    );
+    return (
+      total > 0 && total <= LOW_STOCK_THRESHOLD * (item.sizeStock ?? []).length
+    );
   }).length;
 
   if (loading) {
@@ -145,14 +204,18 @@ export default function AdminInventoryPage() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
-
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4 border-b border-gray-100 pb-5">
         <div>
-          <h1 className="text-3xl font-light tracking-tight text-gray-900 uppercase">Inventory</h1>
+          <h1 className="text-3xl font-light tracking-tight text-gray-900 uppercase">
+            Inventory
+          </h1>
           <p className="text-sm text-gray-400 mt-1">
-            {inventoryList.length} products · {lowStockCount > 0 && (
-              <span className="text-red-500 font-semibold">{lowStockCount} low stock</span>
+            {inventoryList.length} products ·{" "}
+            {lowStockCount > 0 && (
+              <span className="text-red-500 font-semibold">
+                {lowStockCount} low stock
+              </span>
             )}
           </p>
         </div>
@@ -165,12 +228,17 @@ export default function AdminInventoryPage() {
               placeholder="Search product..."
               className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-black placeholder-gray-300"
             />
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search
+              size={13}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            />
           </div>
           <button
             onClick={() => setFilterLowStock(!filterLowStock)}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl border transition-all ${
-              filterLowStock ? 'bg-red-50 text-red-500 border-red-200' : 'border-gray-200 text-gray-500 hover:border-gray-400'
+              filterLowStock
+                ? "bg-red-50 text-red-500 border-red-200"
+                : "border-gray-200 text-gray-500 hover:border-gray-400"
             }`}
           >
             <AlertTriangle size={12} />
@@ -189,7 +257,9 @@ export default function AdminInventoryPage() {
       {/* Inventory Table */}
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-5 border-b border-gray-100">
-          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Stock Levels</h3>
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+            Stock Levels
+          </h3>
         </div>
 
         {filteredList.length > 0 ? (
@@ -207,15 +277,27 @@ export default function AdminInventoryPage() {
               <tbody className="divide-y divide-gray-100 text-xs">
                 {filteredList.map((item) => {
                   const isEditing = editingId === item.id;
-                  const aggregateStock = (item.sizeStock ?? []).reduce((acc: number, ss: any) => acc + ss.stock, 0);
-                  const hasLowSize = (item.sizeStock ?? []).some((ss: any) => ss.stock > 0 && ss.stock <= LOW_STOCK_THRESHOLD);
+                  const aggregateStock = (item.sizeStock ?? []).reduce(
+                    (acc: number, ss: any) => acc + ss.stock,
+                    0,
+                  );
+                  const hasLowSize = (item.sizeStock ?? []).some(
+                    (ss: any) =>
+                      ss.stock > 0 && ss.stock <= LOW_STOCK_THRESHOLD,
+                  );
                   const isOutOfStock = aggregateStock === 0;
 
-                  const rawImage = (item.images && item.images.length > 0 && item.images[0]) || item.image_url || null;
+                  const rawImage =
+                    (item.images && item.images.length > 0 && item.images[0]) ||
+                    item.image_url ||
+                    null;
                   const primaryImage = !failedImages[item.id] ? rawImage : null;
 
                   return (
-                    <tr key={item.id} className={`hover:bg-gray-50/30 transition-colors ${hasLowSize ? 'bg-amber-50/20' : ''}`}>
+                    <tr
+                      key={item.id}
+                      className={`hover:bg-gray-50/30 transition-colors ${hasLowSize ? "bg-amber-50/20" : ""}`}
+                    >
                       <td className="p-4 pl-6">
                         <div className="flex items-center gap-3 md:gap-4">
                           {/* Product Thumbnail (Desktop: 60x60, Tablet: 50x50, Mobile: 44x44) */}
@@ -238,11 +320,19 @@ export default function AdminInventoryPage() {
                                 alt={item.name}
                                 loading="lazy"
                                 className="w-full h-full object-cover transition-transform duration-200 group-hover/thumbnail:scale-105"
-                                onError={() => setFailedImages((prev) => ({ ...prev, [item.id]: true }))}
+                                onError={() =>
+                                  setFailedImages((prev) => ({
+                                    ...prev,
+                                    [item.id]: true,
+                                  }))
+                                }
                               />
                             ) : (
                               <div className="w-full h-full bg-gray-100 flex flex-col items-center justify-center p-1 text-gray-400 select-none">
-                                <ImageIcon size={16} className="text-gray-400 shrink-0" />
+                                <ImageIcon
+                                  size={16}
+                                  className="text-gray-400 shrink-0"
+                                />
                                 <span className="text-[8px] font-medium text-gray-400 mt-0.5 leading-none text-center">
                                   No Image
                                 </span>
@@ -252,43 +342,66 @@ export default function AdminInventoryPage() {
 
                           {/* Product Name & SKU / ID */}
                           <div className="min-w-0">
-                            <p className="font-bold text-gray-800 uppercase text-xs md:text-sm line-clamp-1">{item.name}</p>
+                            <p className="font-bold text-gray-800 uppercase text-xs md:text-sm line-clamp-1">
+                              {item.name}
+                            </p>
                             <p className="text-[10px] font-mono text-gray-400 mt-0.5">
-                              {item.sku ? `SKU: ${item.sku}` : `ID: ${item.id.slice(0, 8)}...`}
+                              {item.sku
+                                ? `SKU: ${item.sku}`
+                                : `ID: ${item.id.slice(0, 8)}...`}
                             </p>
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 text-gray-500 uppercase font-semibold">{item.category}</td>
+                      <td className="p-4 text-gray-500 uppercase font-semibold">
+                        {item.category}
+                      </td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-1.5">
                           {(item.sizeStock ?? []).map((ss: any) => {
-                            const isLow = ss.stock > 0 && ss.stock <= LOW_STOCK_THRESHOLD;
+                            const isLow =
+                              ss.stock > 0 && ss.stock <= LOW_STOCK_THRESHOLD;
                             const isEmpty = ss.stock === 0;
                             return (
                               <div
                                 key={ss.size}
                                 className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[10px] font-semibold ${
                                   isEmpty
-                                    ? 'bg-red-50 text-red-600 border-red-100'
+                                    ? "bg-red-50 text-red-600 border-red-100"
                                     : isLow
-                                    ? 'bg-amber-50 text-amber-600 border-amber-100'
-                                    : 'bg-white text-gray-700 border-gray-200'
+                                      ? "bg-amber-50 text-amber-600 border-amber-100"
+                                      : "bg-white text-gray-700 border-gray-200"
                                 }`}
                               >
                                 <span>{ss.size}:</span>
                                 {isEditing ? (
                                   <input
                                     type="number"
-                                    value={editingStock[ss.size] !== undefined ? editingStock[ss.size] : ss.stock}
-                                    onChange={(e) => handleStockValueChange(ss.size, parseInt(e.target.value) || 0)}
+                                    value={
+                                      editingStock[ss.size] !== undefined
+                                        ? editingStock[ss.size]
+                                        : ss.stock
+                                    }
+                                    onChange={(e) =>
+                                      handleStockValueChange(
+                                        ss.size,
+                                        parseInt(e.target.value) || 0,
+                                      )
+                                    }
                                     className="w-9 text-center font-bold border-b border-gray-300 focus:border-black focus:outline-none bg-transparent"
                                   />
                                 ) : (
                                   <strong>{ss.stock}</strong>
                                 )}
-                                {isEmpty && <span className="text-red-400 ml-0.5">✕</span>}
-                                {isLow && !isEmpty && <AlertTriangle size={8} className="text-amber-500 ml-0.5" />}
+                                {isEmpty && (
+                                  <span className="text-red-400 ml-0.5">✕</span>
+                                )}
+                                {isLow && !isEmpty && (
+                                  <AlertTriangle
+                                    size={8}
+                                    className="text-amber-500 ml-0.5"
+                                  />
+                                )}
                               </div>
                             );
                           })}
@@ -296,11 +409,21 @@ export default function AdminInventoryPage() {
                       </td>
                       <td className="p-4">
                         <div>
-                          <span className={`font-bold text-sm ${isOutOfStock ? 'text-red-500' : hasLowSize ? 'text-amber-500' : 'text-gray-900'}`}>
+                          <span
+                            className={`font-bold text-sm ${isOutOfStock ? "text-red-500" : hasLowSize ? "text-amber-500" : "text-gray-900"}`}
+                          >
                             {aggregateStock} Units
                           </span>
-                          {isOutOfStock && <p className="text-[10px] text-red-400 font-semibold mt-0.5">OUT OF STOCK</p>}
-                          {hasLowSize && !isOutOfStock && <p className="text-[10px] text-amber-500 font-semibold mt-0.5">LOW STOCK</p>}
+                          {isOutOfStock && (
+                            <p className="text-[10px] text-red-400 font-semibold mt-0.5">
+                              OUT OF STOCK
+                            </p>
+                          )}
+                          {hasLowSize && !isOutOfStock && (
+                            <p className="text-[10px] text-amber-500 font-semibold mt-0.5">
+                              LOW STOCK
+                            </p>
+                          )}
                         </div>
                       </td>
                       <td className="p-4 pr-6 text-right">
@@ -362,7 +485,9 @@ export default function AdminInventoryPage() {
                   {previewModalItem.name}
                 </h3>
                 <p className="text-xs font-mono text-gray-400 mt-0.5">
-                  {previewModalItem.sku ? `SKU: ${previewModalItem.sku}` : `ID: ${previewModalItem.id}`}
+                  {previewModalItem.sku
+                    ? `SKU: ${previewModalItem.sku}`
+                    : `ID: ${previewModalItem.id}`}
                 </p>
               </div>
               <button
@@ -386,7 +511,9 @@ export default function AdminInventoryPage() {
               ) : (
                 <div className="w-full h-full bg-gray-100 flex flex-col items-center justify-center text-gray-400 p-6 text-center">
                   <ImageIcon size={48} className="text-gray-300 mb-2" />
-                  <p className="text-xs font-medium text-gray-400">No image available for this product</p>
+                  <p className="text-xs font-medium text-gray-400">
+                    No image available for this product
+                  </p>
                 </div>
               )}
             </div>

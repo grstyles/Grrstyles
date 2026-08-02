@@ -10,6 +10,7 @@ interface Toast {
 interface UIState {
   mobileMenuOpen: boolean;
   filterSidebarOpen: boolean;
+  searchOpen: boolean;
   toasts: Toast[];
   quickViewProduct: any | null; // holds product for modal
 }
@@ -17,6 +18,7 @@ interface UIState {
 const initialState: UIState = {
   mobileMenuOpen: false,
   filterSidebarOpen: false,
+  searchOpen: false,
   toasts: [],
   quickViewProduct: null,
 };
@@ -36,6 +38,15 @@ const uiSlice = createSlice({
     },
     closeFilterSidebar: (state) => {
       state.filterSidebarOpen = false;
+    },
+    toggleSearch: (state) => {
+      state.searchOpen = !state.searchOpen;
+    },
+    openSearch: (state) => {
+      state.searchOpen = true;
+    },
+    closeSearch: (state) => {
+      state.searchOpen = false;
     },
     addToast: (state, action: PayloadAction<Omit<Toast, 'id'>>) => {
       const id = Date.now().toString();
@@ -59,6 +70,9 @@ export const {
   closeMobileMenu,
   toggleFilterSidebar,
   closeFilterSidebar,
+  toggleSearch,
+  openSearch,
+  closeSearch,
   addToast,
   removeToast,
   openQuickView,

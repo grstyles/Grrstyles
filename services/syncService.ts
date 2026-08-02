@@ -141,14 +141,23 @@ export const syncService = {
       if (!cartId) return;
 
       // Find database UUID for the product
-      const { data: prod, error: prodError } = await sb()!
+      let { data: prod, error: prodError } = await sb()!
         .from('products')
         .select('id')
         .eq('id', item.id)
         .maybeSingle();
 
+      if (!prod && item.id) {
+        const { data: altProd } = await sb()!
+          .from('products')
+          .select('id')
+          .or(`product_id.eq.${item.id},slug.eq.${item.id}`)
+          .maybeSingle();
+        prod = altProd;
+      }
+
       if (prodError || !prod) {
-        console.error('Could not find product matching ID for cart sync:', item.id);
+        console.warn('Could not find product matching ID for cart sync:', item.id);
         return;
       }
 
@@ -213,11 +222,20 @@ export const syncService = {
       const cartId = await this.getOrCreateCartId(userId);
       if (!cartId) return;
 
-      const { data: prod } = await sb()!
+      let { data: prod } = await sb()!
         .from('products')
         .select('id')
         .eq('id', productId)
         .maybeSingle();
+
+      if (!prod && productId) {
+        const { data: altProd } = await sb()!
+          .from('products')
+          .select('id')
+          .or(`product_id.eq.${productId},slug.eq.${productId}`)
+          .maybeSingle();
+        prod = altProd;
+      }
 
       if (!prod) return;
 
@@ -287,11 +305,20 @@ export const syncService = {
       const wishlistId = await this.getOrCreateWishlistId(userId);
       if (!wishlistId) return;
 
-      const { data: prod } = await sb()!
+      let { data: prod } = await sb()!
         .from('products')
         .select('id')
         .eq('id', productId)
         .maybeSingle();
+
+      if (!prod && productId) {
+        const { data: altProd } = await sb()!
+          .from('products')
+          .select('id')
+          .or(`product_id.eq.${productId},slug.eq.${productId}`)
+          .maybeSingle();
+        prod = altProd;
+      }
 
       if (!prod) return;
 
@@ -324,11 +351,20 @@ export const syncService = {
       const wishlistId = await this.getOrCreateWishlistId(userId);
       if (!wishlistId) return;
 
-      const { data: prod } = await sb()!
+      let { data: prod } = await sb()!
         .from('products')
         .select('id')
         .eq('id', productId)
         .maybeSingle();
+
+      if (!prod && productId) {
+        const { data: altProd } = await sb()!
+          .from('products')
+          .select('id')
+          .or(`product_id.eq.${productId},slug.eq.${productId}`)
+          .maybeSingle();
+        prod = altProd;
+      }
 
       if (!prod) return;
 

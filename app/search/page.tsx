@@ -6,6 +6,7 @@ import { searchService } from '@/services/searchService';
 import { Product } from '@/lib/data/products';
 import ProductGrid from '@/components/home/ProductGrid';
 import { SearchLoader } from '@/components/ui/Skeletons';
+import SearchDropdown from '@/components/navbar/SearchDropdown';
 import { NoSearchResultsState } from '@/components/ui/EmptyStates';
 
 function SearchResultsContent() {
@@ -52,7 +53,16 @@ function SearchResultsContent() {
   }
 
   if (!query) {
-    return <NoSearchResultsState query="" />;
+    return (
+      <div className="min-h-[70vh] bg-[#fcfbf9] py-8 sm:py-12 px-4">
+        <div className="max-w-4xl mx-auto bg-white border border-gray-100 rounded-3xl p-4 sm:p-8 shadow-sm">
+          <h1 className="text-xl sm:text-2xl font-light text-center text-gray-900 mb-4 tracking-wide uppercase">Search GR STYLES</h1>
+          <div className="relative">
+            <SearchDropdown onClose={() => {}} />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (productsList.length === 0) {

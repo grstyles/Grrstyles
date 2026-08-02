@@ -128,23 +128,19 @@ export default function CartPage() {
     // Use the dedicated public shipping route (service-role key, bypasses RLS).
     fetch('/api/shipping')
       .then((res) => {
-        if (!res.ok) {
-          console.warn(`[Cart] /api/shipping returned HTTP ${res.status}, using default shipping config.`);
-          return null;
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then((cfg) => {
-        if (!cfg) return;
         console.log('[Cart] Shipping settings loaded:', cfg);
         setShippingConfig({
-          shippingCharge: Number(cfg.shippingCharge ?? 80),
-          freeShippingAbove: Number(cfg.freeShippingAbove ?? 2000),
+          shippingCharge: Number(cfg.shippingCharge ?? 0),
+          freeShippingAbove: Number(cfg.freeShippingAbove ?? 0),
           freeDelivery: Boolean(cfg.freeDelivery ?? false),
         });
       })
       .catch((err) => {
-        console.warn('[Cart] Failed to load shipping settings:', err);
+        console.error('[Cart] Failed to load shipping settings:', err);
       });
   }, []);
 

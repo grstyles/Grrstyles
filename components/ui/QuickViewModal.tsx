@@ -329,15 +329,19 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
                         {(allProductSizes.filter(s => STANDARD_SHIRT_SIZES.includes(s)).length > 0 ? allProductSizes.filter(s => STANDARD_SHIRT_SIZES.includes(s)) : STANDARD_SHIRT_SIZES)
                           .map((sizeName) => {
                           const isSelected = selectedShirtSize === sizeName;
+                          const stockVal = product.shirtStock?.[sizeName] ?? 0;
+                          const isOutOfStock = Number(stockVal) === 0;
                           return (
                             <button
                               key={sizeName}
+                              disabled={isOutOfStock}
                               onClick={() => { setSelectedShirtSize(sizeName); setSizeError(false); }}
                               className={`w-9 h-9 border rounded-xl text-xs font-medium transition-all flex items-center justify-center relative ${
-                                isSelected ? "border-black bg-black text-white scale-105" : "border-gray-200 hover:border-black text-gray-700 bg-white"
+                                isSelected ? "border-black bg-black text-white scale-105" : isOutOfStock ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50" : "border-gray-200 hover:border-black text-gray-700 bg-white"
                               }`}
                             >
                               {sizeName}
+                              {isOutOfStock && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" /></div>}
                             </button>
                           );
                         })}
@@ -359,15 +363,19 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
                         {(allProductSizes.filter(s => STANDARD_PANT_SIZES.includes(s)).length > 0 ? allProductSizes.filter(s => STANDARD_PANT_SIZES.includes(s)) : STANDARD_PANT_SIZES)
                           .map((sizeName) => {
                           const isSelected = selectedPantSize === sizeName;
+                          const stockVal = product.pantStock?.[sizeName] ?? 0;
+                          const isOutOfStock = Number(stockVal) === 0;
                           return (
                             <button
                               key={sizeName}
+                              disabled={isOutOfStock}
                               onClick={() => { setSelectedPantSize(sizeName); setSizeError(false); }}
                               className={`w-9 h-9 border rounded-xl text-xs font-medium transition-all flex items-center justify-center relative ${
-                                isSelected ? "border-black bg-black text-white scale-105" : "border-gray-200 hover:border-black text-gray-700 bg-white"
+                                isSelected ? "border-black bg-black text-white scale-105" : isOutOfStock ? "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed opacity-50" : "border-gray-200 hover:border-black text-gray-700 bg-white"
                               }`}
                             >
                               {sizeName}
+                              {isOutOfStock && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" /></div>}
                             </button>
                           );
                         })}
@@ -389,7 +397,7 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
                     }`}>
                       {allProductSizes.map((sizeName) => {
                         const isSelected = isPant ? selectedPantSize === sizeName : isShoe ? selectedShoeSize === sizeName : selectedShirtSize === sizeName;
-                        const stockVal = product.pantStock?.[sizeName] ?? product.shirtStock?.[sizeName] ?? product.shoeStock?.[sizeName] ?? 10;
+                        const stockVal = product.shirtStock?.[sizeName] ?? product.pantStock?.[sizeName] ?? product.shoeStock?.[sizeName] ?? 0;
                         const isOutOfStock = Number(stockVal) === 0;
                         return (
                           <button
@@ -406,6 +414,7 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
                             }`}
                           >
                             {sizeName}
+                            {isOutOfStock && <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><div className="w-[80%] h-[1px] bg-red-400/40 rotate-45" /></div>}
                           </button>
                         );
                       })}

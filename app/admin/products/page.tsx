@@ -5,7 +5,7 @@ import { Product, getProductSizes } from '@/lib/data/products';
 import { repo, MockCoupon } from '@/lib/repositories';
 import {
   Plus, X, Trash2, Tag, ShoppingBag, DollarSign, Upload,
-  Star, TrendingUp, Sparkles, Zap, RefreshCw, Search, Check, Edit2, Layers
+  Star, TrendingUp, Sparkles, Zap, RefreshCw, Search, Check, Edit2, Layers, Package
 } from 'lucide-react';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useDispatch } from 'react-redux';
@@ -97,6 +97,7 @@ export default function AdminProductsPage() {
   
   // Primary Array-Based Sizes State (e.g., ["S", "M", "L", "XL"])
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [sizeStockInputs, setSizeStockInputs] = useState<Record<string, number>>({});
   const [overallStockInput, setOverallStockInput] = useState<number>(0);
   
   const [imagesList, setImagesList] = useState<string[]>([]);
@@ -188,9 +189,37 @@ export default function AdminProductsPage() {
   }, [imageColors]);
 
   const toggleSize = (size: string) => {
-    setSelectedSizes((prev) =>
-      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]
-    );
+    setSelectedSizes((prev) => {
+      const isSelected = prev.includes(size);
+      if (isSelected) {
+        setSizeStockInputs((stockPrev) => {
+          const next = { ...stockPrev };
+          delete next[size];
+          return next;
+        });
+        return prev.filter((s) => s !== size);
+      } else {
+        setSizeStockInputs((stockPrev) => ({
+          ...stockPrev,
+          [size]: stockPrev[size] !== undefined ? stockPrev[size] : 0,
+        }));
+        return [...prev, size];
+      }
+    });
+  };
+
+  const addPresetSizes = (presetSizes: string[]) => {
+    setSelectedSizes((prev) => {
+      const combined = Array.from(new Set([...prev, ...presetSizes]));
+      setSizeStockInputs((stockPrev) => {
+        const next = { ...stockPrev };
+        presetSizes.forEach((s) => {
+          if (next[s] === undefined) next[s] = 0;
+        });
+        return next;
+      });
+      return combined;
+    });
   };
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
@@ -294,6 +323,7 @@ export default function AdminProductsPage() {
     setDescription('');
     setLabel('');
     setSelectedSizes([]);
+    setSizeStockInputs({});
     setOverallStockInput(0);
     setImagesList([]);
     setIsNewArrival(false);
@@ -319,9 +349,15 @@ export default function AdminProductsPage() {
     setDescription(product.description);
     setLabel(product.label || '');
     
-    // Load array-based sizes
+    // Load array-based sizes & size-wise stocks
     const sizes = getProductSizes(product);
     setSelectedSizes(sizes);
+    const initialStockMap: Record<string, number> = {};
+    sizes.forEach((s) => {
+      const stockVal = product.shirtStock?.[s] ?? product.pantStock?.[s] ?? product.shoeStock?.[s] ?? 0;
+      initialStockMap[s] = Number(stockVal);
+    });
+    setSizeStockInputs(initialStockMap);
     setOverallStockInput(product.overallStock || 0);
 
     setImagesList(product.images || []);
@@ -364,15 +400,33 @@ export default function AdminProductsPage() {
 
     const uniqueColors = Array.from(new Set(imageColors.filter(Boolean)));
 
-    // Construct legacy stock objects for backwards compatibility
+    // Construct size-wise stock objects
     const shirtStock: Record<string, number> = {};
     const pantStock: Record<string, number> = {};
     const shoeStock: Record<string, number> = {};
+    let calculatedTotal = 0;
+
     selectedSizes.forEach((s) => {
-      if (SHIRT_SIZES.includes(s)) shirtStock[s] = 10;
-      if (PANT_SIZES.includes(s)) pantStock[s] = 10;
-      if (SHOE_SIZES.includes(s)) shoeStock[s] = 10;
+      const qty = Math.max(0, Math.floor(Number(sizeStockInputs[s] ?? 0)));
+      calculatedTotal += qty;
+
+      if (SHIRT_SIZES.includes(s)) {
+        shirtStock[s] = qty;
+      }
+      if (PANT_SIZES.includes(s)) {
+        pantStock[s] = qty;
+      }
+      if (SHOE_SIZES.includes(s)) {
+        shoeStock[s] = qty;
+      }
+      if (!SHIRT_SIZES.includes(s) && !PANT_SIZES.includes(s) && !SHOE_SIZES.includes(s)) {
+        if (isPantCat(category)) pantStock[s] = qty;
+        else if (isShoeCat(category)) shoeStock[s] = qty;
+        else shirtStock[s] = qty;
+      }
     });
+
+    const finalOverallStock = selectedSizes.length > 0 ? calculatedTotal : (overallStockInput || 0);
 
     return {
       id,
@@ -397,14 +451,14 @@ export default function AdminProductsPage() {
       shirtStock,
       pantStock,
       shoeStock,
-      overallStock: overallStockInput || (selectedSizes.length * 10),
+      overallStock: finalOverallStock,
       brand: brand || 'GR STYLES',
       rating: 5.0,
       reviews: 0,
       isNew: isNewArrival,
       bestSeller: isTrending,
-      inStock: selectedSizes.length > 0 || overallStockInput > 0,
-      stockCount: selectedSizes.length * 10 || overallStockInput || 0,
+      inStock: finalOverallStock > 0,
+      stockCount: finalOverallStock,
       metadata: {
         dealOfDay: isDealOfDay || isComboOffer,
         comboOffer: isComboOffer || isDealOfDay,
@@ -446,10 +500,24 @@ export default function AdminProductsPage() {
       }
     }
 
-    // Size Validation
+    // Size & Stock Validation
     if (selectedSizes.length === 0 && overallStockInput === 0) {
-      dispatch(addToast({ message: 'Please select at least one available size for this product.', type: 'error' }));
+      dispatch(addToast({ message: 'Please select at least one available size and specify stock for this product.', type: 'error' }));
       return;
+    }
+
+    if (selectedSizes.length > 0) {
+      for (const s of selectedSizes) {
+        const val = sizeStockInputs[s];
+        if (val === undefined || val === null || isNaN(Number(val)) || Number(val) < 0) {
+          dispatch(addToast({ message: `Please enter a valid non-negative stock quantity for size ${s}.`, type: 'error' }));
+          return;
+        }
+        if (!Number.isInteger(Number(val))) {
+          dispatch(addToast({ message: `Stock quantity for size ${s} must be a whole number.`, type: 'error' }));
+          return;
+        }
+      }
     }
 
     const tempId = editingId || `p-${Date.now()}`;
@@ -884,28 +952,28 @@ export default function AdminProductsPage() {
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setSelectedSizes(Array.from(new Set([...selectedSizes, ...SHIRT_SIZES])))}
+                      onClick={() => addPresetSizes(SHIRT_SIZES)}
                       className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all active:scale-95"
                     >
                       + Shirt Sizes
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSelectedSizes(Array.from(new Set([...selectedSizes, ...PANT_SIZES])))}
+                      onClick={() => addPresetSizes(PANT_SIZES)}
                       className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all active:scale-95"
                     >
                       + Pant Sizes
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSelectedSizes(Array.from(new Set([...selectedSizes, ...SHOE_SIZES])))}
+                      onClick={() => addPresetSizes(SHOE_SIZES)}
                       className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all active:scale-95"
                     >
                       + Shoe Sizes
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSelectedSizes([])}
+                      onClick={() => { setSelectedSizes([]); setSizeStockInputs({}); }}
                       className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold rounded-lg uppercase tracking-wider transition-all active:scale-95"
                     >
                       Clear All
@@ -1024,6 +1092,53 @@ export default function AdminProductsPage() {
                         onChange={(e) => setOverallStockInput(parseInt(e.target.value, 10) || 0)}
                         className="w-40 border border-gray-300 rounded-xl text-xs px-4 py-2.5 bg-white focus:border-black focus:ring-1 focus:ring-black focus:outline-none font-mono font-semibold"
                       />
+                    </div>
+                  )}
+
+                  {/* Dynamic Stock Inputs for Selected Sizes */}
+                  {selectedSizes.length > 0 && (
+                    <div className="pt-4 border-t border-gray-200 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <Package size={14} className="text-black" /> Size-wise Stock Management
+                        </label>
+                        <span className="text-xs font-bold text-gray-700 font-mono bg-gray-100 px-2 py-0.5 rounded-md">
+                          Total: {Object.values(sizeStockInputs).reduce((a, b) => a + (Number(b) || 0), 0)} units
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400">
+                        Specify the available inventory quantity for each selected size.
+                      </p>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        {selectedSizes.map((size) => {
+                          const stockVal = sizeStockInputs[size] !== undefined ? sizeStockInputs[size] : 0;
+                          return (
+                            <div key={`stock-input-${size}`} className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-2.5 shadow-2xs hover:border-black focus-within:border-black transition-colors">
+                              <span className="text-xs font-bold text-gray-900 font-mono">{size}</span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] font-semibold text-gray-400 uppercase">Stock:</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  required
+                                  value={stockVal}
+                                  onChange={(e) => {
+                                    const parsed = parseInt(e.target.value, 10);
+                                    const cleanVal = isNaN(parsed) ? 0 : Math.max(0, parsed);
+                                    setSizeStockInputs((prev) => ({
+                                      ...prev,
+                                      [size]: cleanVal,
+                                    }));
+                                  }}
+                                  className="w-16 px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono font-bold text-right focus:outline-none focus:border-black focus:bg-white"
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
@@ -1214,16 +1329,24 @@ export default function AdminProductsPage() {
                         )}
                       </td>
                       <td className="p-4">
-                        <div className="flex flex-wrap gap-1 max-w-[220px]">
+                        <div className="flex flex-wrap gap-1 max-w-[240px]">
                           {productSizes.length > 0 ? (
-                            productSizes.map((s) => (
-                              <span
-                                key={s}
-                                className="bg-black text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-2xs font-mono"
-                              >
-                                {s}
-                              </span>
-                            ))
+                            productSizes.map((s) => {
+                              const stockVal = product.shirtStock?.[s] ?? product.pantStock?.[s] ?? product.shoeStock?.[s] ?? 0;
+                              const isZero = Number(stockVal) === 0;
+                              return (
+                                <span
+                                  key={s}
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md font-mono flex items-center gap-1 ${
+                                    isZero ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-black text-white'
+                                  }`}
+                                  title={`${s}: ${stockVal} units in stock`}
+                                >
+                                  <span>{s}:</span>
+                                  <span>{stockVal}</span>
+                                </span>
+                              );
+                            })
                           ) : (
                             <span className="text-red-500 font-bold text-[10px] uppercase">Out of Stock</span>
                           )}
