@@ -15,6 +15,7 @@ export interface Product {
   slug: string;
   category: string;
   collection?: string;
+  collections?: string[];
   images: string[];
   color: string;
   mrpPrice: number;
@@ -42,6 +43,13 @@ export interface Product {
   metadata?: ProductMetadata;
   coupons?: string[];
   imageColors?: { image_url: string; color_name: string; display_order: number }[];
+  deliveryChargeEnabled?: boolean;
+  deliveryCharge?: number;
+  delivery_charge_enabled?: boolean;
+  delivery_charge?: number;
+  couponApplicable?: boolean;
+  is_coupon_applicable?: boolean;
+  coupon_applicable?: boolean;
 }
 
 /**
@@ -163,6 +171,8 @@ export const productDatabase: Record<string, Product> = {
     slug: 'beige-korean-shirt',
     brand: 'GR SHIRTS',
     category: 'Shirts',
+    collection: 'Insta Viral Collection',
+    collections: ['Insta Viral Collection', 'Korean Collection'],
     mrpPrice: 2799,
     price: 2799,
     sellingPrice: 1899,
@@ -338,6 +348,8 @@ export const productDatabase: Record<string, Product> = {
     slug: 'black-oversized-tshirt',
     brand: 'GR TEES',
     category: 'T-Shirts',
+    collection: 'Insta Viral Collection',
+    collections: ['Insta Viral Collection'],
     mrpPrice: 1499,
     price: 1499,
     sellingPrice: 999,

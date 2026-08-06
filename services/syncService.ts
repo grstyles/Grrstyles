@@ -183,7 +183,7 @@ export const syncService = {
             updated_at: new Date().toISOString(),
           })
           .eq('id', existing.id);
-        if (error) console.error('Error updating cart item in DB:', error.message);
+        if (error) console.warn('Cart item update note:', error.message || error);
       } else {
         const { error } = await sb()!
           .from('cart_items')
@@ -199,10 +199,10 @@ export const syncService = {
             updated_at: new Date().toISOString(),
           });
         if (error) {
-          if (error.code === '42703' || error.message.includes('Could not find')) {
+          if (error.code === '42703' || (error.message && error.message.includes('Could not find'))) {
             console.error('CRITICAL DB ERROR: The cart_items table is missing required columns (shirt_size, pant_size, etc.). Please run the final_combo_migration.sql!');
           } else {
-            console.error('Error inserting cart item to DB:', error.message);
+            console.warn('Cart item insert note:', error.message || error);
           }
         }
       }
@@ -210,7 +210,7 @@ export const syncService = {
       if (e?.code === '42703' || e?.message?.includes('Could not find')) {
         console.error('CRITICAL DB ERROR: The cart_items table is missing required columns. Please run final_combo_migration.sql!');
       } else {
-        console.error('Error syncing cart item:', e);
+        console.warn('Cart item sync notice:', e?.message || e);
       }
     }
   },

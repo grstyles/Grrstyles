@@ -65,6 +65,18 @@ const categories = [
   { id: "trousers", label: "Trousers", icon: "👖" },
   { id: "denim-jeans", label: "Denim Jeans", icon: "👖" },
   { id: "shoes", label: "Shoes", icon: "👟" },
+  { id: "deal-of-the-day", label: "Deal of the Day", icon: "🔥" },
+  { id: "insta-viral-collections", label: "Insta Viral Collection", icon: "🚀" },
+  { id: "traditional-collections", label: "Traditional Collection", icon: "🪔" },
+  { id: "korean-collections", label: "Korean Collection", icon: "🇰🇷" },
+  { id: "trending-collections", label: "Trending Collection", icon: "⚡" },
+  { id: "new-arrivals", label: "New Arrivals", icon: "✨" },
+  { id: "best-sellers", label: "Best Sellers", icon: "🏆" },
+  { id: "premium-collection", label: "Premium Collection", icon: "💎" },
+  { id: "featured-collection", label: "Featured Collection", icon: "🌟" },
+  { id: "festival-collections", label: "Festive Collection", icon: "🎉" },
+  { id: "seasonal-collection", label: "Seasonal Collection", icon: "🍂" },
+  { id: "combo-offers", label: "Combo Offers", icon: "🎁" },
 ];
 
 const subCategories: Record<string, string[]> = {

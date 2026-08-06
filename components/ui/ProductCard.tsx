@@ -71,6 +71,11 @@ export default function ProductCard({ product }: ProductCardProps) {
         quantity: 1,
         color: defaultColor,
         sku: product.sku,
+        deliveryChargeEnabled: product.deliveryChargeEnabled ?? product.delivery_charge_enabled ?? false,
+        deliveryCharge: product.deliveryCharge ?? product.delivery_charge ?? 0,
+        couponApplicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
+        is_coupon_applicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
+        coupon_applicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
       })
     );
 

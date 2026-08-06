@@ -113,6 +113,13 @@ export async function POST(req: Request) {
       (s: number, i: any) => s + (i.sellingPrice ?? i.discountedPrice ?? i.price ?? 0) * i.quantity,
       0
     );
+    const eligibleSubtotal = items.reduce(
+      (s: number, i: any) => {
+        const isApplicable = i.couponApplicable !== false && i.is_coupon_applicable !== false && i.coupon_applicable !== false;
+        return isApplicable ? s + (i.sellingPrice ?? i.discountedPrice ?? i.price ?? 0) * i.quantity : s;
+      },
+      0
+    );
 
     let couponAudit: {
       coupon_id?: string | null;
@@ -124,11 +131,11 @@ export async function POST(req: Request) {
     } = {};
 
     const cCode = orderPayload.couponCode;
-    if (cCode) {
+    if (cCode && items.length > 0) {
       try {
         const { data: couponRow } = await supabase
           .from('coupons')
-          .select('*')
+          .select('*, product_coupons(product_id)')
           .eq('code', cCode.toUpperCase().trim())
           .maybeSingle();
 
@@ -148,10 +155,13 @@ export async function POST(req: Request) {
             endDate: couponRow.expiry_date || couponRow.end_date,
             usageLimit: couponRow.usage_limit != null ? Number(couponRow.usage_limit) : null,
             usageCount: Number(couponRow.used_count ?? couponRow.usage_count ?? 0),
+            applicableProducts: couponRow.product_coupons?.map((pc: any) => pc.product_id) || [],
+            applicableCategories: couponRow.applicable_categories || [],
             firstOrderOnly: Boolean(couponRow.first_order_only),
+            excludeSaleProducts: Boolean(couponRow.exclude_sale_products),
           };
 
-          const res = validateAndCalculateCoupon(couponObj as any, calculatedSubtotal, { userId });
+          const res = validateAndCalculateCoupon(couponObj as any, items, { userId });
           if (res.valid) {
             couponAudit = {
               coupon_id: couponRow.id || null,

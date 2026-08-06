@@ -72,14 +72,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   if (isSupabaseConfigured() && supabase) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[AuthProvider] Auth event:', event, session?.user?.email);
-      if (event === 'SIGNED_IN' && session?.user) {
-        // Refresh user profile after sign‑in
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED') && session?.user) {
+        // Silently update user profile on auth state change/refresh without resetting route
         const currentUser = await authService.getCurrentUser();
         setUser(currentUser);
         console.log('[AuthProvider] User set:', currentUser?.email);
-        if (pathname === '/login' || pathname === '/auth/callback') {
-          router.replace('/');
-        }
       } else if (event === 'SIGNED_OUT') {
         console.log('[AuthProvider] User signed out');
         setUser(null);
@@ -166,12 +163,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const requireAuth = React.useCallback((action: (user?: UserProfile) => void, onClose?: () => void) => {
+    if (loading) {
+      return;
+    }
     if (user) {
       action(user);
     } else {
       openAuthModal(action, onClose);
     }
-  }, [user]);
+  }, [user, loading]);
 
   return (
     <AuthContext.Provider

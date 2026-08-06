@@ -163,14 +163,26 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
       const { data: { user }, error: userError } = await authClient.auth.getUser();
       
       if (userError || !user) {
-        console.error('[getUser] Error:', userError?.message);
+        const msg = userError?.message || '';
+        const isJwtError = msg.toLowerCase().includes('jwt') || msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('token');
+        
+        if (isJwtError) {
+          console.warn('[getUser] Stale or expired token detected. Clearing local session.');
+          try {
+            await authClient.auth.signOut({ scope: 'local' });
+          } catch (e) {
+            // Ignore signout error on expired session
+          }
+        } else if (userError) {
+          console.warn('[getUser] Could not fetch user:', msg);
+        }
         return null;
       }
 
       console.log('[getUser] User found:', user.email);
       return await this.buildUserProfile(user, authClient);
-    } catch (error) {
-      console.error('[getUser] Error:', error);
+    } catch (error: any) {
+      console.warn('[getUser] Exception:', error?.message || error);
       return null;
     }
   }

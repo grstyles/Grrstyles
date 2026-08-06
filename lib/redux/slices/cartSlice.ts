@@ -17,6 +17,13 @@ export interface CartItem {
   selected?: boolean;
   custom_images?: { image_url: string; color_name: string }[];
   sku?: string;
+  deliveryChargeEnabled?: boolean;
+  deliveryCharge?: number;
+  delivery_charge_enabled?: boolean;
+  delivery_charge?: number;
+  couponApplicable?: boolean;
+  is_coupon_applicable?: boolean;
+  coupon_applicable?: boolean;
 }
 
 export interface Reward {

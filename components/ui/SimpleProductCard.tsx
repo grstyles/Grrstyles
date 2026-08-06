@@ -74,6 +74,9 @@ export default function SimpleProductCard({ product }: SimpleProductCardProps) {
           quantity: 1,
           size: "One Size",
           color: defaultColor,
+          couponApplicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
+          is_coupon_applicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
+          coupon_applicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
         })
       );
       dispatch(addToast({ message: `${productName} added to cart! 🛒`, type: "success" }));
@@ -104,6 +107,9 @@ export default function SimpleProductCard({ product }: SimpleProductCardProps) {
           quantity: 1,
           size: "One Size",
           color: defaultColor,
+          couponApplicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
+          is_coupon_applicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
+          coupon_applicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
         })
       );
       dispatch(addToast({ message: `Order placed for ${productName}! 🎉`, type: "success" }));

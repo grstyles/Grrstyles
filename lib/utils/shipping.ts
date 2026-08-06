@@ -6,6 +6,10 @@ export interface CartItemLike {
   sellingPrice?: number;
   originalPrice?: number;
   quantity: number;
+  deliveryChargeEnabled?: boolean;
+  deliveryCharge?: number;
+  delivery_charge_enabled?: boolean;
+  delivery_charge?: number;
 }
 
 export interface OrderPricingBreakdown {
@@ -18,8 +22,8 @@ export interface OrderPricingBreakdown {
 
 /**
  * Centralized shipping & order total calculation.
- * This is the single source of truth used by Checkout,
- * Razorpay Order API, COD API, and Order Verification.
+ * Single source of truth supporting both product-level custom delivery charges
+ * and global shipping settings.
  */
 export function calculateOrderTotals(
   items: CartItemLike[],
@@ -57,24 +61,42 @@ export function calculateOrderTotals(
     };
   }
 
-  // Shipping calculation
-  let shipping = 0;
+  // Product-Level & Global Shipping Calculation
+  let customShippingTotal = 0;
+  let hasGlobalShippingItems = false;
 
-  // Global free delivery
-  if (shippingCfg.freeDelivery) {
-    shipping = 0;
+  for (const item of items) {
+    const isCustomEnabled = Boolean(
+      item.deliveryChargeEnabled ?? item.delivery_charge_enabled ?? false
+    );
+
+    if (isCustomEnabled) {
+      const customCharge = Math.max(
+        0,
+        Number(item.deliveryCharge ?? item.delivery_charge ?? 0)
+      );
+      customShippingTotal += customCharge * (item.quantity || 1);
+    } else {
+      hasGlobalShippingItems = true;
+    }
   }
-  // Free shipping above threshold
-  else if (
-    (shippingCfg.freeShippingAbove ?? 0) > 0 &&
-    subtotal >= (shippingCfg.freeShippingAbove ?? 0)
-  ) {
-    shipping = 0;
+
+  let globalShippingTotal = 0;
+
+  if (hasGlobalShippingItems) {
+    if (shippingCfg.freeDelivery) {
+      globalShippingTotal = 0;
+    } else if (
+      (shippingCfg.freeShippingAbove ?? 0) > 0 &&
+      subtotal >= (shippingCfg.freeShippingAbove ?? 0)
+    ) {
+      globalShippingTotal = 0;
+    } else {
+      globalShippingTotal = Number(shippingCfg.shippingCharge ?? 0);
+    }
   }
-  // Normal shipping charge
-  else {
-    shipping = Number(shippingCfg.shippingCharge ?? 0);
-  }
+
+  const shipping = customShippingTotal + globalShippingTotal;
 
   // Tax (currently disabled)
   const tax = 0;
@@ -88,6 +110,9 @@ export function calculateOrderTotals(
   console.table({
     subtotal,
     discount: couponDiscount,
+    customShippingTotal,
+    globalShippingTotal,
+    hasGlobalShippingItems,
     shippingCharge: shippingCfg.shippingCharge,
     freeShippingAbove: shippingCfg.freeShippingAbove,
     freeDelivery: shippingCfg.freeDelivery,

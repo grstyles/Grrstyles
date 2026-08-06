@@ -128,6 +128,11 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
           shoeSize: isShoe ? (selectedShoeSize || undefined) : undefined,
           color: selectedColor || undefined,
           sku: product.sku || undefined,
+          deliveryChargeEnabled: product.deliveryChargeEnabled ?? product.delivery_charge_enabled ?? false,
+          deliveryCharge: product.deliveryCharge ?? product.delivery_charge ?? 0,
+          couponApplicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
+          is_coupon_applicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
+          coupon_applicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
         })
       );
 
@@ -196,6 +201,11 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
           shoeSize: isShoe ? (selectedShoeSize || undefined) : undefined,
           color: selectedColor || undefined,
           sku: product.sku || undefined,
+          deliveryChargeEnabled: product.deliveryChargeEnabled ?? product.delivery_charge_enabled ?? false,
+          deliveryCharge: product.deliveryCharge ?? product.delivery_charge ?? 0,
+          couponApplicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
+          is_coupon_applicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
+          coupon_applicable: product.couponApplicable !== false && product.is_coupon_applicable !== false && product.coupon_applicable !== false,
         })
       );
 

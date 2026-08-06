@@ -98,8 +98,13 @@ interface ShippingConfig {
   freeDelivery?: boolean;
 }
 
+import { autoApplyBestCoupon, validateCurrentCartCoupon } from '@/lib/utils/couponHelper';
+import { validateAndCalculateCoupon } from '@/lib/utils/couponEngine';
+import { useAuth } from '@/lib/context/AuthContext';
+
 export default function CartPage() {
   const dispatch = useDispatch();
+  const { user } = useAuth();
 
   useEffect(() => {
     // Clear any Buy Now items when visiting the normal cart
@@ -116,8 +121,6 @@ export default function CartPage() {
 
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
-  // Initialise with freeDelivery=true / charge=0 so we don't flash a wrong
-  // shipping fee before the API responds.
   const [shippingConfig, setShippingConfig] = useState<ShippingConfig>({
     shippingCharge: 80,
     freeShippingAbove: 2000,
@@ -125,14 +128,12 @@ export default function CartPage() {
   });
 
   useEffect(() => {
-    // Use the dedicated public shipping route (service-role key, bypasses RLS).
     fetch('/api/shipping')
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then((cfg) => {
-        console.log('[Cart] Shipping settings loaded:', cfg);
         setShippingConfig({
           shippingCharge: Number(cfg.shippingCharge ?? 0),
           freeShippingAbove: Number(cfg.freeShippingAbove ?? 0),
@@ -144,11 +145,19 @@ export default function CartPage() {
       });
   }, []);
 
-  // Memoized calculations for performance
   const selectedItems = useMemo(() => 
     cartItems.filter(item => item.selected !== false),
     [cartItems]
   );
+
+  // Authoritative Coupon Re-validation Effect on Cart Changes
+  useEffect(() => {
+    if (selectedItems.length > 0) {
+      if (appliedCode) {
+        validateCurrentCartCoupon(appliedCode, selectedItems as any, dispatch, user?.id, user?.email, true);
+      }
+    }
+  }, [appliedCode, selectedItems, user, dispatch]);
 
   const subtotal = useMemo(() => 
     selectedItems.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0),
@@ -160,7 +169,6 @@ export default function CartPage() {
     [cartItems]
   );
 
-  // Centralized totals calculation (single source of truth)
   const promoDiscountValue = useMemo(() => 
     discountType === 'percentage' 
       ? Math.round((subtotal * discountValue) / 100) 
@@ -202,16 +210,38 @@ export default function CartPage() {
       return;
     }
 
+    if (selectedItems.length === 0) {
+      setPromoError('Please select items in your cart to apply a coupon.');
+      return;
+    }
+
     try {
-      const productIds = cartItems.flatMap(item => [item.id, item.slug, item.sku].filter(Boolean) as string[]);
-      const result = await repo.coupons.apply(code, { subtotal, productIds });
-      if (result.valid) {
-        dispatch(applyPromo({ code, discountValue: result.discountValue, discountType: result.discountType }));
-        setPromoError('');
-        dispatch(addToast({ message: result.message, type: 'success' }));
+      const allCoupons = await repo.coupons.getAll();
+      const matched = allCoupons.find((c) => c.code.toUpperCase().trim() === code);
+
+      if (matched) {
+        const result = validateAndCalculateCoupon(matched, selectedItems as any, { userId: user?.id, userEmail: user?.email });
+        if (result.valid) {
+          dispatch(applyPromo({ code: result.code, discountValue: result.discountValue, discountType: result.discountType === 'percentage' ? 'percentage' : 'flat' }));
+          setPromoError('');
+          dispatch(addToast({ message: result.message, type: 'success' }));
+          setPromoCode('');
+        } else {
+          setPromoError(result.message);
+          dispatch(addToast({ message: result.message, type: 'error' }));
+        }
       } else {
-        setPromoError(result.message);
-        dispatch(addToast({ message: result.message, type: 'error' }));
+        const productIds = selectedItems.flatMap(item => [item.id, item.slug, item.sku].filter(Boolean) as string[]);
+        const result = await repo.coupons.apply(code, { subtotal, productIds });
+        if (result.valid) {
+          dispatch(applyPromo({ code, discountValue: result.discountValue, discountType: result.discountType }));
+          setPromoError('');
+          dispatch(addToast({ message: result.message, type: 'success' }));
+          setPromoCode('');
+        } else {
+          setPromoError(result.message);
+          dispatch(addToast({ message: result.message, type: 'error' }));
+        }
       }
     } catch {
       setPromoError('Could not validate coupon. Please try again.');
@@ -518,7 +548,7 @@ export default function CartPage() {
                     {shippingConfig.freeDelivery ? 'Free Delivery Applied' : 'Free Shipping Applied'}
                   </p>
                 )}
-                {shipping > 0 && !shippingConfig.freeDelivery && (
+                {shipping > 0 && !shippingConfig.freeDelivery && shippingConfig.freeShippingAbove > 0 && subtotal < shippingConfig.freeShippingAbove && (
                   <p className="text-sm text-gray-600 mt-1">
                     Add {formatPrice(shippingConfig.freeShippingAbove - subtotal)} more for free standard delivery.
                   </p>

@@ -58,18 +58,24 @@ export async function POST(req: Request) {
         pantSize: item.pantSize,
         shoeSize: item.shoeSize,
         color: item.color,
+        deliveryChargeEnabled: product.deliveryChargeEnabled ?? (product as any).delivery_charge_enabled ?? item.deliveryChargeEnabled ?? item.delivery_charge_enabled ?? false,
+        deliveryCharge: product.deliveryCharge ?? (product as any).delivery_charge ?? item.deliveryCharge ?? item.delivery_charge ?? 0,
+        couponApplicable: product.couponApplicable !== false && (product as any).is_coupon_applicable !== false && (product as any).coupon_applicable !== false && item.couponApplicable !== false,
       };
     });
 
     const calculatedSubtotal = itemsForCalculation.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+    const eligibleSubtotal = itemsForCalculation.reduce((sum, item) => {
+      return item.couponApplicable !== false ? sum + item.discountedPrice * item.quantity : sum;
+    }, 0);
 
     // Apply coupon if provided using dual coupon engine
     let discount = 0;
-    if (couponCode) {
+    if (couponCode && itemsForCalculation.length > 0) {
       try {
         const { data: couponRow } = await supabase
           .from('coupons')
-          .select('*')
+          .select('*, product_coupons(product_id)')
           .eq('code', couponCode.toUpperCase().trim())
           .maybeSingle();
 
@@ -89,10 +95,13 @@ export async function POST(req: Request) {
             endDate: couponRow.expiry_date || couponRow.end_date,
             usageLimit: couponRow.usage_limit != null ? Number(couponRow.usage_limit) : null,
             usageCount: Number(couponRow.used_count ?? couponRow.usage_count ?? 0),
+            applicableProducts: couponRow.product_coupons?.map((pc: any) => pc.product_id) || [],
+            applicableCategories: couponRow.applicable_categories || [],
             firstOrderOnly: Boolean(couponRow.first_order_only),
+            excludeSaleProducts: Boolean(couponRow.exclude_sale_products),
           };
 
-          const res = validateAndCalculateCoupon(couponObj as any, calculatedSubtotal, { userId });
+          const res = validateAndCalculateCoupon(couponObj as any, itemsForCalculation, { userId });
           if (res.valid) {
             discount = res.calculatedDiscount;
           }

@@ -79,7 +79,7 @@ export default function Navbar() {
 
   const navLinks = [
     { name: 'NEW IN', href: '/new-in' },
-    { name: 'MEN', href: '/men' },
+    { name: 'SHOP', href: '/men' },
     { name: 'COLLECTIONS', href: '/collections' },
     { name: 'SALE', href: '/sale' },
     { name: 'CONTACT', href: '/contact' },

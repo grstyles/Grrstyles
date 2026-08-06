@@ -44,7 +44,10 @@ type StockData = {
 
 export class SupabaseProductRepository implements IProductRepository {
   async getAll(): Promise<Product[]> {
-    const productsRes = await sb().from('products').select('*').order('created_at', { ascending: false });
+    const productsRes = await sb()
+      .from('products')
+      .select('*, product_coupons(coupon_code)')
+      .order('created_at', { ascending: false });
     if (productsRes.error) throw productsRes.error;
     return (productsRes.data || []).map((p: any) => mapDbProduct(p));
   }
@@ -67,7 +70,7 @@ export class SupabaseProductRepository implements IProductRepository {
   async getBySlug(slug: string): Promise<Product | null> {
     const { data, error } = await sb()
       .from('products')
-      .select('*')
+      .select('*, product_coupons(coupon_code)')
       .eq('slug', slug)
       .maybeSingle();
     if (error) throw error;
@@ -120,12 +123,16 @@ export class SupabaseProductRepository implements IProductRepository {
     
     const finalSlug = await this.generateUniqueSlug(product.slug || product.name);
 
-    const mapped = {
+    const colVal = (Array.isArray(product.collections) && product.collections.length > 0)
+      ? product.collections.join(', ')
+      : (product.collection || '');
+
+    const mapped: any = {
       sku: product.sku,
       name: product.name,
       slug: finalSlug,
       category: normalizeCategory(product.category),
-      collection: product.collection ? normalizeCollection(product.collection) : '',
+      collection: colVal,
       images: product.images,
       color: product.color || '',
       image_colors: (product as any).imageColors || null,
@@ -142,22 +149,39 @@ export class SupabaseProductRepository implements IProductRepository {
       new_arrival: product.isNew || false,
       deal_of_day: product.metadata?.dealOfDay || false,
       brand: product.brand || 'GR STYLES',
+      delivery_charge_enabled: product.deliveryChargeEnabled ?? product.delivery_charge_enabled ?? false,
+      delivery_charge: product.deliveryCharge ?? product.delivery_charge ?? 0,
+      is_coupon_applicable: product.couponApplicable !== false && (product as any).is_coupon_applicable !== false && (product as any).coupon_applicable !== false,
+      coupon_applicable: product.couponApplicable !== false && (product as any).is_coupon_applicable !== false && (product as any).coupon_applicable !== false,
     };
 
-    const { data, error } = await sb()
+    let { data, error } = await sb()
       .from('products')
       .insert(mapped)
       .select('*')
       .single();
       
     if (error) {
-      if (error.code === '23505' && error.message.includes('slug')) {
+      if (error.code === '23505' && error.message?.includes('slug')) {
         throw new Error('A product with this slug already exists. Please try a different name.');
       }
-      throw error;
+      if (error.message && (error.message.includes('delivery_charge') || error.message.includes('coupon_applicable') || error.message.includes('schema cache'))) {
+        console.warn('Database schema missing columns. Retrying without optional fields.');
+        const fallbackMapped = { ...mapped };
+        delete fallbackMapped.delivery_charge_enabled;
+        delete fallbackMapped.delivery_charge;
+        delete fallbackMapped.is_coupon_applicable;
+        delete fallbackMapped.coupon_applicable;
+        const fallbackRes = await sb().from('products').insert(fallbackMapped).select('*').single();
+        if (fallbackRes.error) throw fallbackRes.error;
+        data = fallbackRes.data;
+      } else {
+        throw error;
+      }
     }
 
-    if (data && product.coupons && product.coupons.length > 0) {
+    const isCouponEnabled = mapped.is_coupon_applicable;
+    if (data && isCouponEnabled && Array.isArray(product.coupons) && product.coupons.length > 0) {
       try {
         const pcRows = product.coupons.map((c: string) => ({
           product_id: data.id,
@@ -169,7 +193,11 @@ export class SupabaseProductRepository implements IProductRepository {
       }
     }
 
-    return data ? mapDbProduct(data) : null;
+    if (data) {
+      const createdWithCoupons = await this.getById(data.id);
+      return createdWithCoupons || mapDbProduct(data);
+    }
+    return null;
   }
 
   async update(id: string, updates: Partial<Product>): Promise<Product | null> {
@@ -183,7 +211,11 @@ export class SupabaseProductRepository implements IProductRepository {
     }
     
     if (updates.category) mapped.category = normalizeCategory(updates.category);
-    if (updates.collection !== undefined) mapped.collection = updates.collection ? normalizeCollection(updates.collection) : '';
+    if (updates.collections !== undefined && Array.isArray(updates.collections)) {
+      mapped.collection = updates.collections.join(', ');
+    } else if (updates.collection !== undefined) {
+      mapped.collection = updates.collection || '';
+    }
     if (updates.sellingPrice) mapped.selling_price = updates.sellingPrice;
     if (updates.mrpPrice) mapped.mrp = updates.mrpPrice;
     if (updates.sizes !== undefined) mapped.sizes = updates.sizes;
@@ -200,23 +232,52 @@ export class SupabaseProductRepository implements IProductRepository {
     if (updates.images) mapped.images = updates.images;
     if (updates.color !== undefined) mapped.color = updates.color;
     if ((updates as any).imageColors) mapped.image_colors = (updates as any).imageColors;
+    if (updates.deliveryChargeEnabled !== undefined || updates.delivery_charge_enabled !== undefined) {
+      mapped.delivery_charge_enabled = updates.deliveryChargeEnabled ?? updates.delivery_charge_enabled;
+    }
+    if (updates.deliveryCharge !== undefined || updates.delivery_charge !== undefined) {
+      mapped.delivery_charge = updates.deliveryCharge ?? updates.delivery_charge;
+    }
+    const cpVal = updates.couponApplicable ?? (updates as any).is_coupon_applicable ?? (updates as any).coupon_applicable;
+    let isCouponEnabled: boolean | undefined = undefined;
+    if (cpVal !== undefined) {
+      isCouponEnabled = Boolean(cpVal);
+      mapped.is_coupon_applicable = isCouponEnabled;
+      mapped.coupon_applicable = isCouponEnabled;
+    }
 
     console.log('[DEBUG SupabaseProvider Flow] 4. Payload sent to Supabase (update):', JSON.stringify(mapped.image_colors, null, 2));
 
-    const { data, error } = await sb()
+    let { data, error } = await sb()
       .from('products')
       .update(mapped)
       .eq('id', id)
       .select('*')
       .single();
-    if (error) throw error;
+
+    if (error) {
+      if (error.message && (error.message.includes('delivery_charge') || error.message.includes('coupon_applicable') || error.message.includes('schema cache'))) {
+        console.warn('Database schema missing columns. Retrying without optional fields.');
+        const fallbackMapped = { ...mapped };
+        delete fallbackMapped.delivery_charge_enabled;
+        delete fallbackMapped.delivery_charge;
+        delete fallbackMapped.is_coupon_applicable;
+        delete fallbackMapped.coupon_applicable;
+        const fallbackRes = await sb().from('products').update(fallbackMapped).eq('id', id).select('*').single();
+        if (fallbackRes.error) throw fallbackRes.error;
+        data = fallbackRes.data;
+      } else {
+        throw error;
+      }
+    }
     
     console.log('[DEBUG SupabaseProvider Flow] 5. Database row immediately after update:', JSON.stringify(data.image_colors, null, 2));
 
     if (data && updates.coupons !== undefined) {
       try {
         await sb().from('product_coupons').delete().eq('product_id', data.id);
-        if (updates.coupons.length > 0) {
+        const finalCouponEnabled = isCouponEnabled !== undefined ? isCouponEnabled : data.is_coupon_applicable !== false;
+        if (finalCouponEnabled && Array.isArray(updates.coupons) && updates.coupons.length > 0) {
           const pcRows = updates.coupons.map((c: string) => ({
             product_id: data.id,
             coupon_code: c
@@ -228,7 +289,11 @@ export class SupabaseProductRepository implements IProductRepository {
       }
     }
 
-    return data ? mapDbProduct(data) : null;
+    if (data) {
+      const updatedWithCoupons = await this.getById(data.id);
+      return updatedWithCoupons || mapDbProduct(data);
+    }
+    return null;
   }
 
   async delete(id: string): Promise<boolean> {
@@ -754,11 +819,36 @@ export class SupabaseCouponRepository implements ICouponRepository {
       usageLimit: data.usage_limit != null ? Number(data.usage_limit) : null,
       usagePerUser: data.usage_per_user != null ? Number(data.usage_per_user) : 1,
       usageCount: Number(data.used_count ?? data.usage_count ?? 0),
+      applicableProducts: data.product_coupons?.map((pc: any) => pc.product_id) || [],
+      applicableCategories: data.applicable_categories || [],
       firstOrderOnly: Boolean(data.first_order_only),
       excludeSaleProducts: Boolean(data.exclude_sale_products),
     };
 
-    const subtotal = validationData?.subtotal || 0;
+    let subtotal = validationData?.subtotal || 0;
+    if (validationData?.productIds && validationData.productIds.length > 0) {
+      try {
+        const { data: dbProds } = await sb()
+          .from('products')
+          .select('id, slug, sku, is_coupon_applicable, coupon_applicable')
+          .in('id', validationData.productIds);
+
+        if (dbProds && dbProds.length > 0) {
+          const nonApplicableIds = new Set(
+            dbProds
+              .filter((p: any) => p.is_coupon_applicable === false || p.coupon_applicable === false)
+              .flatMap((p: any) => [p.id, p.slug, p.sku].filter(Boolean))
+          );
+          const hasEligible = validationData.productIds.some(pid => !nonApplicableIds.has(pid));
+          if (!hasEligible) {
+            return { valid: false, discountValue: 0, discountType: 'percentage', message: 'None of the items in your cart are eligible for coupon discounts.' };
+          }
+        }
+      } catch (err) {
+        console.warn('Error checking product coupon applicability in apply():', err);
+      }
+    }
+
     const res = validateAndCalculateCoupon(couponObj, subtotal);
 
     return {

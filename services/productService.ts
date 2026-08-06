@@ -63,44 +63,72 @@ export function mapDbProduct(db: any, imageRows?: any[]): Product {
   // not a phantom 50 that disagrees with the inventory panel and Supabase.
   const overallStock = Number(db.overall_stock ?? 0);
 
-  const mappedProduct: Product = {
-    id: db.product_id || db.id,
-    productId: db.product_id || db.id,
-    sku: db.sku || '',
-    name: db.name ? db.name.trim() : '',
-    title: db.name ? db.name.trim() : '',
-    slug: db.slug ? db.slug.trim() : '',
-    category: db.category,
-    collection: db.collection || '',
-    images,
-    color: primaryColor,
-    colors,
-    imageColors,
-    mrpPrice: mrp,
-    price: mrp,
-    sellingPrice: selling,
-    discountedPrice: selling,
-    discountPercent: discount,
-    label: db.label || '',
-    description: db.description,
-    sizes,
-    shirtStock: db.shirt_stock ?? {},
-    pantStock: db.pant_stock ?? {},
-    shoeStock: db.shoe_stock ?? {},
-    overallStock,
-    brand: db.brand || 'GR STYLES',
-    rating: Number(db.rating || 5.0),
-    reviews: Number(db.reviews_count || 0),
-    isNew: !!db.new_arrival,
-    bestSeller: !!db.trending,
-    inStock: overallStock > 0,
-    stockCount: overallStock,
-    metadata: {
-      dealOfDay: !!(db.deal_of_day || db.deal_of_the_day),
-      featured: !!db.featured,
-      tags: db.tags || [],
-    },
-  };
+    const isCouponEnabled = db.is_coupon_applicable !== false && 
+      db.coupon_applicable !== false && 
+      db.is_coupon_applicable !== 0 && 
+      db.coupon_applicable !== 0;
+
+    let coupons: string[] = [];
+    if (isCouponEnabled) {
+      if (Array.isArray(db.product_coupons)) {
+        coupons = db.product_coupons.map((pc: any) => pc.coupon_code).filter(Boolean);
+      } else if (Array.isArray(db.coupons)) {
+        coupons = db.coupons;
+      }
+    }
+
+    const rawCollection = db.collection || '';
+    const parsedCollections = Array.isArray(db.collections)
+      ? db.collections
+      : (typeof rawCollection === 'string' && rawCollection ? rawCollection.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
+
+    const mappedProduct: Product = {
+      id: db.product_id || db.id,
+      productId: db.product_id || db.id,
+      sku: db.sku || '',
+      name: db.name ? db.name.trim() : '',
+      title: db.name ? db.name.trim() : '',
+      slug: db.slug ? db.slug.trim() : '',
+      category: db.category,
+      collection: rawCollection,
+      collections: parsedCollections,
+      images,
+      color: primaryColor,
+      colors,
+      imageColors,
+      mrpPrice: mrp,
+      price: mrp,
+      sellingPrice: selling,
+      discountedPrice: selling,
+      discountPercent: discount,
+      label: db.label || '',
+      description: db.description,
+      sizes,
+      shirtStock: db.shirt_stock ?? {},
+      pantStock: db.pant_stock ?? {},
+      shoeStock: db.shoe_stock ?? {},
+      overallStock,
+      brand: db.brand || 'GR STYLES',
+      rating: Number(db.rating || 5.0),
+      reviews: Number(db.reviews_count || 0),
+      isNew: !!db.new_arrival,
+      bestSeller: !!db.trending,
+      inStock: overallStock > 0,
+      stockCount: overallStock,
+      metadata: {
+        dealOfDay: !!(db.deal_of_day || db.deal_of_the_day || parsedCollections.some((c: string) => c.toLowerCase().includes('deal'))),
+        featured: !!db.featured,
+        tags: db.tags || [],
+      },
+      coupons,
+      deliveryChargeEnabled: db.delivery_charge_enabled === true || db.delivery_charge_enabled === 'true',
+      deliveryCharge: Number(db.delivery_charge || 0),
+      delivery_charge_enabled: db.delivery_charge_enabled === true || db.delivery_charge_enabled === 'true',
+      delivery_charge: Number(db.delivery_charge || 0),
+      couponApplicable: isCouponEnabled,
+      is_coupon_applicable: isCouponEnabled,
+      coupon_applicable: isCouponEnabled,
+    };
 
   return mappedProduct;
 }
@@ -171,12 +199,18 @@ export const productService = {
   },
 
   async createProduct(p: Product): Promise<Product | null> {
+    const finalCollection = Array.isArray(p.collections) && p.collections.length > 0
+      ? p.collections.join(', ')
+      : (p.collection || '');
+
+    const hasDealOfDay = p.metadata?.dealOfDay || (p.collections || []).some(c => c.toLowerCase().includes('deal'));
+
     const mapped: any = {
       sku: p.sku || `GR-${p.category.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`,
       name: p.name,
       slug: p.slug,
       category: p.category,
-      collection: p.collection || '',
+      collection: finalCollection,
       images: p.images,
       color: p.color || '',
 
@@ -192,7 +226,7 @@ export const productService = {
       featured: p.metadata?.featured || false,
       trending: p.bestSeller || false,
       new_arrival: p.isNew || false,
-      deal_of_day: p.metadata?.dealOfDay || false,
+      deal_of_day: hasDealOfDay || false,
       brand: p.brand || 'GR STYLES',
     };
 

@@ -5,11 +5,12 @@ import { Product, getProductSizes } from '@/lib/data/products';
 import { repo, MockCoupon } from '@/lib/repositories';
 import {
   Plus, X, Trash2, Tag, ShoppingBag, DollarSign, Upload,
-  Star, TrendingUp, Sparkles, Zap, RefreshCw, Search, Check, Edit2, Layers, Package
+  Star, TrendingUp, Sparkles, Zap, RefreshCw, Search, Check, Edit2, Layers, Package, Truck
 } from 'lucide-react';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useDispatch } from 'react-redux';
 import { formatPrice } from '@/lib/utils/helpers';
+import { COLLECTIONS } from '@/lib/config';
 import Image from 'next/image';
 
 const SHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
@@ -87,6 +88,8 @@ export default function AdminProductsPage() {
   const [sku, setSku] = useState('');
   const [category, setCategory] = useState('');
   const [collection, setCollection] = useState('');
+  const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
+  const [customCollectionInput, setCustomCollectionInput] = useState('');
   const [brand, setBrand] = useState('GR STYLES');
   const [tagsInput, setTagsInput] = useState('');
   const [color, setColor] = useState('');
@@ -111,6 +114,11 @@ export default function AdminProductsPage() {
   const [isFeatured, setIsFeatured] = useState(false);
   const [isDealOfDay, setIsDealOfDay] = useState(false);
   const [isComboOffer, setIsComboOffer] = useState(false);
+  const [isCouponApplicable, setIsCouponApplicable] = useState(true);
+
+  // Product Delivery Charge state
+  const [deliveryChargeEnabled, setDeliveryChargeEnabled] = useState(false);
+  const [deliveryCharge, setDeliveryCharge] = useState('0');
 
   // Manual Size Override Tab ('auto' | 'shirts' | 'pants' | 'shoes' | 'combo' | 'overall' | 'all')
   const [sizeTabOverride, setSizeTabOverride] = useState<'auto' | 'shirts' | 'pants' | 'shoes' | 'combo' | 'overall' | 'all'>('auto');
@@ -118,9 +126,20 @@ export default function AdminProductsPage() {
   const [availableCoupons, setAvailableCoupons] = useState<MockCoupon[]>([]);
   const [selectedCoupons, setSelectedCoupons] = useState<string[]>([]);
 
-  const dynamicCollections = Array.from(new Set(items.map(p => p.collection).filter(Boolean))) as string[];
+  const dynamicCollections = Array.from(
+    new Set(items.flatMap(p => p.collections || (p.collection ? p.collection.split(',').map(s => s.trim()) : [])).filter(Boolean))
+  ) as string[];
   
   const activeDbCategoryTitles = dbCategories.filter(c => c.enabled).map(c => c.title);
+  
+  const availableWebsiteCollections = Array.from(
+    new Set([
+      ...COLLECTIONS,
+      ...activeDbCategoryTitles,
+      ...dynamicCollections,
+      ...selectedCollections,
+    ])
+  ).filter(Boolean);
   const availableCategoryOptions = Array.from(new Set([
     ...activeDbCategoryTitles,
     ...(category ? [category] : [])
@@ -130,6 +149,40 @@ export default function AdminProductsPage() {
     ...dbCategories.map(c => c.title),
     ...items.map(p => p.category).filter(Boolean)
   ])).filter(Boolean);
+
+  const handleToggleCouponApplicable = (checked: boolean) => {
+    setIsCouponApplicable(checked);
+    if (!checked) {
+      // Clear coupon selection and reset state when coupon is disabled
+      setSelectedCoupons([]);
+    }
+  };
+
+  const toggleCollectionSelection = (collName: string) => {
+    setSelectedCollections((prev) => {
+      const exists = prev.includes(collName);
+      const updated = exists ? prev.filter(c => c !== collName) : [...prev, collName];
+      setCollection(updated.join(', '));
+      
+      if (collName === 'Deal of the Day') setIsDealOfDay(!exists);
+      if (collName === 'New Arrivals') setIsNewArrival(!exists);
+      if (collName === 'Best Sellers' || collName === 'Trending Collection') setIsTrending(!exists);
+      if (collName === 'Featured Collection') setIsFeatured(!exists);
+      if (collName === 'Combo Offers') setIsComboOffer(!exists);
+
+      return updated;
+    });
+  };
+
+  const handleAddCustomCollection = () => {
+    const trimmed = customCollectionInput.trim();
+    if (trimmed && !selectedCollections.includes(trimmed)) {
+      const updated = [...selectedCollections, trimmed];
+      setSelectedCollections(updated);
+      setCollection(updated.join(', '));
+      setCustomCollectionInput('');
+    }
+  };
 
   const loadCategoriesFromDb = async () => {
     setLoadingCategories(true);
@@ -314,6 +367,8 @@ export default function AdminProductsPage() {
     const defaultCat = activeDbCategoryTitles.length > 0 ? activeDbCategoryTitles[0] : '';
     setCategory(defaultCat);
     setCollection('');
+    setSelectedCollections([]);
+    setCustomCollectionInput('');
     setBrand('GR STYLES');
     setTagsInput('');
     setColor('');
@@ -331,8 +386,11 @@ export default function AdminProductsPage() {
     setIsFeatured(false);
     setIsDealOfDay(false);
     setIsComboOffer(false);
+    setIsCouponApplicable(true);
     setSizeTabOverride('auto');
     setSelectedCoupons([]);
+    setDeliveryChargeEnabled(false);
+    setDeliveryCharge('0');
   };
 
   const populateFormFromProduct = (product: Product) => {
@@ -341,6 +399,16 @@ export default function AdminProductsPage() {
     setSku(product.sku || '');
     setCategory(product.category);
     setCollection(product.collection || '');
+    
+    const initialColls: string[] = [];
+    if (Array.isArray(product.collections) && product.collections.length > 0) {
+      initialColls.push(...product.collections);
+    } else if (product.collection) {
+      initialColls.push(...product.collection.split(',').map(s => s.trim()).filter(Boolean));
+    }
+    setSelectedCollections(initialColls);
+    setCustomCollectionInput('');
+
     setBrand(product.brand || 'GR STYLES');
     setTagsInput((product.metadata?.tags || []).join(', '));
     setColor(product.color || '');
@@ -370,21 +438,34 @@ export default function AdminProductsPage() {
     });
     setImageColors(defaultColors);
 
-    setIsNewArrival(!!product.isNew);
-    setIsTrending(!!product.bestSeller);
-    setIsFeatured(!!product.metadata?.featured);
+    setIsNewArrival(!!(product.isNew || initialColls.includes('New Arrivals')));
+    setIsTrending(!!(product.bestSeller || initialColls.includes('Best Sellers') || initialColls.includes('Trending Collection')));
+    setIsFeatured(!!(product.metadata?.featured || initialColls.includes('Featured Collection')));
     
     const isCombo = !!(
       (product as any).isComboOffer ||
       product.metadata?.comboOffer ||
       product.metadata?.dealOfDay ||
       product.category?.toLowerCase().includes('combo') ||
-      product.collection?.toLowerCase().includes('combo')
+      product.collection?.toLowerCase().includes('combo') ||
+      initialColls.includes('Combo Offers')
     );
     setIsComboOffer(isCombo);
-    setIsDealOfDay(!!(isCombo || product.metadata?.dealOfDay));
+    setIsDealOfDay(!!(isCombo || product.metadata?.dealOfDay || initialColls.includes('Deal of the Day')));
 
-    setSelectedCoupons(product.coupons || []);
+    const couponEnabled = product.couponApplicable !== false && 
+      (product as any).is_coupon_applicable !== false && 
+      (product as any).coupon_applicable !== false;
+
+    setIsCouponApplicable(couponEnabled);
+    if (couponEnabled) {
+      setSelectedCoupons(product.coupons || []);
+    } else {
+      setSelectedCoupons([]);
+    }
+
+    setDeliveryChargeEnabled(!!(product.deliveryChargeEnabled ?? product.delivery_charge_enabled));
+    setDeliveryCharge(String(product.deliveryCharge ?? product.delivery_charge ?? 0));
     setSizeTabOverride('auto');
     setFormOpen(true);
   };
@@ -428,7 +509,15 @@ export default function AdminProductsPage() {
 
     const finalOverallStock = selectedSizes.length > 0 ? calculatedTotal : (overallStockInput || 0);
 
-    return {
+    // SINGLE SOURCE OF TRUTH FOR COUPON APPLICABLE CHECKBOX
+    const effectiveCoupons = isCouponApplicable ? selectedCoupons : [];
+
+    const finalCollections = Array.from(new Set(selectedCollections.filter(Boolean)));
+    const finalCollectionStr = finalCollections.join(', ') || collection || (isComboOffer ? 'Combo Offers' : '');
+
+    const hasDealOfDay = isDealOfDay || isComboOffer || finalCollections.some(c => c.toLowerCase().includes('deal'));
+
+    const productPayload: Product = {
       id,
       productId: id,
       sku: sku || `GR-${category.slice(0, 2).toUpperCase()}-${Date.now().toString().slice(-4)}`,
@@ -436,7 +525,8 @@ export default function AdminProductsPage() {
       title: name,
       slug,
       category,
-      collection: collection || (isComboOffer ? 'Combo Offers' : ''),
+      collection: finalCollectionStr,
+      collections: finalCollections,
       images: imagesList.length > 0 ? imagesList : ['/placeholder.png'],
       color: color || imageColors[0] || '',
       colors: uniqueColors.length > 0 ? uniqueColors : [color || 'Original'],
@@ -460,18 +550,34 @@ export default function AdminProductsPage() {
       inStock: finalOverallStock > 0,
       stockCount: finalOverallStock,
       metadata: {
-        dealOfDay: isDealOfDay || isComboOffer,
-        comboOffer: isComboOffer || isDealOfDay,
+        dealOfDay: hasDealOfDay,
+        comboOffer: isComboOffer || hasDealOfDay,
         featured: isFeatured,
         tags,
       },
-      coupons: selectedCoupons,
+      coupons: effectiveCoupons,
       imageColors: imagesList.map((img, idx) => ({
         image_url: img,
         color_name: imageColors[idx] || color || 'Original',
         display_order: idx
-      }))
+      })),
+      deliveryChargeEnabled,
+      deliveryCharge: deliveryChargeEnabled ? Math.max(0, Number(deliveryCharge) || 0) : 0,
+      delivery_charge_enabled: deliveryChargeEnabled,
+      delivery_charge: deliveryChargeEnabled ? Math.max(0, Number(deliveryCharge) || 0) : 0,
+      couponApplicable: isCouponApplicable,
+      is_coupon_applicable: isCouponApplicable,
+      coupon_applicable: isCouponApplicable,
     } as any;
+
+    console.log('[DEBUG Admin Product Payload]', {
+      id,
+      name,
+      isCouponApplicable,
+      coupons: effectiveCoupons,
+    });
+
+    return productPayload;
   };
 
   const handleAddProduct = async (e: React.FormEvent) => {
@@ -488,6 +594,14 @@ export default function AdminProductsPage() {
     if (selling > mrp) {
       dispatch(addToast({ message: 'Selling price cannot exceed MRP.', type: 'error' }));
       return;
+    }
+
+    if (deliveryChargeEnabled) {
+      const chargeNum = Number(deliveryCharge);
+      if (isNaN(chargeNum) || chargeNum < 0) {
+        dispatch(addToast({ message: 'Delivery Charge cannot be negative.', type: 'error' }));
+        return;
+      }
     }
 
     // Verify all subsequent images have colors assigned
@@ -716,18 +830,63 @@ export default function AdminProductsPage() {
                     </select>
                   )}
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Collection</label>
-                  <input
-                    list="dynamic-collections"
-                    value={collection}
-                    onChange={(e) => setCollection(e.target.value)}
-                    placeholder="e.g. Summer Collection"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-black text-sm placeholder-gray-300"
-                  />
-                  <datalist id="dynamic-collections">
-                    {dynamicCollections.map((c) => <option key={c} value={c} />)}
-                  </datalist>
+                <div className="space-y-2 col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Website Collections (Assign to 1 or Multiple)
+                    </label>
+                    {selectedCollections.length > 0 && (
+                      <span className="text-[11px] font-semibold text-black bg-gray-100 px-2 py-0.5 rounded-full">
+                        {selectedCollections.length} selected
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Selectable Collection Pills */}
+                  <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2.5 bg-gray-50/80 border border-gray-200 rounded-xl">
+                    {availableWebsiteCollections.map((c) => {
+                      const isSelected = selectedCollections.includes(c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => toggleCollectionSelection(c)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 cursor-pointer ${
+                            isSelected
+                              ? 'bg-black text-white shadow-sm font-semibold'
+                              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                          }`}
+                        >
+                          {isSelected && <Check size={12} className="stroke-[3]" />}
+                          {c}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Add Custom Collection Input */}
+                  <div className="flex gap-2 pt-1">
+                    <input
+                      type="text"
+                      value={customCollectionInput}
+                      onChange={(e) => setCustomCollectionInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomCollection();
+                        }
+                      }}
+                      placeholder="Add custom collection name..."
+                      className="flex-1 px-3.5 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-black placeholder-gray-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCustomCollection}
+                      className="px-4 py-2 bg-gray-100 text-gray-800 rounded-xl text-xs font-semibold hover:bg-gray-200 transition-colors"
+                    >
+                      + Add
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -816,38 +975,65 @@ export default function AdminProductsPage() {
                 />
               </div>
 
-              {/* Coupon Selectors */}
-              <div className="space-y-1.5 pt-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Applicable Coupons</label>
-                <div className="border border-gray-200 rounded-xl p-3 bg-gray-50/50 max-h-32 overflow-y-auto">
-                  <div className="flex flex-wrap gap-2">
-                    {availableCoupons.length > 0 ? availableCoupons.map((c, idx) => (
-                      <label key={c.code || idx} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer text-xs select-none hover:border-black transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={selectedCoupons.includes(c.code)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedCoupons(prev => [...prev, c.code]);
-                            else setSelectedCoupons(prev => prev.filter(code => code !== c.code));
-                          }}
-                          className="rounded border-gray-300 text-black focus:ring-black cursor-pointer"
-                        />
-                        <span className="font-semibold text-gray-800">{c.code}</span>
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                          {c.discountType === 'percentage' ? `${c.discountValue}% OFF` : `₹${c.discountValue} OFF`}
-                        </span>
-                      </label>
-                    )) : (
-                      <p className="text-xs text-gray-400">No active coupons available.</p>
-                    )}
-                  </div>
+              {/* Coupon Settings */}
+              <div className="space-y-2 pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Tag size={14} className="text-black" /> Coupon Settings
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      id="form-product-coupon-applicable"
+                      checked={isCouponApplicable}
+                      onChange={(e) => handleToggleCouponApplicable(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-gray-900">
+                      Coupon Applicable (Eligible for Discounts)
+                    </span>
+                  </label>
                 </div>
+
+                {isCouponApplicable ? (
+                  <div className="border border-gray-200 rounded-xl p-3 bg-gray-50/50 max-h-32 overflow-y-auto">
+                    <div className="flex flex-wrap gap-2">
+                      {availableCoupons.length > 0 ? availableCoupons.map((c, idx) => (
+                        <label key={c.code || idx} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 cursor-pointer text-xs select-none hover:border-black transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={selectedCoupons.includes(c.code)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedCoupons(prev => [...prev, c.code]);
+                              else setSelectedCoupons(prev => prev.filter(code => code !== c.code));
+                            }}
+                            className="rounded border-gray-300 text-black focus:ring-black cursor-pointer"
+                          />
+                          <span className="font-semibold text-gray-800">{c.code}</span>
+                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                            {c.discountType === 'percentage' ? `${c.discountValue}% OFF` : `₹${c.discountValue} OFF`}
+                          </span>
+                        </label>
+                      )) : (
+                        <p className="text-xs text-gray-400">No active coupons available.</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
+                    ⚠️ Coupon Applicable is <strong>OFF (Unchecked)</strong>. This product will be excluded from all coupons and promotion discounts.
+                  </div>
+                )}
               </div>
 
               {/* Feature Toggles */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Feature Toggles</label>
                 <div className="flex flex-wrap gap-2">
+                  <ToggleBtn
+                    active={isCouponApplicable} onClick={() => handleToggleCouponApplicable(!isCouponApplicable)}
+                    icon={Tag} label="Coupon Applicable" activeColor="bg-emerald-50 text-emerald-600"
+                  />
                   <ToggleBtn
                     active={isNewArrival} onClick={() => setIsNewArrival(!isNewArrival)}
                     icon={Sparkles} label="New Arrival" activeColor="bg-blue-50 text-blue-600"
@@ -874,6 +1060,55 @@ export default function AdminProductsPage() {
                     }}
                     icon={Zap} label="Combo Offers" activeColor="bg-amber-50 text-amber-600"
                   />
+                </div>
+              </div>
+
+              {/* Product Delivery Charge Section */}
+              <div className="space-y-3 pt-3 border-t border-gray-200">
+                <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Truck size={14} className="text-black" /> Product Delivery Charge
+                </label>
+                <div className="p-3.5 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={deliveryChargeEnabled}
+                      onChange={(e) => setDeliveryChargeEnabled(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-gray-900">
+                      Apply Product Delivery Charge
+                    </span>
+                  </label>
+
+                  {deliveryChargeEnabled ? (
+                    <div className="space-y-1.5 pl-6 border-l-2 border-black ml-1">
+                      <label className="text-[11px] font-semibold text-gray-700 block">
+                        Delivery Charge (₹)
+                      </label>
+                      <div className="relative max-w-xs">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={deliveryCharge}
+                          onChange={(e) => setDeliveryCharge(e.target.value)}
+                          placeholder="0 for Free Delivery"
+                          className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg text-xs font-mono font-bold focus:outline-none focus:border-black bg-white"
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-500 font-medium pt-0.5">
+                        {Number(deliveryCharge) === 0
+                          ? '☑ ON + ₹0 → Free Delivery'
+                          : `☑ ON + ₹${deliveryCharge || 0} → Delivery Charge = ₹${deliveryCharge || 0}`}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-gray-500 font-medium pl-6">
+                      ☐ OFF → Use existing global shipping settings.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1283,6 +1518,7 @@ export default function AdminProductsPage() {
                   <th className="p-4 pl-6">Product</th>
                   <th className="p-4">Category</th>
                   <th className="p-4">Price</th>
+                  <th className="p-4">Delivery</th>
                   <th className="p-4">Available Sizes</th>
                   <th className="p-4">Status / Label</th>
                   <th className="p-4 pr-6 text-right">Actions</th>
@@ -1291,6 +1527,8 @@ export default function AdminProductsPage() {
               <tbody className="divide-y divide-gray-100">
                 {filteredProducts.map((product) => {
                   const productSizes = getProductSizes(product);
+                  const isDeliveryEnabled = !!(product.deliveryChargeEnabled ?? (product as any).delivery_charge_enabled);
+                  const customDeliveryCharge = Number(product.deliveryCharge ?? (product as any).delivery_charge ?? 0);
 
                   return (
                     <tr key={product.id} className="hover:bg-gray-50/60 transition-colors group">
@@ -1326,6 +1564,21 @@ export default function AdminProductsPage() {
                           <div className="text-[10px] text-gray-400 line-through">
                             {formatPrice(product.mrpPrice)}
                           </div>
+                        )}
+                      </td>
+                      <td className="p-4 font-mono font-medium">
+                        {!isDeliveryEnabled ? (
+                          <span className="inline-block bg-gray-100 text-gray-600 font-medium px-2.5 py-1 rounded-md text-[11px]">
+                            Global
+                          </span>
+                        ) : customDeliveryCharge === 0 ? (
+                          <span className="inline-block bg-green-50 text-green-700 font-bold px-2.5 py-1 rounded-md text-[11px]">
+                            Free
+                          </span>
+                        ) : (
+                          <span className="inline-block bg-amber-50 text-amber-800 font-bold px-2.5 py-1 rounded-md text-[11px]">
+                            ₹{customDeliveryCharge}
+                          </span>
                         )}
                       </td>
                       <td className="p-4">

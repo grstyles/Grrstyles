@@ -69,18 +69,28 @@ export const DEFAULT_COUPONS = [
 ] as const;
 
 export const COLLECTIONS = [
-  'Korean Collections',
-  'Trending Collections',
+  'Insta Viral Collection',
+  'Traditional Collection',
+  'Deal of the Day',
+  'Korean Collection',
+  'New Arrivals',
+  'Best Sellers',
+  'Trending Collection',
+  'Premium Collection',
+  'Featured Collection',
+  'Festive Collection',
+  'Seasonal Collection',
   'Baggy Pants',
   'Korean Trousers',
   'Shoes',
-  'Traditional Collections',
-  'Festival Collections',
   'Combo Offers',
   'Festival Offers',
   'Weekend Offers',
-  'Formal Combos',
-  'Deal Of The Day',
+  'Korean Collections',
+  'Trending Collections',
+  'Traditional Collections',
+  'Festival Collections',
+  'Insta Viral Collections',
 ] as const;
 
 export type CollectionName = (typeof COLLECTIONS)[number];

@@ -13,7 +13,8 @@ import { repo, UserAddress } from '@/lib/repositories';
 import { RAZORPAY_KEY_ID } from '@/lib/config';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useAuth } from '@/lib/context/AuthContext';
-import { autoApplyBestCoupon } from '@/lib/utils/couponHelper';
+import { autoApplyBestCoupon, validateCurrentCartCoupon } from '@/lib/utils/couponHelper';
+import { validateAndCalculateCoupon } from '@/lib/utils/couponEngine';
 import { Package, CheckCircle, CreditCard, Smartphone, Tag, Sparkles, X, RefreshCw, Banknote } from 'lucide-react';
 
 export default function CheckoutPage() {
@@ -245,6 +246,11 @@ export default function CheckoutPage() {
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [couponStatusMsg, setCouponStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
+  const eligibleSubtotal = cartItems.reduce((sum, item) => {
+    const isApplicable = item.couponApplicable !== false && (item as any).is_coupon_applicable !== false && (item as any).coupon_applicable !== false;
+    return isApplicable ? sum + (item.discountedPrice || item.price || 0) * item.quantity : sum;
+  }, 0);
+
   const handleApplyCoupon = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const cleanCode = couponInput.toUpperCase().trim();
@@ -253,26 +259,54 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (eligibleSubtotal <= 0) {
+      setCouponStatusMsg({ text: 'None of the items in your cart are eligible for coupon discounts.', type: 'error' });
+      dispatch(addToast({ message: 'None of the items in your cart are eligible for coupon discounts.', type: 'error' }));
+      return;
+    }
+
     setApplyingCoupon(true);
     setCouponStatusMsg(null);
 
     try {
-      const productIds = cartItems.flatMap((item) => [item.id, item.slug, item.sku].filter(Boolean) as string[]);
-      const valRes = await repo.coupons.apply(cleanCode, { subtotal: total, productIds });
+      const allCoupons = await repo.coupons.getAll();
+      const matched = allCoupons.find((c) => c.code.toUpperCase().trim() === cleanCode);
 
-      if (valRes.valid) {
-        dispatch(applyPromo({
-          code: cleanCode,
-          discountValue: valRes.discountValue,
-          discountType: valRes.discountType === 'percentage' ? 'percentage' : 'flat',
-        }));
-        setCouponStatusMsg({ text: `🎉 Coupon Applied Successfully!`, type: 'success' });
-        dispatch(addToast({ message: `🎉 Coupon "${cleanCode}" applied successfully!`, type: 'success' }));
-        setCouponInput('');
+      if (matched) {
+        const valRes = validateAndCalculateCoupon(matched, cartItems, { userId: user?.id, userEmail: user?.email });
+        if (valRes.valid) {
+          dispatch(applyPromo({
+            code: cleanCode,
+            discountValue: valRes.discountValue,
+            discountType: valRes.discountType === 'percentage' ? 'percentage' : 'flat',
+          }));
+          setCouponStatusMsg({ text: `🎉 Coupon "${cleanCode}" Applied Successfully!`, type: 'success' });
+          dispatch(addToast({ message: `🎉 Coupon "${cleanCode}" applied successfully!`, type: 'success' }));
+          setCouponInput('');
+        } else {
+          dispatch(removePromo());
+          setCouponStatusMsg({ text: valRes.message, type: 'error' });
+          dispatch(addToast({ message: valRes.message, type: 'error' }));
+        }
       } else {
-        dispatch(removePromo());
-        setCouponStatusMsg({ text: valRes.message, type: 'error' });
-        dispatch(addToast({ message: valRes.message, type: 'error' }));
+        // Fallback to repo.coupons.apply (for special backend / user reward codes)
+        const productIds = cartItems.flatMap((item) => [item.id, item.slug, item.sku].filter(Boolean) as string[]);
+        const valRes = await repo.coupons.apply(cleanCode, { subtotal: eligibleSubtotal, productIds });
+
+        if (valRes.valid) {
+          dispatch(applyPromo({
+            code: cleanCode,
+            discountValue: valRes.discountValue,
+            discountType: valRes.discountType === 'percentage' ? 'percentage' : 'flat',
+          }));
+          setCouponStatusMsg({ text: `🎉 Coupon Applied Successfully!`, type: 'success' });
+          dispatch(addToast({ message: `🎉 Coupon "${cleanCode}" applied successfully!`, type: 'success' }));
+          setCouponInput('');
+        } else {
+          dispatch(removePromo());
+          setCouponStatusMsg({ text: valRes.message, type: 'error' });
+          dispatch(addToast({ message: valRes.message, type: 'error' }));
+        }
       }
     } catch (err: any) {
       setCouponStatusMsg({ text: err?.message || 'Invalid coupon code.', type: 'error' });
@@ -282,10 +316,14 @@ export default function CheckoutPage() {
     }
   };
 
-  // Standalone Auto-Apply Best Coupon Effect on Checkout load
+  // Authoritative Coupon Validation and Auto-Apply Effect on Checkout
   useEffect(() => {
-    if (!appliedPromo && cartItems.length > 0 && total > 0) {
-      autoApplyBestCoupon(cartItems, total, dispatch, user?.id, user?.email);
+    if (cartItems.length > 0 && total > 0) {
+      if (appliedPromo) {
+        validateCurrentCartCoupon(appliedPromo, cartItems, dispatch, user?.id, user?.email, true);
+      } else {
+        autoApplyBestCoupon(cartItems, total, dispatch, user?.id, user?.email, true);
+      }
     }
   }, [appliedPromo, cartItems, total, user, dispatch]);
 
@@ -335,9 +373,10 @@ export default function CheckoutPage() {
       });
   }, []);
 
-  const discount = discountType === 'percentage' 
-    ? Math.round((total * discountValue) / 100) 
+  const rawDiscount = discountType === 'percentage' 
+    ? Math.round((eligibleSubtotal * discountValue) / 100) 
     : discountValue;
+  const discount = Math.min(eligibleSubtotal, rawDiscount);
 
   const totals = calculateOrderTotals(
     cartItems,
@@ -1410,7 +1449,7 @@ export default function CheckoutPage() {
             </div>
 
             {/* Free Delivery Status Message */}
-            {shippingConfig.freeDelivery && (
+            {shippingConfig.freeDelivery && shipping === 0 && (
               <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-xs text-green-700 font-medium">
                   ✅ Free Delivery is enabled. No shipping charges applied.
@@ -1424,7 +1463,7 @@ export default function CheckoutPage() {
                 </p>
               </div>
             )}
-            {!shippingConfig.freeDelivery && shipping > 0 && (
+            {!shippingConfig.freeDelivery && shipping > 0 && shippingConfig.freeShippingAbove > 0 && total < shippingConfig.freeShippingAbove && (
               <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <p className="text-xs text-gray-600">
                   Add ₹{formatPrice(shippingConfig.freeShippingAbove - total)} more for free shipping.

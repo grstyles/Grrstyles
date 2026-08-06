@@ -62,7 +62,11 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
 
       // Upsert merged items to DB
       for (const item of mergedCart) {
-        await syncService.syncCartItem(userId, item);
+        try {
+          await syncService.syncCartItem(userId, item);
+        } catch (err) {
+          console.warn('[DbSyncHydrator] Cart item sync skipped:', err);
+        }
       }
 
       dispatch(hydrateCart(mergedCart));

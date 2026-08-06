@@ -122,7 +122,7 @@ export default function Footer() {
   const footerLinks = {
     explore: [
       { name: "New in", href: "/new-in" },
-      { name: "Men", href: "/men" },
+      { name: "Shop", href: "/men" },
       { name: "Collections", href: "/collections" },
       { name: "Sale", href: "/sale" },
       { name: "Contact", href: "/contact" },

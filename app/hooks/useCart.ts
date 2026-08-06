@@ -17,6 +17,10 @@ interface AddToCartParams {
   quantity: number;
   size?: string;
   color?: string;
+  deliveryChargeEnabled?: boolean;
+  deliveryCharge?: number;
+  delivery_charge_enabled?: boolean;
+  delivery_charge?: number;
 }
 
 export const useCart = () => {
@@ -32,6 +36,10 @@ export const useCart = () => {
       return false;
     }
 
+    const deliveryChargeEnabled = params.deliveryChargeEnabled ?? params.delivery_charge_enabled ?? false;
+    const deliveryCharge = params.deliveryCharge ?? params.delivery_charge ?? 0;
+    const couponApplicable = (params as any).couponApplicable !== false && (params as any).is_coupon_applicable !== false && (params as any).coupon_applicable !== false;
+
     dispatch(
       addToCart({
         id: params.id,
@@ -44,6 +52,13 @@ export const useCart = () => {
         quantity: params.quantity || 1,
         size: params.size,
         color: params.color,
+        deliveryChargeEnabled,
+        deliveryCharge,
+        delivery_charge_enabled: deliveryChargeEnabled,
+        delivery_charge: deliveryCharge,
+        couponApplicable,
+        is_coupon_applicable: couponApplicable,
+        coupon_applicable: couponApplicable,
       })
     );
 

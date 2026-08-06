@@ -29,6 +29,7 @@ export default function MensClient({ initialProducts }: MensClientProps) {
   const comboOffers = products.filter((p) => matchCategory(p, 'combo-offers')).slice(0, 4);
   const koreanCollection = products.filter((p) => matchCategory(p, 'korean-collections')).slice(0, 4);
   const shoesCollection = products.filter((p) => matchCategory(p, 'shoes')).slice(0, 4);
+  const instaViralCollection = products.filter((p) => matchCategory(p, 'insta-viral-collections')).slice(0, 4);
   const traditionalCollection = products.filter((p) => matchCategory(p, 'traditional-collections')).slice(0, 4);
 
   return (
@@ -57,7 +58,16 @@ export default function MensClient({ initialProducts }: MensClientProps) {
         viewAllHref="/collections/deal-of-the-day"
       />
 
-      {/* 5. Combo Offers */}
+      {/* 5. Insta Viral Collection */}
+      <ProductSection
+        title="Insta Viral Collection"
+        subtitle="Trending styles and viral outfits taking social media by storm."
+        products={instaViralCollection}
+        badge="VIRAL"
+        viewAllHref="/collections/insta-viral-collections"
+      />
+
+      {/* 6. Combo Offers */}
       <ProductSection
         title="Combo Offers"
         subtitle="Coordinated outfit sets and bundled savings."
