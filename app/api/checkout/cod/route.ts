@@ -126,12 +126,24 @@ export async function POST(req: Request) {
     // Shipping configuration — use the service-role client (bypasses RLS).
     const { data: shippingRow, error: shippingErr } = await supabase
       .from('shipping_settings')
-      .select('shipping_charge, free_shipping_above, free_delivery')
+      .select('shipping_charge, free_shipping_above, free_delivery, cod_enabled')
       .eq('id', 1)
       .single();
 
     if (shippingErr) {
       console.warn('[cod] shipping_settings query error, using safe defaults:', shippingErr.message);
+    }
+
+    const isCodEnabled =
+      shippingRow?.cod_enabled !== undefined && shippingRow?.cod_enabled !== null
+        ? Boolean(shippingRow.cod_enabled)
+        : true;
+
+    if (!isCodEnabled) {
+      return NextResponse.json(
+        { success: false, error: 'Cash on Delivery is currently disabled. Please choose an online payment method.' },
+        { status: 400 }
+      );
     }
 
     const shippingCfg = {

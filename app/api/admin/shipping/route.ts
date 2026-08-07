@@ -1,11 +1,16 @@
 // app/api/admin/shipping/route.ts
 // Uses the service-role key so it bypasses RLS and can write to shipping_settings.
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.warn("⚠️ SUPABASE_SERVICE_ROLE_KEY is missing - API will use fallback");
 }
+
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -119,6 +124,12 @@ export async function POST(req: Request) {
     }
 
     console.log('✅ Upsert successful:', data);
+    try {
+      revalidatePath('/api/shipping');
+      revalidatePath('/checkout');
+    } catch (revErr) {
+      console.warn('Path revalidation warning:', revErr);
+    }
     return NextResponse.json({ 
       success: true,
       data: data?.[0] || null,

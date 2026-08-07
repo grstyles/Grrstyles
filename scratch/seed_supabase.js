@@ -93,6 +93,7 @@ function normalizeCollection(collection) {
   if (val === 'formal combo' || val === 'formal combos') return 'formal-combos';
   if (val === 'deal of the day' || val === 'deal of day' || val === 'deals') return 'deal-of-the-day';
   if (val === 'shoes' || val === 'shoe') return 'shoes';
+  if (val === 'insta-viral' || val === 'insta-viral-collection') return 'insta-viral';
 
   return normalizeSlug(collection);
 }
@@ -125,7 +126,8 @@ const collections = [
   { name: 'Festival Offers', slug: 'festival-offers', description: 'Special seasonal discounts on premium festival wear.' },
   { name: 'Weekend Offers', slug: 'weekend-offers', description: 'Special casual clothing deals for the weekend.' },
   { name: 'Formal Combos', slug: 'formal-combos', description: 'Sharp office shirts and structured trousers paired at a bundle discount.' },
-  { name: 'Deal Of The Day', slug: 'deal-of-the-day', description: 'Exclusive handpicked offers and time-limited deals.' }
+  { name: 'Deal Of The Day', slug: 'deal-of-the-day', description: 'Exclusive handpicked offers and time-limited deals.' },
+  { name: 'Insta-viral', slug: 'insta-viral', description: 'Trending items that are going viral on social media.' }
 ];
 
 // Coupons Data

@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import Link from 'next/link';
-import { Search, X, Loader2, ArrowRight } from 'lucide-react';
-import { searchService } from '@/services/searchService';
-import { Product } from '@/lib/data/products';
-import { formatPrice } from '@/lib/utils/helpers';
+import React, { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
+import { Search, X, Loader2, ArrowRight } from "lucide-react";
+import { searchService } from "@/services/searchService";
+import { Product } from "@/lib/data/products";
+import { formatPrice } from "@/lib/utils/helpers";
 
 interface SearchDropdownProps {
   onClose: () => void;
@@ -15,7 +15,7 @@ interface SearchDropdownProps {
 
 export default function SearchDropdown({ onClose }: SearchDropdownProps) {
   const router = useRouter();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [matchedProducts, setMatchedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,23 +25,26 @@ export default function SearchDropdown({ onClose }: SearchDropdownProps) {
   // Close on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         onClose();
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onClose]);
 
   // Handle ESC key
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         onClose();
       }
     }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
   // Focus input on mount
@@ -62,11 +65,12 @@ export default function SearchDropdown({ onClose }: SearchDropdownProps) {
     setLoading(true);
     const delayDebounceFn = setTimeout(async () => {
       try {
-        const { suggestions: sugg, products: prods } = await searchService.getSearchSuggestions(query);
+        const { suggestions: sugg, products: prods } =
+          await searchService.getSearchSuggestions(query);
         setSuggestions(sugg);
         setMatchedProducts(prods);
       } catch (err) {
-        console.error('Error fetching suggestions', err);
+        console.error("Error fetching suggestions", err);
       } finally {
         setLoading(false);
       }
@@ -112,11 +116,14 @@ export default function SearchDropdown({ onClose }: SearchDropdownProps) {
             <Search size={20} />
           </button>
           {loading ? (
-            <Loader2 size={18} className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 animate-spin" />
+            <Loader2
+              size={18}
+              className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 animate-spin"
+            />
           ) : query ? (
             <button
               type="button"
-              onClick={() => setQuery('')}
+              onClick={() => setQuery("")}
               className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
             >
               <X size={18} />
@@ -138,7 +145,9 @@ export default function SearchDropdown({ onClose }: SearchDropdownProps) {
             {/* suggestions list */}
             {suggestions.length > 0 && (
               <div className="md:col-span-1 space-y-4">
-                <h4 className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">Suggestions</h4>
+                <h4 className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">
+                  Suggestions
+                </h4>
                 <ul className="space-y-2">
                   {suggestions.map((sugg, i) => (
                     <li key={i}>
@@ -146,7 +155,10 @@ export default function SearchDropdown({ onClose }: SearchDropdownProps) {
                         onClick={() => handleSuggestionClick(sugg)}
                         className="text-xs text-gray-600 hover:text-black font-semibold flex items-center gap-2 w-full text-left uppercase transition-colors"
                       >
-                        <Search size={12} className="text-gray-300 flex-shrink-0" />
+                        <Search
+                          size={12}
+                          className="text-gray-300 flex-shrink-0"
+                        />
                         <span className="truncate">{sugg}</span>
                       </button>
                     </li>
@@ -158,10 +170,13 @@ export default function SearchDropdown({ onClose }: SearchDropdownProps) {
             {/* matching products list */}
             {matchedProducts.length > 0 && (
               <div className="md:col-span-2 space-y-4">
-                <h4 className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">Product Matches</h4>
+                <h4 className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">
+                  Product Matches
+                </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {matchedProducts.map((p) => {
-                    const price = p.sellingPrice || p.discountedPrice || p.price || 0;
+                    const price =
+                      p.sellingPrice || p.discountedPrice || p.price || 0;
                     return (
                       <Link
                         key={p.id}
@@ -171,19 +186,23 @@ export default function SearchDropdown({ onClose }: SearchDropdownProps) {
                       >
                         <div className="relative w-12 h-16 bg-[#f5f0eb] rounded-lg overflow-hidden flex-shrink-0">
                           <Image
-                            src={p.images?.[0] || '/placeholder.png'}
-                            alt={p.name || p.title || ''}
+                            src={p.images?.[0] || "/placeholder.png"}
+                            alt={p.name || p.title || ""}
                             fill
                             className="object-cover group-hover:scale-105 transition-transform"
                             sizes="60px"
                           />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[8px] font-bold tracking-wider text-[#D4AF37] uppercase">{p.brand || 'GR Styles'}</p>
+                          <p className="text-[8px] font-bold tracking-wider text-[#D4AF37] uppercase">
+                            {p.brand || "GR Styles"}
+                          </p>
                           <h5 className="text-xs font-semibold text-gray-800 line-clamp-1 group-hover:text-[#8b7b6b] transition-colors uppercase">
                             {p.name || p.title}
                           </h5>
-                          <p className="text-xs font-bold text-gray-900 mt-0.5">{formatPrice(price)}</p>
+                          <p className="text-xs font-bold text-gray-900 mt-0.5">
+                            {formatPrice(price)}
+                          </p>
                         </div>
                       </Link>
                     );
@@ -205,9 +224,11 @@ export default function SearchDropdown({ onClose }: SearchDropdownProps) {
         {/* Empty placeholder guide */}
         {!query && (
           <div className="text-center py-6">
-            <p className="text-xs text-gray-400 font-light">Type at least 2 characters to see recommendations.</p>
+            <p className="text-xs text-gray-400 font-light">
+              Type at least 2 characters to see recommendations.
+            </p>
             <div className="flex justify-center gap-2 flex-wrap mt-4">
-              {['Shirts', 'Jeans', 'Jackets', 'Sneakers'].map((tag) => (
+              {["Shirts", "Jeans", "Baggy pants", "Shoes"].map((tag) => (
                 <button
                   key={tag}
                   onClick={() => setQuery(tag)}

@@ -12,7 +12,7 @@ async function run() {
     console.log('1. Loading Homepage...');
     await page.goto('http://localhost:3000', { waitUntil: 'networkidle0' });
     
-    console.log('2. Navigating to Men collection...');
+    console.log('2. Navigating to Shop collection...');
     await page.goto('http://localhost:3000/men', { waitUntil: 'networkidle0' });
     
     // Pick the first product link
@@ -21,7 +21,7 @@ async function run() {
       return links.length > 0 ? links[0].href : null;
     });
     
-    if (!productUrl) throw new Error('No product found on Men page');
+    if (!productUrl) throw new Error('No product found on Shop  page');
     console.log(`3. Navigating to Product: ${productUrl}`);
     await page.goto(productUrl, { waitUntil: 'networkidle0' });
     

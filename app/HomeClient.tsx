@@ -1,30 +1,38 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import AutoScrollCarousel from '@/components/home/AutoScrollCarousel';
-import ProductSection from '@/components/ui/ProductSection';
-import PremiumCategoryCarousel from '@/components/ui/PremiumCategoryCarousel';
-import ClearanceBanner from '@/components/sale/ClearanceBanner';
-import { Product } from '@/lib/data/products';
-import { repo } from '@/lib/repositories';
-import { Banner } from '@/lib/repositories/interfaces';
-import { CategoryCarouselItem } from '@/lib/repositories/categoryCarouselRepository';
-import { config } from '@/lib/config';
+import React, { useState, useEffect, useRef } from "react";
+import AutoScrollCarousel from "@/components/home/AutoScrollCarousel";
+import ProductSection from "@/components/ui/ProductSection";
+import PremiumCategoryCarousel from "@/components/ui/PremiumCategoryCarousel";
+import ClearanceBanner from "@/components/sale/ClearanceBanner";
+import { Product } from "@/lib/data/products";
+import { repo } from "@/lib/repositories";
+import { Banner } from "@/lib/repositories/interfaces";
+import { CategoryCarouselItem } from "@/lib/repositories/categoryCarouselRepository";
+import { config } from "@/lib/config";
 
 // Default ordering of homepage sections
 const DEFAULT_SECTIONS = [
-  { id: 'hero', name: 'Hero Banner', enabled: true },
-  { id: 'categories', name: 'Category Circles', enabled: true },
-  { id: 'mens', name: 'Men Collection', enabled: true },
-  { id: 'trending', name: 'Trending Collection', enabled: true },
-  { id: 'clearance', name: 'Clearance Sale', enabled: true },
-  { id: 'new', name: 'New Arrivals', enabled: true },
+  { id: "hero", name: "Hero Banner", enabled: true },
+  { id: "categories", name: "Category Circles", enabled: true },
+  { id: "mens", name: "Shop Collection", enabled: true },
+  { id: "trending", name: "Trending Collection", enabled: true },
+  { id: "clearance", name: "Clearance Sale", enabled: true },
+  { id: "new", name: "New Arrivals", enabled: true },
 ];
 
-export default function HomeClient({ initialProducts, initialBanners }: { initialProducts: Product[], initialBanners?: Banner[] }) {
+export default function HomeClient({
+  initialProducts,
+  initialBanners,
+}: {
+  initialProducts: Product[];
+  initialBanners?: Banner[];
+}) {
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [banners, setBanners] = useState<Banner[]>(initialBanners || []);
-  const [carouselCategories, setCarouselCategories] = useState<CategoryCarouselItem[]>([]);
+  const [carouselCategories, setCarouselCategories] = useState<
+    CategoryCarouselItem[]
+  >([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTIONS);
   const reqSeqRef = useRef(0);
@@ -45,7 +53,7 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
           setCarouselCategories(cats);
         }
       } catch (e) {
-        console.warn('Failed to load categories:', e);
+        console.warn("Failed to load categories:", e);
       } finally {
         if (reqSeqRef.current === currentSeq) {
           setLoadingCategories(false);
@@ -54,18 +62,18 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
     };
 
     loadCategories(true);
-    
+
     // Simulate fetching dynamic marketing config for homepage order
-    const savedOrder = localStorage.getItem('gr_homepage_order');
+    const savedOrder = localStorage.getItem("gr_homepage_order");
     if (savedOrder) {
       try {
         setSectionOrder(JSON.parse(savedOrder));
       } catch (e) {}
     }
-    
+
     // Listen for storage events to update instantly across tabs (Admin -> Frontend)
     const handleStorage = () => {
-      const updated = localStorage.getItem('gr_homepage_order');
+      const updated = localStorage.getItem("gr_homepage_order");
       if (updated) setSectionOrder(JSON.parse(updated));
       loadCategories(false);
     };
@@ -73,30 +81,54 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
       loadCategories(false);
     };
 
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener('category_carousel_updated', handleCategoryUpdate);
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("category_carousel_updated", handleCategoryUpdate);
     return () => {
-      window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('category_carousel_updated', handleCategoryUpdate);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener(
+        "category_carousel_updated",
+        handleCategoryUpdate,
+      );
     };
   }, []);
 
-  const trendingCollections = products.filter((p) => p.bestSeller || p.metadata?.featured).slice(0, 4);
-  const mensCollection = products.filter((p) => 
-    ['Shirts', 'Printed Shirts', 'T-Shirts', 'Formal Pant', 'Trousers', 'Jackets'].includes(p.category)
-  ).slice(0, 4);
+  const trendingCollections = products
+    .filter((p) => p.bestSeller || p.metadata?.featured)
+    .slice(0, 4);
+  const mensCollection = products
+    .filter((p) =>
+      [
+        "Shirts",
+        "Printed Shirts",
+        "T-Shirts",
+        "Formal Pant",
+        "Trousers",
+        "Jackets",
+      ].includes(p.category),
+    )
+    .slice(0, 4);
   const newArrivals = products.filter((p) => p.isNew).slice(0, 4);
 
-  const homeBanners = banners.filter(b => !b.target_page || b.target_page === 'home');
-  const allCategories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
+  const homeBanners = banners.filter(
+    (b) => !b.target_page || b.target_page === "home",
+  );
+  const allCategories = Array.from(
+    new Set(products.map((p) => p.category).filter(Boolean)),
+  );
 
   const renderSection = (id: string) => {
     switch (id) {
-      case 'hero':
+      case "hero":
         return <AutoScrollCarousel key="hero" banners={homeBanners} />;
-      case 'categories':
-        return <PremiumCategoryCarousel key="categories" categories={carouselCategories} isLoading={loadingCategories} />;
-      case 'mens':
+      case "categories":
+        return (
+          <PremiumCategoryCarousel
+            key="categories"
+            categories={carouselCategories}
+            isLoading={loadingCategories}
+          />
+        );
+      case "mens":
         return mensCollection.length > 0 ? (
           <ProductSection
             key="mens"
@@ -107,7 +139,7 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
             viewAllHref="/men"
           />
         ) : null;
-      case 'trending':
+      case "trending":
         return trendingCollections.length > 0 ? (
           <ProductSection
             key="trending"
@@ -118,7 +150,7 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
             viewAllHref="/collections/trending-collections"
           />
         ) : null;
-      case 'new':
+      case "new":
         return newArrivals.length > 0 ? (
           <ProductSection
             key="new"
@@ -129,7 +161,7 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
             viewAllHref="/collections/new-arrivals"
           />
         ) : null;
-      case 'clearance':
+      case "clearance":
         return <ClearanceBanner key="clearance" />;
       default:
         return null;
@@ -137,8 +169,6 @@ export default function HomeClient({ initialProducts, initialBanners }: { initia
   };
 
   return (
-    <>
-      {sectionOrder.filter(s => s.enabled).map(s => renderSection(s.id))}
-    </>
+    <>{sectionOrder.filter((s) => s.enabled).map((s) => renderSection(s.id))}</>
   );
 }
