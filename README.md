@@ -345,19 +345,6 @@ npm start
 
 ------------------------------------------------------------------------
 
-# 👨‍💻 Developer
-
-**Ashrith Namburi**
-
-Full Stack Developer
-
-Tech: - Next.js - React - TypeScript - Supabase - PostgreSQL - Redux
-Toolkit - Tailwind CSS - Razorpay
-
-GitHub: https://github.com/ashrithnamburi06-ux
-
-------------------------------------------------------------------------
-
 # 📄 License
 
 MIT License
