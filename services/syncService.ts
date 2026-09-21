@@ -102,8 +102,16 @@ export const syncService = {
       const { data, error } = await sb()!
         .from('cart_items')
         .select(`
-          quantity,
+          id,
+          cart_id,
+          product_id,
           size,
+          shirt_size,
+          pant_size,
+          shoe_size,
+          selected_color,
+          selected_image,
+          quantity,
           custom_images,
           products (*)
         `)
@@ -111,22 +119,44 @@ export const syncService = {
 
       if (error || !data) throw error || new Error('No data');
 
-      return data.map((item: any) => {
-        const p = item.products;
-        return {
-          id: p.product_id || p.id,
-          slug: p.slug,
-          title: p.name,
-          brand: p.brand || 'GR STYLES',
-          price: Number(p.mrp_price),
-          discountedPrice: Number(p.selling_price),
-          image: p.images?.[0] || '/placeholder.png',
-          quantity: item.quantity,
-          size: item.size || 'One Size',
-          color: p.color,
-          custom_images: item.custom_images || [],
-        };
-      });
+      return data
+        .filter((item: any) => item && item.products)
+        .map((item: any) => {
+          const p = item.products;
+          const mrp = Number(p.mrp ?? p.mrp_price ?? p.price ?? 0);
+          const selling = Number(p.selling_price ?? p.discountedPrice ?? mrp);
+          const isCouponEnabled = p.is_coupon_applicable !== false && 
+            p.coupon_applicable !== false && 
+            p.is_coupon_applicable !== 0 && 
+            p.coupon_applicable !== 0;
+
+          return {
+            id: p.id,
+            slug: p.slug,
+            title: p.name,
+            brand: p.brand || 'GR STYLES',
+            price: mrp,
+            discountedPrice: selling,
+            image: item.selected_image || p.images?.[0] || '/placeholder.png',
+            quantity: Math.max(1, item.quantity || 1),
+            size: item.size || undefined,
+            shirtSize: item.shirt_size || undefined,
+            pantSize: item.pant_size || undefined,
+            shoeSize: item.shoe_size || undefined,
+            color: item.selected_color || p.color || undefined,
+            custom_images: item.custom_images || [],
+            sku: p.sku || undefined,
+            deliveryChargeEnabled: p.delivery_charge_enabled === true || p.delivery_charge_enabled === 'true',
+            deliveryCharge: Number(p.delivery_charge || 0),
+            delivery_charge_enabled: p.delivery_charge_enabled === true || p.delivery_charge_enabled === 'true',
+            delivery_charge: Number(p.delivery_charge || 0),
+            couponApplicable: isCouponEnabled,
+            is_coupon_applicable: isCouponEnabled,
+            coupon_applicable: isCouponEnabled,
+            stock: Number(p.overall_stock ?? p.stockCount ?? p.stock ?? 99),
+            selected: true,
+          };
+        });
     } catch (e) {
       console.error('Error fetching cart from DB:', e);
       return [];
@@ -161,24 +191,30 @@ export const syncService = {
         return;
       }
 
-      let query = sb()!
+      const sizeVal = item.size || '';
+      const shirtSizeVal = item.shirtSize || '';
+      const pantSizeVal = item.pantSize || '';
+      const shoeSizeVal = item.shoeSize || '';
+      const colorVal = item.color || '';
+
+      const { data: existing } = await sb()!
         .from('cart_items')
         .select('id')
         .eq('cart_id', cartId)
-        .eq('product_id', prod.id);
-
-      if (item.size) query = query.eq('size', item.size);
-      if (item.shirtSize) query = query.eq('shirt_size', item.shirtSize);
-      if (item.pantSize) query = query.eq('pant_size', item.pantSize);
-      if (item.shoeSize) query = query.eq('shoe_size', item.shoeSize);
-
-      const { data: existing } = await query.maybeSingle();
+        .eq('product_id', prod.id)
+        .eq('size', sizeVal)
+        .eq('shirt_size', shirtSizeVal)
+        .eq('pant_size', pantSizeVal)
+        .eq('shoe_size', shoeSizeVal)
+        .eq('selected_color', colorVal)
+        .maybeSingle();
 
       if (existing) {
         const { error } = await sb()!
           .from('cart_items')
           .update({
-            quantity: item.quantity,
+            quantity: Math.max(1, item.quantity),
+            selected_image: item.image || '',
             custom_images: item.custom_images || [],
             updated_at: new Date().toISOString(),
           })
@@ -190,11 +226,13 @@ export const syncService = {
           .insert({
             cart_id: cartId,
             product_id: prod.id,
-            size: item.size || '',
-            shirt_size: item.shirtSize || '',
-            pant_size: item.pantSize || '',
-            shoe_size: item.shoeSize || '',
-            quantity: item.quantity,
+            size: sizeVal,
+            shirt_size: shirtSizeVal,
+            pant_size: pantSizeVal,
+            shoe_size: shoeSizeVal,
+            selected_color: colorVal,
+            selected_image: item.image || '',
+            quantity: Math.max(1, item.quantity),
             custom_images: item.custom_images || [],
             updated_at: new Date().toISOString(),
           });
@@ -215,7 +253,7 @@ export const syncService = {
     }
   },
 
-  async removeCartItem(userId: string, productId: string, size?: string, shirtSize?: string, pantSize?: string, shoeSize?: string) {
+  async removeCartItem(userId: string, productId: string, size?: string, shirtSize?: string, pantSize?: string, shoeSize?: string, color?: string) {
     if (!isSupabaseConfigured()) return;
     if (!await hasActiveSession()) return;
     try {
@@ -239,18 +277,16 @@ export const syncService = {
 
       if (!prod) return;
 
-      let query = sb()!
+      const { error } = await sb()!
         .from('cart_items')
         .delete()
         .eq('cart_id', cartId)
-        .eq('product_id', prod.id);
-
-      if (size) query = query.eq('size', size);
-      if (shirtSize) query = query.eq('shirt_size', shirtSize);
-      if (pantSize) query = query.eq('pant_size', pantSize);
-      if (shoeSize) query = query.eq('shoe_size', shoeSize);
-
-      const { error } = await query;
+        .eq('product_id', prod.id)
+        .eq('size', size || '')
+        .eq('shirt_size', shirtSize || '')
+        .eq('pant_size', pantSize || '')
+        .eq('shoe_size', shoeSize || '')
+        .eq('selected_color', color || '');
 
       if (error) console.error('Error deleting cart item from DB:', error.message);
     } catch (e) {

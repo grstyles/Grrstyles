@@ -180,7 +180,17 @@ export async function POST(req: Request) {
         status: 'Success',
       }]),
       reduceStockTasks,
-      userId ? supabase.from('cart').delete().eq('user_id', userId) : Promise.resolve(),
+      (async () => {
+        if (!userId) return;
+        try {
+          const { data: userCart } = await supabase.from('carts').select('id').eq('user_id', userId).maybeSingle();
+          if (userCart?.id) {
+            await supabase.from('cart_items').delete().eq('cart_id', userCart.id);
+          }
+        } catch (cartErr) {
+          console.warn('Cart clear warning (iOS fallback):', cartErr);
+        }
+      })(),
     ]);
 
     console.log('[iOS-fallback] Order completed:', orderNumber);

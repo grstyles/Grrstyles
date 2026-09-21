@@ -3,8 +3,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Provider, useDispatch, useSelector } from 'react-redux';
 import { store, RootState } from '@/lib/redux/store';
-import { hydrateCart, CartItem } from '@/lib/redux/slices/cartSlice';
-import { hydrateWishlist } from '@/lib/redux/slices/wishlistSlice';
+import { hydrateCart, clearCart, areItemsEqual, CartItem } from '@/lib/redux/slices/cartSlice';
+import { hydrateWishlist, clearWishlist } from '@/lib/redux/slices/wishlistSlice';
 import { syncService } from '@/services/syncService';
 import { productService } from '@/services/productService';
 import ToastContainer from '@/components/ui/ToastContainer';
@@ -18,11 +18,12 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
   const isHydrated = useRef(false);
   const prevCartItemsRef = useRef<CartItem[]>([]);
   const prevWishlistRef = useRef<any[]>([]);
+  const prevUserIdRef = useRef<string | null>(null);
   
   const { user } = useAuth();
   const userId = user?.id || null;
 
-  // 2. Load Cart from localStorage on mount (hydration step 1)
+  // 1. Load Cart from localStorage on mount (hydration step 1)
   useEffect(() => {
     const savedCart = localStorage.getItem('gr_styles_cart');
     if (savedCart) {
@@ -39,8 +40,21 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
     isHydrated.current = true;
   }, [dispatch]);
 
-  // 3. Sync local Redux states with DB on user change (login/logout)
+  // 2. Sync local Redux states with DB on user change (login/logout)
   useEffect(() => {
+    const prevUserId = prevUserIdRef.current;
+    prevUserIdRef.current = userId;
+
+    // Handle user logout: clear private cart & wishlist so they do not leak into another user's session
+    if (prevUserId && !userId) {
+      dispatch(clearCart());
+      dispatch(clearWishlist());
+      localStorage.removeItem('gr_styles_cart');
+      prevCartItemsRef.current = [];
+      prevWishlistRef.current = [];
+      return;
+    }
+
     if (!userId) return;
 
     const performSyncOnLogin = async () => {
@@ -49,7 +63,7 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
       const mergedCart = dbCart.map((item) => ({ ...item }));
 
       for (const localItem of cartItems) {
-        const dbIdx = mergedCart.findIndex((db) => db.id === localItem.id && db.size === localItem.size && db.shirtSize === localItem.shirtSize && db.pantSize === localItem.pantSize && db.shoeSize === localItem.shoeSize);
+        const dbIdx = mergedCart.findIndex((db) => areItemsEqual(db, localItem));
         if (dbIdx !== -1) {
           mergedCart[dbIdx] = {
             ...mergedCart[dbIdx],
@@ -97,9 +111,9 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
     };
 
     performSyncOnLogin();
-  }, [userId]);
+  }, [userId, dispatch]);
 
-  // 4. Track and Sync changes to Cart
+  // 3. Track and Sync changes to Cart
   useEffect(() => {
     if (!isHydrated.current) return;
 
@@ -111,13 +125,10 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Snapshot userId at the time this effect runs.
-    // If the user logs out before the 100ms timer fires, the snapshot
-    // will be null/stale and we bail early — preventing RLS violations.
+    // Snapshot userId at the time this effect runs
     const snapshotUserId = userId;
 
     const syncCartWithDb = async () => {
-      // Re-check: if user signed out before the timer fired, abort.
       if (!snapshotUserId) return;
 
       const prevCart = prevCartItemsRef.current;
@@ -128,9 +139,7 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
       } else {
         // Upsert new or changed quantities
         for (const item of cartItems) {
-          const prevItem = prevCart.find(
-            (p) => p.id === item.id && p.size === item.size && p.shirtSize === item.shirtSize && p.pantSize === item.pantSize && p.shoeSize === item.shoeSize
-          );
+          const prevItem = prevCart.find((p) => areItemsEqual(p, item));
           if (!prevItem || prevItem.quantity !== item.quantity) {
             await syncService.syncCartItem(snapshotUserId, item);
           }
@@ -138,11 +147,17 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
 
         // Delete removed items
         for (const prevItem of prevCart) {
-          const stillExists = cartItems.some(
-            (item) => item.id === prevItem.id && item.size === prevItem.size && item.shirtSize === prevItem.shirtSize && item.pantSize === prevItem.pantSize && item.shoeSize === prevItem.shoeSize
-          );
+          const stillExists = cartItems.some((item) => areItemsEqual(item, prevItem));
           if (!stillExists) {
-            await syncService.removeCartItem(snapshotUserId, prevItem.id, prevItem.size, prevItem.shirtSize, prevItem.pantSize, prevItem.shoeSize);
+            await syncService.removeCartItem(
+              snapshotUserId,
+              prevItem.id,
+              prevItem.size,
+              prevItem.shirtSize,
+              prevItem.pantSize,
+              prevItem.shoeSize,
+              prevItem.color
+            );
           }
         }
       }
@@ -150,7 +165,6 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
       prevCartItemsRef.current = cartItems;
     };
 
-    // Non-blocking deferred sync so DB requests do not contend with route navigation
     const timeoutId = setTimeout(() => {
       syncCartWithDb().catch((err) => console.error('Cart sync error:', err));
     }, 100);
@@ -158,7 +172,7 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timeoutId);
   }, [cartItems, userId]);
 
-  // 5. Track and Sync changes to Wishlist
+  // 4. Track and Sync changes to Wishlist
   useEffect(() => {
     if (!userId) {
       prevWishlistRef.current = wishlistItems;

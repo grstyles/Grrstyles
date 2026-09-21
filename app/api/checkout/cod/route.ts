@@ -254,7 +254,14 @@ export async function POST(req: Request) {
 
     // 4. Clear User's Cart
     if (userId) {
-      await supabase.from('cart').delete().eq('user_id', userId);
+      try {
+        const { data: userCart } = await supabase.from('carts').select('id').eq('user_id', userId).maybeSingle();
+        if (userCart?.id) {
+          await supabase.from('cart_items').delete().eq('cart_id', userCart.id);
+        }
+      } catch (cartErr) {
+        console.warn('Cart clear warning (COD):', cartErr);
+      }
     }
 
     // 5. Evaluate and assign Scratch Card if eligible

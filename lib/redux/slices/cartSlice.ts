@@ -24,6 +24,8 @@ export interface CartItem {
   couponApplicable?: boolean;
   is_coupon_applicable?: boolean;
   coupon_applicable?: boolean;
+  stock?: number;
+  maxStock?: number;
 }
 
 export interface Reward {
@@ -63,6 +65,17 @@ const calculateRewards = (total: number) => {
   return REWARD_TIERS.filter(r => total >= r.threshold).sort((a, b) => b.threshold - a.threshold);
 };
 
+export const areItemsEqual = (a: CartItem, b: { id: string; size?: string; color?: string; shirtSize?: string; pantSize?: string; shoeSize?: string }): boolean => {
+  return (
+    a.id === b.id &&
+    (a.size || '') === (b.size || '') &&
+    (a.shirtSize || '') === (b.shirtSize || '') &&
+    (a.pantSize || '') === (b.pantSize || '') &&
+    (a.shoeSize || '') === (b.shoeSize || '') &&
+    (a.color || '') === (b.color || '')
+  );
+};
+
 const cartSlice = createSlice({
   name: 'cart',
   initialState,
@@ -70,51 +83,37 @@ const cartSlice = createSlice({
     addToCart: (state, action: PayloadAction<CartItem>) => {
       console.log('Redux Action: cart/addToCart');
       console.log('Product data received:', action.payload);
-      console.log('Cart state before update:', current(state));
 
-      const existingItem = state.items.find(
-        (item) =>
-          item.id === action.payload.id &&
-          item.size === action.payload.size &&
-          item.shirtSize === action.payload.shirtSize &&
-          item.pantSize === action.payload.pantSize &&
-          item.shoeSize === action.payload.shoeSize &&
-          item.color === action.payload.color
-      );
+      const existingItem = state.items.find((item) => areItemsEqual(item, action.payload));
+      const incomingQty = Math.max(1, action.payload.quantity || 1);
+      const stockLimit = action.payload.stock ?? action.payload.maxStock ?? existingItem?.stock ?? existingItem?.maxStock;
 
       if (existingItem) {
-        existingItem.quantity += action.payload.quantity;
+        const newQty = existingItem.quantity + incomingQty;
+        existingItem.quantity = stockLimit !== undefined ? Math.min(stockLimit, newQty) : newQty;
+        if (action.payload.stock !== undefined) existingItem.stock = action.payload.stock;
+        if (action.payload.image) existingItem.image = action.payload.image;
+        if (action.payload.discountedPrice) existingItem.discountedPrice = action.payload.discountedPrice;
       } else {
+        const initialQty = stockLimit !== undefined ? Math.min(stockLimit, incomingQty) : incomingQty;
         state.items.push({
           ...action.payload,
+          quantity: initialQty,
           selected: action.payload.selected !== false // default to true
         });
       }
 
-      state.total = state.items.reduce((sum, item) => sum + (item.selected ? item.discountedPrice * item.quantity : 0), 0);
+      state.total = state.items.reduce((sum, item) => sum + (item.selected !== false ? item.discountedPrice * item.quantity : 0), 0);
       state.unlockedRewards = calculateRewards(state.total);
-      console.log('Cart state after update:', current(state));
     },
     removeFromCart: (state, action: PayloadAction<{ id: string; size?: string; color?: string; shirtSize?: string; pantSize?: string; shoeSize?: string }>) => {
       console.log('Redux Action: cart/removeFromCart');
       console.log('Remove details received:', action.payload);
-      console.log('Cart state before update:', current(state));
 
-      state.items = state.items.filter(
-        (item) =>
-          !(
-            item.id === action.payload.id &&
-            item.size === action.payload.size &&
-            item.shirtSize === action.payload.shirtSize &&
-            item.pantSize === action.payload.pantSize &&
-            item.shoeSize === action.payload.shoeSize &&
-            item.color === action.payload.color
-          )
-      );
+      state.items = state.items.filter((item) => !areItemsEqual(item, action.payload));
 
-      state.total = state.items.reduce((sum, item) => sum + (item.selected ? item.discountedPrice * item.quantity : 0), 0);
+      state.total = state.items.reduce((sum, item) => sum + (item.selected !== false ? item.discountedPrice * item.quantity : 0), 0);
       state.unlockedRewards = calculateRewards(state.total);
-      console.log('Cart state after update:', current(state));
     },
     updateQuantity: (
       state,
@@ -122,65 +121,49 @@ const cartSlice = createSlice({
     ) => {
       console.log('Redux Action: cart/updateQuantity');
       console.log('Update details received:', action.payload);
-      console.log('Cart state before update:', current(state));
 
-      const item = state.items.find(
-        (item) =>
-          item.id === action.payload.id &&
-          item.size === action.payload.size &&
-          item.shirtSize === action.payload.shirtSize &&
-          item.pantSize === action.payload.pantSize &&
-          item.shoeSize === action.payload.shoeSize &&
-          item.color === action.payload.color
-      );
+      const item = state.items.find((item) => areItemsEqual(item, action.payload));
 
       if (item) {
-        item.quantity = action.payload.quantity;
-        state.total = state.items.reduce((sum, item) => sum + (item.selected ? item.discountedPrice * item.quantity : 0), 0);
+        const stockLimit = item.stock ?? item.maxStock;
+        const requestedQty = Math.max(1, action.payload.quantity);
+        item.quantity = stockLimit !== undefined ? Math.min(stockLimit, requestedQty) : requestedQty;
+        state.total = state.items.reduce((sum, item) => sum + (item.selected !== false ? item.discountedPrice * item.quantity : 0), 0);
         state.unlockedRewards = calculateRewards(state.total);
       }
-
-      console.log('Cart state after update:', current(state));
     },
     toggleSelectItem: (
       state,
       action: PayloadAction<{ id: string; size?: string; color?: string; shirtSize?: string; pantSize?: string; shoeSize?: string }>
     ) => {
-      const item = state.items.find(
-        (item) =>
-          item.id === action.payload.id &&
-          item.size === action.payload.size &&
-          item.shirtSize === action.payload.shirtSize &&
-          item.pantSize === action.payload.pantSize &&
-          item.shoeSize === action.payload.shoeSize &&
-          item.color === action.payload.color
-      );
+      const item = state.items.find((item) => areItemsEqual(item, action.payload));
       if (item) {
         item.selected = item.selected === false ? true : false;
-        state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+        state.total = state.items.reduce((sum, item) => sum + (item.selected !== false ? item.discountedPrice * item.quantity : 0), 0);
+        state.unlockedRewards = calculateRewards(state.total);
       }
     },
     toggleSelectAllItems: (state, action: PayloadAction<{ selected: boolean }>) => {
       state.items.forEach((item) => {
         item.selected = action.payload.selected;
       });
-      state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+      state.total = state.items.reduce((sum, item) => sum + (item.selected !== false ? item.discountedPrice * item.quantity : 0), 0);
+      state.unlockedRewards = calculateRewards(state.total);
     },
     clearCart: (state) => {
       console.log('Redux Action: cart/clearCart');
-      console.log('Cart state before update:', current(state));
 
       state.items = [];
       state.total = 0;
       state.discountValue = 0;
       state.discountType = 'percentage';
       state.appliedPromo = '';
-
-      console.log('Cart state after update:', current(state));
+      state.unlockedRewards = [];
     },
     clearSelectedItems: (state) => {
       state.items = state.items.filter((item) => item.selected === false);
-      state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
+      state.total = state.items.reduce((sum, item) => sum + (item.selected !== false ? item.discountedPrice * item.quantity : 0), 0);
+      state.unlockedRewards = calculateRewards(state.total);
       if (state.items.length === 0) {
         state.discountValue = 0;
         state.discountType = 'percentage';
@@ -189,17 +172,14 @@ const cartSlice = createSlice({
     },
     hydrateCart: (state, action: PayloadAction<CartItem[]>) => {
       console.log('Redux Action: cart/hydrateCart');
-      console.log('Hydration data received:', action.payload);
-      console.log('Cart state before update:', current(state));
 
-      // Make sure hydrated items have a selected property (defaulting to true if not defined)
-      state.items = action.payload.map(item => ({
+      state.items = (action.payload || []).map(item => ({
         ...item,
+        quantity: Math.max(1, item.quantity || 1),
         selected: item.selected !== false
       }));
-      state.total = state.items.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
-
-      console.log('Cart state after update:', current(state));
+      state.total = state.items.reduce((sum, item) => sum + (item.selected !== false ? item.discountedPrice * item.quantity : 0), 0);
+      state.unlockedRewards = calculateRewards(state.total);
     },
     applyPromo: (state, action: PayloadAction<{ code: string; discountValue: number; discountType: 'percentage' | 'flat' }>) => {
       state.discountValue = action.payload.discountValue;
@@ -231,4 +211,5 @@ export const {
   setDirectCheckoutItem,
 } = cartSlice.actions;
 export default cartSlice.reducer;
+
 

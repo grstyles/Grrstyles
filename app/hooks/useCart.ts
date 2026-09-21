@@ -17,6 +17,7 @@ interface AddToCartParams {
   quantity: number;
   size?: string;
   color?: string;
+  stock?: number;
   deliveryChargeEnabled?: boolean;
   deliveryCharge?: number;
   delivery_charge_enabled?: boolean;
@@ -49,7 +50,7 @@ export const useCart = () => {
         price: params.price,
         discountedPrice: params.discountedPrice || params.price,
         image: params.image,
-        quantity: params.quantity || 1,
+        quantity: Math.max(1, params.quantity || 1),
         size: params.size,
         color: params.color,
         deliveryChargeEnabled,
@@ -59,6 +60,7 @@ export const useCart = () => {
         couponApplicable,
         is_coupon_applicable: couponApplicable,
         coupon_applicable: couponApplicable,
+        stock: params.stock,
       })
     );
 

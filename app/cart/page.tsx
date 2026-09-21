@@ -169,12 +169,21 @@ export default function CartPage() {
     [cartItems]
   );
 
-  const promoDiscountValue = useMemo(() => 
-    discountType === 'percentage' 
-      ? Math.round((subtotal * discountValue) / 100) 
-      : discountValue,
-    [discountType, discountValue, subtotal]
+  const eligibleSubtotal = useMemo(() => 
+    selectedItems.reduce((sum, item) => {
+      const isApplicable = item.couponApplicable !== false && (item as any).is_coupon_applicable !== false && (item as any).coupon_applicable !== false;
+      return isApplicable ? sum + (item.discountedPrice || item.price || 0) * item.quantity : sum;
+    }, 0),
+    [selectedItems]
   );
+
+  const promoDiscountValue = useMemo(() => {
+    if (!appliedCode || discountValue <= 0) return 0;
+    const raw = discountType === 'percentage' 
+      ? Math.round((eligibleSubtotal * discountValue) / 100) 
+      : discountValue;
+    return Math.min(eligibleSubtotal, raw);
+  }, [appliedCode, discountType, discountValue, eligibleSubtotal]);
 
   const totals = useMemo(() => 
     calculateOrderTotals(selectedItems, shippingConfig, promoDiscountValue),
@@ -232,7 +241,7 @@ export default function CartPage() {
         }
       } else {
         const productIds = selectedItems.flatMap(item => [item.id, item.slug, item.sku].filter(Boolean) as string[]);
-        const result = await repo.coupons.apply(code, { subtotal, productIds });
+        const result = await repo.coupons.apply(code, { subtotal: eligibleSubtotal, productIds });
         if (result.valid) {
           dispatch(applyPromo({ code, discountValue: result.discountValue, discountType: result.discountType }));
           setPromoError('');
@@ -258,6 +267,11 @@ export default function CartPage() {
 
   const handleQuantityChange = (item: CartItem, newQty: number) => {
     if (newQty < 1) return;
+    const stockLimit = item.stock ?? item.maxStock;
+    if (stockLimit !== undefined && newQty > stockLimit) {
+      dispatch(addToast({ message: `Only ${stockLimit} items available in stock.`, type: 'info' }));
+      return;
+    }
     dispatch(updateQuantity({
       id: item.id,
       size: item.size, 
@@ -340,7 +354,7 @@ export default function CartPage() {
               aria-label="Select all items"
             />
             <label htmlFor="select-all" className="text-xs font-semibold text-gray-700 cursor-pointer select-none">
-              Select All (Option B)
+              Select All
             </label>
           </div>
         </div>
@@ -355,6 +369,7 @@ export default function CartPage() {
             <AnimatePresence mode="popLayout">
               {cartItems.map((item, index) => {
                 const uniqueKey = `${item.id}-${item.size || ''}-${item.shirtSize || ''}-${item.pantSize || ''}-${item.shoeSize || ''}-${item.color || ''}-${index}`;
+                const isMaxStock = item.stock !== undefined && item.quantity >= item.stock;
                 return (
                   <motion.div
                     key={uniqueKey}
@@ -374,7 +389,6 @@ export default function CartPage() {
                         onChange={() => handleToggleSelect(item)}
                         className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black accent-black cursor-pointer flex-shrink-0 mr-1"
                         aria-label={`Select ${item.title}`}
-                        title="Select for checkout (Option A)"
                       />
                       <div className="relative w-20 h-24 sm:w-24 sm:h-32 bg-[#f5f0eb] rounded-xl overflow-hidden flex-shrink-0">
                         <Image
@@ -407,6 +421,12 @@ export default function CartPage() {
                           )}
                         </div>
 
+                        {item.stock !== undefined && item.stock <= 5 && (
+                          <p className="text-[10px] font-medium text-amber-600 mb-1">
+                            Only {item.stock} left in stock
+                          </p>
+                        )}
+
                         {/* Price Details mobile only */}
                         <div className="sm:hidden flex items-baseline gap-2 mt-1">
                           <span className="text-sm font-bold text-gray-800">{formatPrice(item.discountedPrice)}</span>
@@ -432,7 +452,7 @@ export default function CartPage() {
                         <div className="flex items-center border border-gray-200 rounded-xl bg-white">
                           <button
                             onClick={() => handleQuantityChange(item, item.quantity - 1)}
-                            className="px-2.5 py-1.5 hover:bg-gray-50 text-gray-400 hover:text-black transition-colors rounded-l-xl"
+                            className="px-2.5 py-1.5 hover:bg-gray-50 text-gray-400 hover:text-black transition-colors rounded-l-xl disabled:opacity-40 disabled:cursor-not-allowed"
                             disabled={item.quantity <= 1}
                             aria-label="Decrease quantity"
                           >
@@ -440,8 +460,16 @@ export default function CartPage() {
                           </button>
                           <span className="w-8 text-center text-xs font-semibold text-gray-800">{item.quantity}</span>
                           <button
-                            onClick={() => handleQuantityChange(item, item.quantity + 1)}
-                            className="px-2.5 py-1.5 hover:bg-gray-50 text-gray-400 hover:text-black transition-colors rounded-r-xl"
+                            onClick={() => {
+                              const stockLimit = item.stock ?? item.maxStock;
+                              if (stockLimit !== undefined && item.quantity >= stockLimit) {
+                                dispatch(addToast({ message: `Maximum available stock reached (${stockLimit})`, type: 'info' }));
+                                return;
+                              }
+                              handleQuantityChange(item, item.quantity + 1);
+                            }}
+                            className="px-2.5 py-1.5 hover:bg-gray-50 text-gray-400 hover:text-black transition-colors rounded-r-xl disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled={isMaxStock}
                             aria-label="Increase quantity"
                           >
                             <Plus size={12} />
@@ -554,7 +582,7 @@ export default function CartPage() {
                   </p>
                 )}
                 <div className="flex justify-between">
-                  <span>Estimated GST (12%)</span>
+                  <span>Tax</span>
                   <span className="text-gray-800 font-medium">{formatPrice(tax)}</span>
                 </div>
               </div>

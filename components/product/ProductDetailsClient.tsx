@@ -252,6 +252,27 @@ export default function ProductDetailsClient({
     }
   }, [wishlistItems, product]);
 
+  // Calculate available stock for current selection
+  const availableStock = useMemo(() => {
+    if (!product) return 0;
+    if (isCombo) {
+      if (selectedShirtSize && selectedPantSize) {
+        const sStock = Number(product.shirtStock?.[selectedShirtSize] ?? 0);
+        const pStock = Number(product.pantStock?.[selectedPantSize] ?? 0);
+        return Math.min(sStock, pStock);
+      }
+      return Number(product.overallStock ?? product.stockCount ?? 0);
+    }
+    if (hasGeneric) {
+      if (selectedSize) {
+        const sStock = product.shirtStock?.[selectedSize] ?? product.pantStock?.[selectedSize] ?? product.shoeStock?.[selectedSize];
+        if (sStock !== undefined) return Number(sStock);
+      }
+      return Number(product.overallStock ?? product.stockCount ?? 0);
+    }
+    return Number(product.overallStock ?? product.stockCount ?? 99);
+  }, [product, isCombo, hasGeneric, selectedShirtSize, selectedPantSize, selectedSize]);
+
   const handleWishlist = () => {
     if (!product) return;
     if (isWishlisted) {
@@ -274,6 +295,8 @@ export default function ProductDetailsClient({
   };
 
   const handleAddToCart = () => {
+    if (isAdding) return;
+
     if (isCombo) {
       if (!selectedShirtSize) {
         setSizeWarning(true);
@@ -293,50 +316,89 @@ export default function ProductDetailsClient({
       }
     }
     setSizeWarning(false);
-    setIsAdding(true);
+
+    if (availableStock <= 0) {
+      dispatch(addToast({ message: "This item is currently out of stock.", type: "error" }));
+      return;
+    }
 
     const finalSize = isCombo 
       ? `Shirt: ${selectedShirtSize} / Pant: ${selectedPantSize}` 
       : (selectedSize || undefined);
 
+    const shirtSizeVal = isCombo ? (selectedShirtSize || undefined) : (isShirt ? selectedSize || undefined : undefined);
+    const pantSizeVal = isCombo ? (selectedPantSize || undefined) : (isPant ? selectedSize || undefined : undefined);
+    const shoeSizeVal = isShoe ? (selectedSize || undefined) : undefined;
+    const colorVal = selectedColor || undefined;
+
+    // Check quantity already in cart
+    const existingInCart = cartItems.find((item) =>
+      item.id === product.id &&
+      (item.size || '') === (finalSize || '') &&
+      (item.shirtSize || '') === (shirtSizeVal || '') &&
+      (item.pantSize || '') === (pantSizeVal || '') &&
+      (item.shoeSize || '') === (shoeSizeVal || '') &&
+      (item.color || '') === (colorVal || '')
+    );
+
+    const currentQtyInCart = existingInCart ? existingInCart.quantity : 0;
+    if (currentQtyInCart + quantity > availableStock) {
+      const remainingAllowed = Math.max(0, availableStock - currentQtyInCart);
+      if (remainingAllowed === 0) {
+        dispatch(addToast({
+          message: `Cannot add more. You already have all ${availableStock} in your cart.`,
+          type: "error"
+        }));
+      } else {
+        dispatch(addToast({
+          message: `Cannot add ${quantity}. Only ${remainingAllowed} more available (${currentQtyInCart} in cart).`,
+          type: "error"
+        }));
+      }
+      return;
+    }
+
+    setIsAdding(true);
+
     const isCouponEnabled = product.couponApplicable !== false && 
       (product as any).is_coupon_applicable !== false && 
       (product as any).coupon_applicable !== false;
 
-    setTimeout(() => {
-      dispatch(
-        addToCart({
-          id: product.id,
-          slug: product.slug,
-          title: product.title,
-          brand: product.brand,
-          price: product.price,
-          discountedPrice: product.discountedPrice || product.price,
-          image: product.imageColors && product.imageColors.length > 0 
-            ? (product.imageColors.find((c: any) => c.color_name === selectedColor)?.image_url || product.imageColors[0].image_url) 
-            : (product.images && product.images.length > 0 ? product.images[0] : ''),
-          quantity: quantity,
-          size: finalSize,
-          shirtSize: isCombo ? (selectedShirtSize || undefined) : (isShirt ? selectedSize || undefined : undefined),
-          pantSize: isCombo ? (selectedPantSize || undefined) : (isPant ? selectedSize || undefined : undefined),
-          shoeSize: isShoe ? (selectedSize || undefined) : undefined,
-          color: selectedColor || undefined,
-          sku: product.sku || undefined,
-          deliveryChargeEnabled: product.deliveryChargeEnabled ?? product.delivery_charge_enabled ?? false,
-          deliveryCharge: product.deliveryCharge ?? product.delivery_charge ?? 0,
-          couponApplicable: isCouponEnabled,
-          is_coupon_applicable: isCouponEnabled,
-          coupon_applicable: isCouponEnabled,
-        }),
-      );
-      dispatch(addToast({ message: `${product.title} added to cart! 🛒`, type: "success" }));
-      setIsAdding(false);
-      setAddedSuccess(true);
-      setTimeout(() => setAddedSuccess(false), 2000);
-    }, 800);
+    dispatch(
+      addToCart({
+        id: product.id,
+        slug: product.slug,
+        title: product.title,
+        brand: product.brand,
+        price: product.price,
+        discountedPrice: product.discountedPrice || product.price,
+        image: product.imageColors && product.imageColors.length > 0 
+          ? (product.imageColors.find((c: any) => c.color_name === selectedColor)?.image_url || product.imageColors[0].image_url) 
+          : (product.images && product.images.length > 0 ? product.images[0] : ''),
+        quantity: quantity,
+        size: finalSize,
+        shirtSize: shirtSizeVal,
+        pantSize: pantSizeVal,
+        shoeSize: shoeSizeVal,
+        color: colorVal,
+        sku: product.sku || undefined,
+        deliveryChargeEnabled: product.deliveryChargeEnabled ?? product.delivery_charge_enabled ?? false,
+        deliveryCharge: product.deliveryCharge ?? product.delivery_charge ?? 0,
+        couponApplicable: isCouponEnabled,
+        is_coupon_applicable: isCouponEnabled,
+        coupon_applicable: isCouponEnabled,
+        stock: availableStock,
+      }),
+    );
+    dispatch(addToast({ message: `${product.title} added to cart! 🛒`, type: "success" }));
+    setIsAdding(false);
+    setAddedSuccess(true);
+    setTimeout(() => setAddedSuccess(false), 2000);
   };
 
   const handleBuyNow = () => {
+    if (isBuying) return;
+
     if (isCombo) {
       if (!selectedShirtSize) {
         setSizeWarning(true);
@@ -356,6 +418,17 @@ export default function ProductDetailsClient({
       }
     }
     setSizeWarning(false);
+
+    if (availableStock <= 0) {
+      dispatch(addToast({ message: "This item is currently out of stock.", type: "error" }));
+      return;
+    }
+
+    if (quantity > availableStock) {
+      dispatch(addToast({ message: `Only ${availableStock} items in stock.`, type: "error" }));
+      return;
+    }
+
     setIsBuying(true);
 
     const finalSize = isCombo 
@@ -366,37 +439,36 @@ export default function ProductDetailsClient({
       (product as any).is_coupon_applicable !== false && 
       (product as any).coupon_applicable !== false;
 
-    setTimeout(() => {
-      dispatch(
-        setDirectCheckoutItem({
-          selected: true,
-          id: product.id,
-          slug: product.slug,
-          title: product.title,
-          brand: product.brand,
-          price: product.price,
-          discountedPrice: product.discountedPrice || product.price,
-          image: product.imageColors && product.imageColors.length > 0 
-            ? (product.imageColors.find((c: any) => c.color_name === selectedColor)?.image_url || product.imageColors[0].image_url) 
-            : (product.images && product.images.length > 0 ? product.images[0] : ''),
-          quantity: quantity,
-          size: finalSize,
-          shirtSize: isCombo ? (selectedShirtSize || undefined) : (isShirt ? selectedSize || undefined : undefined),
-          pantSize: isCombo ? (selectedPantSize || undefined) : (isPant ? selectedSize || undefined : undefined),
-          shoeSize: isShoe ? (selectedSize || undefined) : undefined,
-          color: selectedColor || undefined,
-          sku: product.sku || undefined,
-          deliveryChargeEnabled: product.deliveryChargeEnabled ?? product.delivery_charge_enabled ?? false,
-          deliveryCharge: product.deliveryCharge ?? product.delivery_charge ?? 0,
-          couponApplicable: isCouponEnabled,
-          is_coupon_applicable: isCouponEnabled,
-          coupon_applicable: isCouponEnabled,
-        }),
-      );
-      
-      setIsBuying(false);
-      router.push('/checkout');
-    }, 600);
+    dispatch(
+      setDirectCheckoutItem({
+        selected: true,
+        id: product.id,
+        slug: product.slug,
+        title: product.title,
+        brand: product.brand,
+        price: product.price,
+        discountedPrice: product.discountedPrice || product.price,
+        image: product.imageColors && product.imageColors.length > 0 
+          ? (product.imageColors.find((c: any) => c.color_name === selectedColor)?.image_url || product.imageColors[0].image_url) 
+          : (product.images && product.images.length > 0 ? product.images[0] : ''),
+        quantity: quantity,
+        size: finalSize,
+        shirtSize: isCombo ? (selectedShirtSize || undefined) : (isShirt ? selectedSize || undefined : undefined),
+        pantSize: isCombo ? (selectedPantSize || undefined) : (isPant ? selectedSize || undefined : undefined),
+        shoeSize: isShoe ? (selectedSize || undefined) : undefined,
+        color: selectedColor || undefined,
+        sku: product.sku || undefined,
+        deliveryChargeEnabled: product.deliveryChargeEnabled ?? product.delivery_charge_enabled ?? false,
+        deliveryCharge: product.deliveryCharge ?? product.delivery_charge ?? 0,
+        couponApplicable: isCouponEnabled,
+        is_coupon_applicable: isCouponEnabled,
+        coupon_applicable: isCouponEnabled,
+        stock: availableStock,
+      }),
+    );
+    
+    setIsBuying(false);
+    router.push('/checkout');
   };
 
   const getColorHex = (colorName: string) => {
@@ -801,21 +873,42 @@ export default function ProductDetailsClient({
 
             {/* Quantity */}
             <div className="mb-5">
-              <span className="text-sm font-medium text-[#1a1a1a] block mb-2">
-                Quantity
-              </span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-[#1a1a1a]">
+                  Quantity
+                </span>
+                {availableStock > 0 && availableStock <= 5 && (
+                  <span className="text-xs font-semibold text-amber-600 animate-pulse">
+                    Only {availableStock} left in stock
+                  </span>
+                )}
+                {availableStock === 0 && (
+                  <span className="text-xs font-semibold text-red-500">
+                    Out of stock
+                  </span>
+                )}
+              </div>
               <div className="flex items-center border border-gray-200 rounded-xl w-36">
                 <button
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  className="px-4 py-3 hover:bg-gray-100 text-gray-400 hover:text-black transition-colors rounded-l-xl"
-                  disabled={quantity <= 1}
+                  className="px-4 py-3 hover:bg-gray-100 text-gray-400 hover:text-black transition-colors rounded-l-xl disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={quantity <= 1 || availableStock === 0}
+                  aria-label="Decrease quantity"
                 >
                   <Minus size={16} />
                 </button>
-                <span className="flex-1 text-center text-sm font-medium">{quantity}</span>
+                <span className="flex-1 text-center text-sm font-medium">{availableStock === 0 ? 0 : quantity}</span>
                 <button
-                  onClick={() => setQuantity((q) => q + 1)}
-                  className="px-4 py-3 hover:bg-gray-100 text-gray-400 hover:text-black transition-colors rounded-r-xl"
+                  onClick={() => {
+                    if (quantity >= availableStock) {
+                      dispatch(addToast({ message: `Only ${availableStock} items in stock.`, type: "info" }));
+                      return;
+                    }
+                    setQuantity((q) => Math.min(availableStock, q + 1));
+                  }}
+                  className="px-4 py-3 hover:bg-gray-100 text-gray-400 hover:text-black transition-colors rounded-r-xl disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={quantity >= availableStock || availableStock === 0}
+                  aria-label="Increase quantity"
                 >
                   <Plus size={16} />
                 </button>

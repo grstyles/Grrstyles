@@ -303,9 +303,17 @@ export async function POST(req: Request) {
       })
     );
 
-    const clearCartTask = userId
-      ? supabase.from('cart').delete().eq('user_id', userId)
-      : Promise.resolve();
+    const clearCartTask = (async () => {
+      if (!userId) return;
+      try {
+        const { data: userCart } = await supabase.from('carts').select('id').eq('user_id', userId).maybeSingle();
+        if (userCart?.id) {
+          await supabase.from('cart_items').delete().eq('cart_id', userCart.id);
+        }
+      } catch (cartErr) {
+        console.warn('Cart clear warning (Razorpay):', cartErr);
+      }
+    })();
 
     const scratchCardTask = repo.scratchCards.evaluateAndAssignForOrder({
       id: order.id,

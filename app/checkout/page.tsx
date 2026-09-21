@@ -1479,7 +1479,7 @@ export default function CheckoutPage() {
             {!shippingConfig.freeDelivery && shipping > 0 && shippingConfig.freeShippingAbove > 0 && total < shippingConfig.freeShippingAbove && (
               <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                 <p className="text-xs text-gray-600">
-                  Add ₹{formatPrice(shippingConfig.freeShippingAbove - total)} more for free shipping.
+                  Add {formatPrice(shippingConfig.freeShippingAbove - total)} more for free shipping.
                 </p>
               </div>
             )}

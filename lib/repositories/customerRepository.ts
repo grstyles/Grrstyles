@@ -341,28 +341,40 @@ export class SupabaseCustomerRepository implements ICustomerRepository {
     // 3. Fetch Wishlist Items
     const wishlist: CustomerWishlistItem[] = [];
     if (summary.accountStatus !== 'Guest') {
-      const { data: wishRows } = await db
-        .from('wishlist')
-        .select('*, products(id, name, slug, selling_price, images)')
-        .eq('user_id', summary.id);
+      try {
+        const { data: userWishlist } = await db
+          .from('wishlists')
+          .select('id')
+          .eq('user_id', summary.id)
+          .maybeSingle();
 
-      if (wishRows) {
-        wishRows.forEach((w: any) => {
-          const p = w.products;
-          if (p) {
-            let img = '';
-            if (Array.isArray(p.images) && p.images.length > 0) img = p.images[0];
-            wishlist.push({
-              id: w.id,
-              productId: p.id,
-              productName: p.name,
-              slug: p.slug,
-              price: Number(p.selling_price || 0),
-              image: img,
-              addedAt: new Date(w.created_at || Date.now()).toISOString().split('T')[0],
+        if (userWishlist?.id) {
+          const { data: wishRows } = await db
+            .from('wishlist_items')
+            .select('id, created_at, products(id, name, slug, selling_price, images)')
+            .eq('wishlist_id', userWishlist.id);
+
+          if (wishRows) {
+            wishRows.forEach((w: any) => {
+              const p = w.products;
+              if (p) {
+                let img = '';
+                if (Array.isArray(p.images) && p.images.length > 0) img = p.images[0];
+                wishlist.push({
+                  id: w.id,
+                  productId: p.id,
+                  productName: p.name,
+                  slug: p.slug,
+                  price: Number(p.selling_price || 0),
+                  image: img,
+                  addedAt: new Date(w.created_at || Date.now()).toISOString().split('T')[0],
+                });
+              }
             });
           }
-        });
+        }
+      } catch (wishErr) {
+        console.warn('[CustomerRepo] Wishlist fetch error:', wishErr);
       }
     }
 
