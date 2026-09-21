@@ -51,41 +51,15 @@ function PaymentMethodBadge({ method }: { method: string }) {
 export default function AdminOrdersPage() {
   const router = useRouter();
   const dispatch = useDispatch();
-  const { user, requireAuth } = useAuth();
-  const [authChecked, setAuthChecked] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { user } = useAuth();
   const [orders, setOrders] = useState<MockOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('All');
   const [filterPaymentStatus, setFilterPaymentStatus] = useState<string>('All');
-
-  useEffect(() => {
-    requireAuth(
-      () => { setAuthChecked(true); },
-      () => { router.push('/login'); }
-    );
-  }, [requireAuth, router]);
-
-  useEffect(() => {
-    if (!authChecked || !user) return;
-    const checkAdmin = async () => {
-      try {
-        const adminStatus = await repo.users.isAdmin(user.id);
-        if (!adminStatus) {
-          dispatch(addToast({ message: 'Access denied. Admin only.', type: 'error' }));
-          router.push('/profile');
-          return;
-        }
-        setIsAdmin(true);
-      } catch (error) {
-        console.error('Admin check failed:', error);
-        router.push('/profile');
-      }
-    };
-    checkAdmin();
-  }, [authChecked, user, router, dispatch]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 15;
 
   const loadOrders = async () => {
     setLoading(true);
@@ -100,8 +74,8 @@ export default function AdminOrdersPage() {
   };
 
   useEffect(() => {
-    if (isAdmin) loadOrders();
-  }, [isAdmin]);
+    loadOrders();
+  }, []);
 
   const filteredOrders = orders.filter((o) => {
     const matchesStatus = filterStatus === 'All' || o.status === filterStatus;
@@ -121,18 +95,18 @@ export default function AdminOrdersPage() {
     return matchesStatus && matchesPaymentMethod && matchesPaymentStatus && matchesSearch;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / ITEMS_PER_PAGE));
+  const paginatedOrders = filteredOrders.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  const handleFilterChange = (setter: (val: string) => void, val: string) => {
+    setter(val);
+    setCurrentPage(1);
+  };
+
   const statusCounts = STATUS_OPTIONS.reduce((acc, s) => {
     acc[s] = orders.filter((o) => o.status === s).length;
     return acc;
   }, {} as Record<string, number>);
-
-  if (!authChecked || !isAdmin) {
-    return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   if (loading) {
     return (
@@ -225,8 +199,8 @@ export default function AdminOrdersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
-              {filteredOrders.length > 0 ? (
-                filteredOrders.map((order) => (
+              {paginatedOrders.length > 0 ? (
+                paginatedOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50 transition-colors group">
                     <td className="p-4 font-mono font-medium text-gray-900">{order.orderNumber || order.id.slice(0, 8)}</td>
                     <td className="p-4">
@@ -270,6 +244,34 @@ export default function AdminOrdersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+            <span className="text-xs text-gray-500">
+              Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredOrders.length)} of {filteredOrders.length} orders
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg disabled:opacity-40 hover:border-black bg-white transition-colors"
+              >
+                Previous
+              </button>
+              <span className="text-xs font-semibold px-2">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg disabled:opacity-40 hover:border-black bg-white transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

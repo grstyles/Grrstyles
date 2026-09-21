@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { repo } from '@/lib/repositories';
+import { mapDbProduct } from '@/services/productService';
 import { calculateOrderTotals } from '@/lib/utils/shipping';
 import { validateAndCalculateCoupon } from '@/lib/utils/couponEngine';
 
@@ -21,14 +22,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'This endpoint is for Cash on Delivery only' }, { status: 400 });
     }
 
-    // Fetch product details for pricing
-    const productIds = cartItems.map((i: any) => i.id || i.productId);
-    const productPromises = productIds.map((id: string) => repo.products.getById(id));
-    const products = await Promise.all(productPromises);
+    // Batch fetch product details for pricing in 1 single query
+    const rawProductIds = cartItems.map((i: any) => i.id || i.productId).filter(Boolean);
+    const productIds = Array.from(new Set(rawProductIds)) as string[];
+    const { data: dbProducts } = await supabase
+      .from('products')
+      .select('*, product_coupons(coupon_code)')
+      .in('id', productIds);
+
     const productMap: Record<string, any> = {};
-    products.forEach((p) => {
-      if (p) productMap[p.id] = p;
-    });
+    if (dbProducts && dbProducts.length > 0) {
+      dbProducts.forEach((p) => {
+        const mapped = mapDbProduct(p);
+        productMap[mapped.id] = mapped;
+      });
+    } else {
+      const products = await Promise.all(productIds.map((id: string) => repo.products.getById(id)));
+      products.forEach((p) => {
+        if (p) productMap[p.id] = p;
+      });
+    }
 
     const itemsForCalculation = cartItems.map((item: any) => {
       const product = productMap[item.id || item.productId];

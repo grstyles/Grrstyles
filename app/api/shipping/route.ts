@@ -4,13 +4,16 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 60;
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+const CACHE_HEADERS = {
+  'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+};
 
 export async function GET() {
   try {
@@ -31,9 +34,7 @@ export async function GET() {
           codEnabled: true,
         },
         {
-          headers: {
-            'Cache-Control': 'no-store, max-age=0, must-revalidate',
-          },
+          headers: CACHE_HEADERS,
         }
       );
     }
@@ -49,9 +50,7 @@ export async function GET() {
             : true,
       },
       {
-        headers: {
-          'Cache-Control': 'no-store, max-age=0, must-revalidate',
-        },
+        headers: CACHE_HEADERS,
       }
     );
   } catch (e: any) {
@@ -64,9 +63,7 @@ export async function GET() {
         codEnabled: true,
       },
       {
-        headers: {
-          'Cache-Control': 'no-store, max-age=0, must-revalidate',
-        },
+        headers: CACHE_HEADERS,
       }
     );
   }

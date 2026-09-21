@@ -2,7 +2,7 @@
 import HomeClient from "./HomeClient";
 import { repo } from "@/lib/repositories";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function Home() {
   try {

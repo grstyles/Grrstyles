@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Menu, X, Search, Heart, ShoppingBag, User } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/lib/redux/store';
 import { toggleMobileMenu, closeMobileMenu, toggleSearch, closeSearch } from '@/lib/redux/slices/uiSlice';
@@ -114,9 +115,12 @@ export default function Navbar() {
             >
               {/* Icon/Logo Image */}
               <div className="relative w-9 h-9 sm:w-[46px] sm:h-[46px] md:w-[54px] md:h-[54px]">
-                <img
+                <Image
                   src="/images/image5.jpeg"
                   alt="GR Styles Logo"
+                  width={54}
+                  height={54}
+                  priority
                   className="w-full h-full object-contain"
                 />
               </div>

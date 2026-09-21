@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function SummerBanner() {
   return (
@@ -8,11 +9,14 @@ export default function SummerBanner() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-10">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-0 rounded-lg overflow-hidden">
           {/* Left Side - Image */}
-          <div className="h-64 md:h-80 bg-gray-200">
-            <img
+          <div className="relative h-64 md:h-80 bg-gray-200">
+            <Image
               src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&q=80"
               alt="Summer essentials"
-              className="w-full h-full object-cover"
+              fill
+              loading="lazy"
+              sizes="(max-width: 768px) 100vw, 50vw"
+              className="object-cover"
             />
           </div>
 

@@ -22,7 +22,8 @@ import {
   FolderTree,
   Truck,
 } from 'lucide-react';
-import { authService, UserProfile } from '@/services/authService';
+import { UserProfile } from '@/services/authService';
+import { useAuth } from '@/lib/context/AuthContext';
 import { addToast } from '@/lib/redux/slices/uiSlice';
 import { useDispatch } from 'react-redux';
 import { config } from '@/lib/config';
@@ -32,24 +33,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const dispatch = useDispatch();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
+  const { user, loading, logout } = useAuth();
 
   useEffect(() => {
-    async function checkAuth() {
-      const currentUser = await authService.getCurrentUser();
-      if (!currentUser || currentUser.role !== 'admin') {
+    if (!loading) {
+      if (!user || user.role !== 'admin') {
         router.replace('/login');
-        return;
       }
-      setUser(currentUser);
-      setAuthChecked(true);
     }
-    checkAuth();
-  }, [router]);
+  }, [user, loading, router]);
 
   const handleLogout = async () => {
-    await authService.logout();
+    await logout();
     dispatch(addToast({ message: 'Logged out from admin panel.', type: 'info' }));
     router.push('/login');
   };
@@ -69,7 +64,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Settings', href: '/admin/settings', icon: Settings },
   ];
 
-  if (!authChecked) {
+  if (loading || !user || user.role !== 'admin') {
     return (
       <div className="min-h-screen bg-[#f9f7f5] flex items-center justify-center">
         <div className="text-center space-y-4">

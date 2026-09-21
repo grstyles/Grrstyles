@@ -6,7 +6,7 @@ export const metadata = {
   description: 'Elevate your everyday style with premium essentials designed for confidence, comfort, and sophistication.',
 };
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function MensPage() {
   const products = await repo.products.getAll();

@@ -87,26 +87,11 @@ function DbSyncHydrator({ children }: { children: React.ReactNode }) {
       prevCartItemsRef.current = mergedCart;
       localStorage.setItem('gr_styles_cart', JSON.stringify(mergedCart));
 
-      // Wishlist Hydration
-      const dbWishlistIds = await syncService.fetchDbWishlist(userId);
-      if (dbWishlistIds.length > 0) {
-        const wishlistItemsToLoad = [];
-        for (const id of dbWishlistIds) {
-          const prod = await productService.getProductBySlug(id);
-          if (prod) {
-            wishlistItemsToLoad.push({
-              id: prod.id,
-              slug: prod.slug,
-              title: prod.name,
-              brand: prod.brand,
-              price: prod.mrpPrice,
-              discountedPrice: prod.sellingPrice,
-              image: prod.images?.[0] || '/placeholder.png'
-            });
-          }
-        }
-        dispatch(hydrateWishlist(wishlistItemsToLoad));
-        prevWishlistRef.current = wishlistItemsToLoad;
+      // Wishlist Hydration (single fast batch query)
+      const dbWishlistItems = await syncService.fetchDbWishlistItems(userId);
+      if (dbWishlistItems.length > 0) {
+        dispatch(hydrateWishlist(dbWishlistItems));
+        prevWishlistRef.current = dbWishlistItems;
       }
     };
 

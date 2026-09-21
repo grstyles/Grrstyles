@@ -90,7 +90,7 @@ export class SupabaseCustomerRepository implements ICustomerRepository {
     // 2. Fetch Profiles
     let { data: profiles, error: profileErr } = await db
       .from('profiles')
-      .select('*')
+      .select('id, email, full_name, role, avatar_url, created_at')
       .order('created_at', { ascending: false });
 
     if (profileErr) {
@@ -104,7 +104,7 @@ export class SupabaseCustomerRepository implements ICustomerRepository {
     // 3. Fetch Orders
     const { data: orders, error: orderErr } = await db
       .from('orders')
-      .select('*')
+      .select('id, order_number, user_id, customer_name, customer_email, customer_phone, total_amount, status, created_at, shipping_address')
       .order('created_at', { ascending: false });
 
     if (orderErr) {
@@ -114,7 +114,7 @@ export class SupabaseCustomerRepository implements ICustomerRepository {
     const allOrders = orders || [];
 
     // 4. Fetch User Addresses to extract phones
-    const { data: addresses } = await db.from('user_addresses').select('*');
+    const { data: addresses } = await db.from('user_addresses').select('user_id, phone');
     const addressMap: Record<string, string> = {};
     if (addresses) {
       for (const addr of addresses) {

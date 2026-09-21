@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
 import { repo } from '@/lib/repositories';
+import { mapDbProduct } from '@/services/productService';
 import { calculateOrderTotals } from '@/lib/utils/shipping';
 import { validateAndCalculateCoupon } from '@/lib/utils/couponEngine';
 import { createClient } from '@supabase/supabase-js';
@@ -32,14 +33,26 @@ export async function POST(req: Request) {
       );
     }
 
-    // Fetch product details for pricing
-    const productIds = items.map((i: any) => i.productId);
-    const productPromises = productIds.map((id) => repo.products.getById(id));
-    const products = await Promise.all(productPromises);
+    // Batch fetch product details for pricing in 1 single query
+    const rawProductIds = items.map((i: any) => i.productId).filter(Boolean);
+    const productIds = Array.from(new Set(rawProductIds)) as string[];
+    const { data: dbProducts } = await supabase
+      .from('products')
+      .select('*, product_coupons(coupon_code)')
+      .in('id', productIds);
+
     const productMap: Record<string, any> = {};
-    products.forEach((p) => {
-      if (p) productMap[p.id] = p;
-    });
+    if (dbProducts && dbProducts.length > 0) {
+      dbProducts.forEach((p) => {
+        const mapped = mapDbProduct(p);
+        productMap[mapped.id] = mapped;
+      });
+    } else {
+      const products = await Promise.all(productIds.map((id) => repo.products.getById(id)));
+      products.forEach((p) => {
+        if (p) productMap[p.id] = p;
+      });
+    }
 
     // Prepare items with correct database product prices
     const itemsForCalculation = items.map((item: any) => {

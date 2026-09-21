@@ -156,10 +156,10 @@ export default function ProductDetailsClient({
   };
 
   useEffect(() => {
-    if (product) {
+    if (product?.id) {
       loadReviews();
     }
-  }, [product]);
+  }, [product?.id]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {

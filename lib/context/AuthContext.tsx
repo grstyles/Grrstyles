@@ -47,44 +47,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-  // Initialize session once on mount
-  const initOnce = async () => {
     if (pathname === '/auth/callback') {
       setLoading(false);
       return;
     }
-    setLoading(true);
-    try {
-      // Small delay for session readiness
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      const currentUser = await authService.getCurrentUser();
-      setUser(currentUser);
-    } catch (error) {
-      console.error('[AuthProvider] Failed to initialize session:', error);
-      setUser(null);
-    } finally {
-      // Always clear loading — no matter what happens above
-      setLoading(false);
-    }
-  };
-  initOnce();
 
-  if (isSupabaseConfigured() && supabase) {
+    if (!isSupabaseConfigured() || !supabase) {
+      setLoading(false);
+      return;
+    }
+
+    let isMounted = true;
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[AuthProvider] Auth event:', event, session?.user?.email);
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED') && session?.user) {
-        // Silently update user profile on auth state change/refresh without resetting route
-        const currentUser = await authService.getCurrentUser();
-        setUser(currentUser);
-        console.log('[AuthProvider] User set:', currentUser?.email);
+      if (session?.user) {
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+          try {
+            const currentUser = await authService.getCurrentUser();
+            if (isMounted) setUser(currentUser);
+          } catch (err) {
+            console.warn('[AuthProvider] Failed to get current user:', err);
+          }
+        }
       } else if (event === 'SIGNED_OUT') {
-        console.log('[AuthProvider] User signed out');
-        setUser(null);
+        if (isMounted) setUser(null);
       }
+      if (isMounted) setLoading(false);
     });
-    return () => subscription.unsubscribe();
-  }
-}, []);
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const login = async (email: string, password?: string) => {
     try {

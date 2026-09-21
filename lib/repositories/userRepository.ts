@@ -56,7 +56,7 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
     // 1. Try to fetch profile by Supabase auth user ID
     const { data: profileById } = await authClient
       .from('profiles')
-      .select('*')
+      .select('id, full_name, role, avatar_url')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -74,7 +74,7 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
     if (user.email) {
       const { data: profileByEmail } = await authClient
         .from('profiles')
-        .select('*')
+        .select('id, email, full_name, role, avatar_url')
         .eq('email', user.email)
         .maybeSingle();
 
@@ -108,7 +108,7 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
         }],
         { onConflict: 'id', ignoreDuplicates: false }
       )
-      .select('*')
+      .select('id, email, full_name, role, avatar_url')
       .single();
 
     if (error) {
@@ -457,7 +457,7 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
     try {
       const { data } = await authClient
         .from('profiles')
-        .select('*')
+        .select('id, email, full_name, role')
         .eq('email', email)
         .maybeSingle();
       if (!data) return null;
@@ -492,7 +492,7 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
     const authClient = this.getAuthClient();
     if (!authClient) return [];
     try {
-      const { data } = await authClient.from('profiles').select('*');
+      const { data } = await authClient.from('profiles').select('id, email, full_name, role');
       if (!data) return [];
       return data.map((d: any) => ({
         id: d.id,
@@ -512,7 +512,7 @@ private async buildUserProfile(user: any, authClient: any): Promise<UserProfile 
     try {
       const { data, error } = await authClient
         .from('user_addresses')
-        .select('*')
+        .select('id, user_id, full_name, phone, email, address_line_1, address_line_2, city, state, pincode, country, is_default, created_at')
         .eq('user_id', userId)
         .order('is_default', { ascending: false })
         .order('created_at', { ascending: false });

@@ -156,6 +156,8 @@ export default function AdminProductsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCat, setFilterCat] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
 
   const [dbCategories, setDbCategories] = useState<
     { id: string; title: string; enabled: boolean }[]
@@ -966,6 +968,10 @@ export default function AdminProductsPage() {
     }
   };
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterCat]);
+
   // Filtered products
   const filteredProducts = items.filter((p) => {
     const matchesCat = filterCat === "All" || p.category === filterCat;
@@ -977,6 +983,12 @@ export default function AdminProductsPage() {
       (p.category || "").toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
   });
+
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE) || 1;
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  );
 
   // Active Size View Flags
   const showCombo =
@@ -1953,7 +1965,9 @@ export default function AdminProductsPage() {
           </div>
 
           <span className="text-xs text-gray-400 font-mono">
-            Showing {filteredProducts.length} of {items.length} Products
+            Showing {filteredProducts.length === 0 ? 0 : (currentPage - 1) * ITEMS_PER_PAGE + 1} -{" "}
+            {Math.min(currentPage * ITEMS_PER_PAGE, filteredProducts.length)} of{" "}
+            {filteredProducts.length} Products
           </span>
         </div>
 
@@ -1972,7 +1986,7 @@ export default function AdminProductsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredProducts.map((product) => {
+                {paginatedProducts.map((product) => {
                   const productSizes = getProductSizes(product);
                   const isDeliveryEnabled = !!(
                     product.deliveryChargeEnabled ??
@@ -2101,10 +2115,10 @@ export default function AdminProductsPage() {
                           )}
                           {(product.metadata?.dealOfDay ||
                             product.metadata?.comboOffer) && (
-                            <span className="bg-purple-50 text-purple-600 text-[9px] font-bold px-2 py-0.5 rounded-full">
-                              ⚡ COMBO
-                            </span>
-                          )}
+                              <span className="bg-purple-50 text-purple-600 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                                ⚡ COMBO
+                              </span>
+                            )}
                         </div>
                       </td>
                       <td className="p-4 pr-6 text-right">
@@ -2158,6 +2172,36 @@ export default function AdminProductsPage() {
                 })}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+                <span className="text-xs text-gray-500">
+                  Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} -{" "}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredProducts.length)} of{" "}
+                  {filteredProducts.length} products
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg disabled:opacity-40 hover:border-black bg-white transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-xs font-semibold px-2">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg disabled:opacity-40 hover:border-black bg-white transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center py-16">

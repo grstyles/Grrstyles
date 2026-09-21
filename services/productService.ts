@@ -189,7 +189,7 @@ export const productService = {
 
     const { data, error } = await sb()
       .from('products')
-      .select('*')
+      .select('id, sku, name, slug, category, collection, color, images, image_colors, sizes, shirt_stock, pant_stock, shoe_stock, overall_stock, mrp, selling_price, description, featured, trending, new_arrival, deal_of_day, brand, delivery_charge_enabled, delivery_charge, is_coupon_applicable, coupon_applicable')
       .eq('category', current.category)
       .neq('slug', slug)
       .limit(4);

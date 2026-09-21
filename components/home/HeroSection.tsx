@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 export default function HeroSection() {
   return (
@@ -62,11 +63,14 @@ export default function HeroSection() {
       </div>
 
       {/* Image Right Side */}
-      <div className="hidden md:block absolute right-0 top-0 h-full w-1/2">
-        <img
+      <div className="hidden md:block absolute right-0 top-0 h-full w-1/2 relative">
+        <Image
           src="/images/heroes/home_hero_banner.png"
           alt="Model wearing collection"
-          className="w-full h-full object-cover"
+          fill
+          priority
+          sizes="50vw"
+          className="object-cover"
         />
       </div>
     </section>

@@ -10,14 +10,25 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
-  experimental: {
-    cpus: 1,
-    workerThreads: false,
-  },
-
   images: {
-    unoptimized: true,
-    qualities: [75, 95],
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    qualities: [75, 85],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+    ],
   },
 
   turbopack: {

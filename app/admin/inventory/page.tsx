@@ -166,6 +166,13 @@ export default function AdminInventoryPage() {
     }
   };
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterLowStock]);
+
   const filteredList = inventoryList.filter((item) => {
     const matchesSearch =
       !searchQuery ||
@@ -183,6 +190,12 @@ export default function AdminInventoryPage() {
 
     return matchesSearch && (filterLowStock ? isLow : true);
   });
+
+  const totalPages = Math.ceil(filteredList.length / ITEMS_PER_PAGE) || 1;
+  const paginatedList = filteredList.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  );
 
   const lowStockCount = inventoryList.filter((item) => {
     const total = (item.sizeStock ?? []).reduce(
@@ -275,7 +288,7 @@ export default function AdminInventoryPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-xs">
-                {filteredList.map((item) => {
+                {paginatedList.map((item) => {
                   const isEditing = editingId === item.id;
                   const aggregateStock = (item.sizeStock ?? []).reduce(
                     (acc: number, ss: any) => acc + ss.stock,
@@ -459,6 +472,36 @@ export default function AdminInventoryPage() {
                 })}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+                <span className="text-xs text-gray-500">
+                  Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} -{" "}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredList.length)} of{" "}
+                  {filteredList.length} products
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg disabled:opacity-40 hover:border-black bg-white transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-xs font-semibold px-2">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg disabled:opacity-40 hover:border-black bg-white transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center py-16">

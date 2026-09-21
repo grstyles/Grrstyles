@@ -9,6 +9,8 @@ interface ProductPageProps {
   }>;
 }
 
+export const revalidate = 60;
+
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const resolvedParams = await params;
   const slug = resolvedParams?.slug;

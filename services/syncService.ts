@@ -113,7 +113,25 @@ export const syncService = {
           selected_image,
           quantity,
           custom_images,
-          products (*)
+          products (
+            id,
+            sku,
+            name,
+            slug,
+            category,
+            brand,
+            description,
+            mrp,
+            selling_price,
+            images,
+            color,
+            overall_stock,
+            stock,
+            delivery_charge_enabled,
+            delivery_charge,
+            is_coupon_applicable,
+            coupon_applicable
+          )
         `)
         .eq('cart_id', cartId);
 
@@ -123,8 +141,8 @@ export const syncService = {
         .filter((item: any) => item && item.products)
         .map((item: any) => {
           const p = item.products;
-          const mrp = Number(p.mrp ?? p.mrp_price ?? p.price ?? 0);
-          const selling = Number(p.selling_price ?? p.discountedPrice ?? mrp);
+          const mrp = Number(p.mrp ?? p.selling_price ?? 0);
+          const selling = Number(p.selling_price ?? mrp);
           const isCouponEnabled = p.is_coupon_applicable !== false && 
             p.coupon_applicable !== false && 
             p.is_coupon_applicable !== 0 && 
@@ -153,12 +171,12 @@ export const syncService = {
             couponApplicable: isCouponEnabled,
             is_coupon_applicable: isCouponEnabled,
             coupon_applicable: isCouponEnabled,
-            stock: Number(p.overall_stock ?? p.stockCount ?? p.stock ?? 99),
+            stock: Number(p.overall_stock ?? p.stock ?? 99),
             selected: true,
           };
         });
-    } catch (e) {
-      console.error('Error fetching cart from DB:', e);
+    } catch (e: any) {
+      console.error('Error fetching cart from DB:', e?.message || e);
       return [];
     }
   },
@@ -330,6 +348,55 @@ export const syncService = {
       return data.map((item: any) => item.product_id).filter(Boolean);
     } catch (e) {
       console.error('Error fetching wishlist from DB:', e);
+      return [];
+    }
+  },
+
+  async fetchDbWishlistItems(userId: string): Promise<any[]> {
+    if (!isSupabaseConfigured()) return [];
+    if (!await hasActiveSession()) return [];
+    try {
+      const wishlistId = await this.getOrCreateWishlistId(userId);
+      if (!wishlistId) return [];
+
+      const { data, error } = await sb()!
+        .from('wishlist_items')
+        .select(`
+          id,
+          product_id,
+          products (
+            id,
+            sku,
+            name,
+            slug,
+            category,
+            brand,
+            mrp,
+            selling_price,
+            images
+          )
+        `)
+        .eq('wishlist_id', wishlistId);
+
+      if (error || !data) return [];
+      return data
+        .filter((item: any) => item && item.products)
+        .map((item: any) => {
+          const p = item.products;
+          const mrp = Number(p.mrp ?? p.selling_price ?? 0);
+          const selling = Number(p.selling_price ?? mrp);
+          return {
+            id: p.id,
+            slug: p.slug,
+            title: p.name,
+            brand: p.brand || 'GR STYLES',
+            price: mrp,
+            discountedPrice: selling,
+            image: p.images?.[0] || '/placeholder.png',
+          };
+        });
+    } catch (e: any) {
+      console.error('Error fetching wishlist items from DB:', e?.message || e);
       return [];
     }
   },

@@ -321,7 +321,7 @@ export class SupabaseProductRepository implements IProductRepository {
   async getInventory(): Promise<InventoryEntry[]> {
     const { data, error } = await sb()
       .from('products')
-      .select('*')
+      .select('id, name, slug, category, sku, sizes, shirt_stock, pant_stock, shoe_stock, overall_stock, images, image_colors')
       .order('category');
     if (error) throw error;
 

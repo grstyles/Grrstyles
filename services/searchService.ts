@@ -20,7 +20,7 @@ export const searchService = {
     const cleanQuery = query.trim();
     const { data, error } = await sb()
       .from('products')
-      .select('*')
+      .select('id, name, slug, category, collection, color, images, sizes, mrp, selling_price, brand, is_coupon_applicable, coupon_applicable, delivery_charge_enabled, delivery_charge, overall_stock, image_colors')
       .or(`name.ilike.%${cleanQuery}%,description.ilike.%${cleanQuery}%,category.ilike.%${cleanQuery}%,brand.ilike.%${cleanQuery}%`);
 
     if (error) throw error;
@@ -47,7 +47,7 @@ export const searchService = {
     const cleanQuery = query.trim();
     const { data, error } = await sb()
       .from('products')
-      .select('*')
+      .select('id, name, slug, category, brand, mrp, selling_price, images, image_colors')
       .or(`name.ilike.%${cleanQuery}%,brand.ilike.%${cleanQuery}%,category.ilike.%${cleanQuery}%`)
       .limit(10);
 
