@@ -1,3 +1,4 @@
+import { useState } from 'react';
 const fs = require('fs');
 const path = './app/product/[slug]/page.tsx';
 

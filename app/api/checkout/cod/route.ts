@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { repo } from '@/lib/repositories';
-import { mapDbProduct } from '@/services/productService';
 import { calculateOrderTotals } from '@/lib/utils/shipping';
 import { validateAndCalculateCoupon } from '@/lib/utils/couponEngine';
 
@@ -22,26 +21,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'This endpoint is for Cash on Delivery only' }, { status: 400 });
     }
 
-    // Batch fetch product details for pricing in 1 single query
-    const rawProductIds = cartItems.map((i: any) => i.id || i.productId).filter(Boolean);
-    const productIds = Array.from(new Set(rawProductIds)) as string[];
-    const { data: dbProducts } = await supabase
-      .from('products')
-      .select('*, product_coupons(coupon_code)')
-      .in('id', productIds);
-
+    // Fetch product details for pricing
+    const productIds = cartItems.map((i: any) => i.id || i.productId);
+    const productPromises = productIds.map((id: string) => repo.products.getById(id));
+    const products = await Promise.all(productPromises);
     const productMap: Record<string, any> = {};
-    if (dbProducts && dbProducts.length > 0) {
-      dbProducts.forEach((p) => {
-        const mapped = mapDbProduct(p);
-        productMap[mapped.id] = mapped;
-      });
-    } else {
-      const products = await Promise.all(productIds.map((id: string) => repo.products.getById(id)));
-      products.forEach((p) => {
-        if (p) productMap[p.id] = p;
-      });
-    }
+    products.forEach((p) => {
+      if (p) productMap[p.id] = p;
+    });
 
     const itemsForCalculation = cartItems.map((item: any) => {
       const product = productMap[item.id || item.productId];
@@ -139,24 +126,12 @@ export async function POST(req: Request) {
     // Shipping configuration — use the service-role client (bypasses RLS).
     const { data: shippingRow, error: shippingErr } = await supabase
       .from('shipping_settings')
-      .select('shipping_charge, free_shipping_above, free_delivery, cod_enabled')
+      .select('shipping_charge, free_shipping_above, free_delivery')
       .eq('id', 1)
       .single();
 
     if (shippingErr) {
       console.warn('[cod] shipping_settings query error, using safe defaults:', shippingErr.message);
-    }
-
-    const isCodEnabled =
-      shippingRow?.cod_enabled !== undefined && shippingRow?.cod_enabled !== null
-        ? Boolean(shippingRow.cod_enabled)
-        : true;
-
-    if (!isCodEnabled) {
-      return NextResponse.json(
-        { success: false, error: 'Cash on Delivery is currently disabled. Please choose an online payment method.' },
-        { status: 400 }
-      );
     }
 
     const shippingCfg = {
@@ -267,14 +242,7 @@ export async function POST(req: Request) {
 
     // 4. Clear User's Cart
     if (userId) {
-      try {
-        const { data: userCart } = await supabase.from('carts').select('id').eq('user_id', userId).maybeSingle();
-        if (userCart?.id) {
-          await supabase.from('cart_items').delete().eq('cart_id', userCart.id);
-        }
-      } catch (cartErr) {
-        console.warn('Cart clear warning (COD):', cartErr);
-      }
+      await supabase.from('cart').delete().eq('user_id', userId);
     }
 
     // 5. Evaluate and assign Scratch Card if eligible
